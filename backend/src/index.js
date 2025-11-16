@@ -1,12 +1,12 @@
+// Load environment variables first, before any other imports
+import './config/env.js';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import listingRoutes from './routes/listing.js';
-
-// Load environment variables
-dotenv.config();
+import paymentRoutes from './routes/payment.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -47,17 +47,23 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api', listingRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     name: 'HypeChain Backend API',
     version: '1.0.0',
-    description: 'AI-Powered NFT Marketplace Backend',
+    description: 'AI-Powered NFT Marketplace Backend with Solana Pay',
     endpoints: {
       health: '/health',
       createListing: 'POST /api/create-listing',
-      listingInfo: 'GET /api/create-listing'
+      listingInfo: 'GET /api/create-listing',
+      createPayment: 'POST /api/payments/create',
+      verifyPayment: 'POST /api/payments/verify',
+      paymentHistory: 'GET /api/payments/history/:walletAddress',
+      walletBalance: 'GET /api/payments/balance/:walletAddress',
+      getListingDetails: 'GET /api/payments/listing/:listingId'
     },
     documentation: 'https://github.com/alin9661/HypeChain'
   });
@@ -97,11 +103,18 @@ app.listen(PORT, () => {
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   console.log('\n✨ Available endpoints:');
-  console.log(`   GET  /                     - API information`);
-  console.log(`   GET  /health               - Health check`);
-  console.log(`   POST /api/create-listing   - Create NFT listing`);
-  console.log(`   GET  /api/create-listing   - Listing endpoint info`);
-  console.log('\n🎯 Ready to mint NFTs!\n');
+  console.log(`   GET  /                              - API information`);
+  console.log(`   GET  /health                        - Health check`);
+  console.log('\n📦 Listing Endpoints:');
+  console.log(`   POST /api/create-listing            - Create NFT listing`);
+  console.log(`   GET  /api/create-listing            - Listing endpoint info`);
+  console.log('\n💰 Payment Endpoints (Solana Pay):');
+  console.log(`   POST /api/payments/create           - Create payment request`);
+  console.log(`   POST /api/payments/verify           - Verify payment`);
+  console.log(`   GET  /api/payments/history/:wallet  - Transaction history`);
+  console.log(`   GET  /api/payments/balance/:wallet  - Wallet balance`);
+  console.log(`   GET  /api/payments/listing/:id      - Get listing details`);
+  console.log('\n🎯 Ready to mint NFTs and process payments!\n');
 });
 
 // Graceful shutdown
