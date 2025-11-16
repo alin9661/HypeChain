@@ -1,23 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { CreateListingRequest, CreateListingResponse } from '@/types/listing';
-import { isValidSolanaPublicKey, validateBase64Image } from '@/utils/validation';
+import express from 'express';
+import { isValidSolanaPublicKey, validateBase64Image } from '../utils/validation.js';
 import {
   verifyProduct,
   generateMarketingImage,
   downloadImageAsBase64
-} from '@/services/openrouter';
-import { createAndUploadNFTMetadata } from '@/services/ipfs';
-import { mintNFT, listItemOnMarketplace } from '@/services/solana';
+} from '../services/openrouter.js';
+import { createAndUploadNFTMetadata } from '../services/ipfs.js';
+import { mintNFT, listItemOnMarketplace } from '../services/solana.js';
+
+const router = express.Router();
 
 /**
  * POST /api/create-listing
  * Creates a new NFT listing with AI verification and image generation
  */
-export async function POST(request: NextRequest) {
+router.post('/create-listing', async (req, res) => {
   try {
-    // Parse request body
-    const body: CreateListingRequest = await request.json();
-    const { userWallet, productImage, optionalPriceSol } = body;
+    const { userWallet, productImage, optionalPriceSol } = req.body;
 
     console.log('🚀 Starting listing creation process...');
 
@@ -26,21 +25,19 @@ export async function POST(request: NextRequest) {
     // ========================================
     console.log('📋 Step 0: Validating request...');
 
-    // Validate wallet address
     if (!userWallet || !isValidSolanaPublicKey(userWallet)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid Solana wallet address' } as CreateListingResponse,
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Solana wallet address'
+      });
     }
 
-    // Validate image
     const imageValidation = validateBase64Image(productImage);
     if (!imageValidation.valid) {
-      return NextResponse.json(
-        { success: false, error: imageValidation.error || 'Invalid image' } as CreateListingResponse,
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: imageValidation.error || 'Invalid image'
+      });
     }
 
     console.log('✅ Request validation passed');
@@ -59,15 +56,11 @@ export async function POST(request: NextRequest) {
       liveness_score: verificationResult.liveness_check.liveness_score
     });
 
-    // Check liveness score
     if (verificationResult.liveness_check.liveness_score < 50) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Image appears inauthentic: ${verificationResult.liveness_check.reason}`
-        } as CreateListingResponse,
-        { status: 400 }
-      );
+      return res.status(400).json({
+        success: false,
+        error: `Image appears inauthentic: ${verificationResult.liveness_check.reason}`
+      });
     }
 
     console.log('✅ Product verification passed');
@@ -83,7 +76,6 @@ export async function POST(request: NextRequest) {
 
     console.log('Generated image URL:', generatedImageUrl);
 
-    // Download generated image as base64
     const generatedImageBase64 = await downloadImageAsBase64(generatedImageUrl);
 
     console.log('✅ Marketing image generated successfully');
@@ -93,7 +85,6 @@ export async function POST(request: NextRequest) {
     // ========================================
     console.log('📦 Step 3: Uploading to IPFS and minting NFT...');
 
-    // Create product name from verification
     const productName = [
       verificationResult.product_identification.brand,
       verificationResult.product_identification.model,
@@ -102,12 +93,10 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' ') || verificationResult.full_description.substring(0, 50);
 
-    // Create description
     const description = `Authentic ${verificationResult.product_identification.brand || 'luxury'} ${
       verificationResult.product_identification.model || 'item'
     } verified and minted on Solana. ${verificationResult.full_description}`;
 
-    // Create attributes
     const attributes = [
       {
         trait_type: 'Brand',
@@ -131,7 +120,6 @@ export async function POST(request: NextRequest) {
       }
     ];
 
-    // Upload to IPFS
     const { metadataUri, imageUrl } = await createAndUploadNFTMetadata(
       generatedImageBase64,
       productName,
@@ -142,7 +130,6 @@ export async function POST(request: NextRequest) {
     console.log('Metadata URI:', metadataUri);
     console.log('Image URL:', imageUrl);
 
-    // Mint NFT
     const nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
 
     console.log('NFT minted:', nftMintAddress);
@@ -166,13 +153,12 @@ export async function POST(request: NextRequest) {
       console.log('✅ Item listed on marketplace');
     } catch (listingError) {
       console.warn('Marketplace listing failed (contract may not be deployed):', listingError);
-      // Continue even if marketplace listing fails - NFT is still minted
     }
 
     // ========================================
     // Return Success Response
     // ========================================
-    const successResponse: CreateListingResponse = {
+    const successResponse = {
       success: true,
       nft_mint_address: nftMintAddress,
       nft_image_url: imageUrl,
@@ -183,25 +169,25 @@ export async function POST(request: NextRequest) {
     console.log('🎉 Listing created successfully!');
     console.log('Response:', successResponse);
 
-    return NextResponse.json(successResponse, { status: 200 });
+    return res.status(200).json(successResponse);
   } catch (error) {
     console.error('❌ Error creating listing:', error);
 
-    const errorResponse: CreateListingResponse = {
+    const errorResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
 
-    return NextResponse.json(errorResponse, { status: 500 });
+    return res.status(500).json(errorResponse);
   }
-}
+});
 
 /**
  * GET /api/create-listing
  * Returns API information
  */
-export async function GET() {
-  return NextResponse.json({
+router.get('/create-listing', (req, res) => {
+  res.json({
     endpoint: '/api/create-listing',
     method: 'POST',
     description: 'Create a new NFT listing with AI verification',
@@ -216,4 +202,6 @@ export async function GET() {
       optionalPriceSol: 0.5
     }
   });
-}
+});
+
+export default router;

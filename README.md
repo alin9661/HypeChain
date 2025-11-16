@@ -24,6 +24,13 @@ HypeChain is a next-generation NFT marketplace that uses AI to verify product au
 
 ### 1. Install Dependencies
 
+**Backend:**
+```bash
+cd backend
+npm install
+```
+
+**Frontend:**
 ```bash
 cd frontend
 pnpm install
@@ -31,9 +38,12 @@ pnpm install
 
 ### 2. Environment Setup
 
-Create `frontend/.env.local`:
+**Backend** (`backend/.env`):
 
 ```bash
+PORT=3001
+FRONTEND_URL=http://localhost:3000
+
 # OpenRouter API (for AI verification & image generation)
 OPENROUTER_API_KEY=your_key_here
 
@@ -51,6 +61,12 @@ SERVER_WALLET_PRIVATE_KEY=your_base58_private_key
 MARKETPLACE_PROGRAM_ID=your_program_id
 ```
 
+**Frontend** (`frontend/.env.local`):
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
 ### 3. Deploy Smart Contract
 
 ```bash
@@ -65,14 +81,21 @@ anchor deploy --provider.cluster devnet
 # Copy the Program ID to your .env file
 ```
 
-### 4. Run Frontend
+### 4. Run Services
 
+**Backend** (Terminal 1):
+```bash
+cd backend
+npm run dev
+```
+Server runs on `http://localhost:3001`
+
+**Frontend** (Terminal 2):
 ```bash
 cd frontend
 pnpm dev
 ```
-
-Visit `http://localhost:3000`
+App runs on `http://localhost:3000`
 
 ## 🔌 API Usage
 
@@ -151,24 +174,28 @@ Creates a new NFT listing with AI verification.
 
 ```
 HackNYU 2025/
-├── frontend/
+├── frontend/                             # Next.js frontend
 │   ├── src/
-│   │   ├── app/
-│   │   │   └── api/
-│   │   │       └── create-listing/
-│   │   │           └── route.ts          # Main API endpoint
-│   │   ├── services/
-│   │   │   ├── openrouter.ts            # AI services
-│   │   │   ├── ipfs.ts                  # IPFS uploads
-│   │   │   └── solana.ts                # NFT minting
-│   │   ├── types/
-│   │   │   └── listing.ts               # TypeScript types
-│   │   └── utils/
-│   │       └── validation.ts            # Input validation
-│   ├── package.json
-│   └── .env.local
+│   │   ├── app/                         # Next.js pages
+│   │   ├── components/                  # React components
+│   │   └── lib/                         # Utilities
+│   └── package.json
 │
-└── contracts/
+├── backend/                              # Express.js API server
+│   ├── src/
+│   │   ├── index.js                     # Server entry point
+│   │   ├── routes/
+│   │   │   └── listing.js               # API routes
+│   │   ├── services/
+│   │   │   ├── openrouter.js            # AI services
+│   │   │   ├── ipfs.js                  # IPFS uploads
+│   │   │   └── solana.js                # NFT minting
+│   │   └── utils/
+│   │       └── validation.js            # Input validation
+│   ├── package.json
+│   └── .env
+│
+└── contracts/                            # Solana smart contracts
     ├── programs/
     │   └── hypechain-marketplace/
     │       ├── src/
