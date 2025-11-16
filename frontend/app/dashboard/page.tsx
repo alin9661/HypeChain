@@ -203,61 +203,68 @@ export default function Dashboard() {
       {/* Top Bar */}
       <div className="border-b border-border bg-card">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-between gap-4">
-            {/* Search */}
-            <div className="flex-1 max-w-md relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search NFTs by Name"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-lg text-sm text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-6">
+            {/* Left: View Mode + Sort Controls */}
+            <div className="flex items-center gap-3">
+              {/* View Mode */}
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1" role="group" aria-label="View mode toggle">
+                <button
+                  onClick={() => setViewMode('grid-large')}
+                  className={`p-2 rounded ${viewMode === 'grid-large' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
+                  aria-label="Large grid view"
+                >
+                  <Grid3x3 className="w-4 h-4 text-foreground" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid-medium')}
+                  className={`p-2 rounded ${viewMode === 'grid-medium' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
+                  aria-label="Medium grid view"
+                >
+                  <LayoutGrid className="w-4 h-4 text-foreground" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid-small')}
+                  className={`p-2 rounded ${viewMode === 'grid-small' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
+                  aria-label="Small grid view"
+                >
+                  <Rows3 className="w-4 h-4 text-foreground" />
+                </button>
+              </div>
+
+              {/* Sort */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-4 py-2 bg-card border border-border rounded-lg text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary hover:bg-accent transition"
+                aria-label="Sort products"
+              >
+                <option value="price-low">price (low to high)</option>
+                <option value="price-high">price (high to low)</option>
+                <option value="rarity-low">rarity (low to high)</option>
+                <option value="rarity-high">rarity (high to low)</option>
+              </select>
             </div>
 
-            {/* Traits Filter */}
-            <button className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-sm font-mono text-foreground hover:bg-accent transition">
-              <span className="text-muted-foreground">🎨</span>
-              Traits
-            </button>
-
-            {/* View Mode */}
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('grid-large')}
-                className={`p-2 rounded ${viewMode === 'grid-large' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
-              >
-                <Grid3x3 className="w-4 h-4 text-foreground" />
-              </button>
-              <button
-                onClick={() => setViewMode('grid-medium')}
-                className={`p-2 rounded ${viewMode === 'grid-medium' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
-              >
-                <LayoutGrid className="w-4 h-4 text-foreground" />
-              </button>
-              <button
-                onClick={() => setViewMode('grid-small')}
-                className={`p-2 rounded ${viewMode === 'grid-small' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
-              >
-                <Rows3 className="w-4 h-4 text-foreground" />
-              </button>
+            {/* Center: Search */}
+            <div className="flex justify-center">
+              <div className="relative w-full max-w-lg">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search NFTs by Name"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-lg text-sm text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition"
+                  aria-label="Search NFTs"
+                />
+              </div>
             </div>
 
-            {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-4 py-2 bg-card border border-border rounded-lg text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            {/* Right: Close Button */}
+            <button
+              className="p-2 hover:bg-accent rounded-lg transition"
+              aria-label="Close dashboard"
             >
-              <option value="price-low">price (low to high)</option>
-              <option value="price-high">price (high to low)</option>
-              <option value="rarity-low">rarity (low to high)</option>
-              <option value="rarity-high">rarity (high to low)</option>
-            </select>
-
-            {/* Close Button */}
-            <button className="p-2 hover:bg-accent rounded-lg transition">
               <X className="w-5 h-5 text-foreground" />
             </button>
           </div>
