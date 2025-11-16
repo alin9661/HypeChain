@@ -55,3 +55,11 @@ yarn-error.log*
 .turbo
 *.sublime-project
 *.sublime-workspace
+
+# Anchor / Solana
+**/target/
+**/test-ledger/
+**/.anchor/
+**/deploy/
+*.so
+Cargo.lock
