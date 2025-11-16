@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard,
+  Store,
+  FolderOpen,
   Activity,
-  Settings,
   Menu,
   X,
   ChevronLeft
@@ -14,9 +14,9 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Recent Activities', href: '/activities', icon: Activity },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Marketplace', href: '/marketplace', icon: Store },
+  { name: 'Collections', href: '/collections', icon: FolderOpen },
+  { name: 'Activities', href: '/activities', icon: Activity },
 ]
 
 interface SidebarProps {

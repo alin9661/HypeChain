@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Search, Grid3x3, LayoutGrid, Rows3, X, DollarSign } from 'lucide-react'
 import Image from 'next/image'
-import { AppLayout } from '@/components/app-layout'
+import { Navigation } from '@/components/navigation'
 
 interface Product {
   id: number
@@ -176,8 +176,29 @@ export default function Dashboard() {
     'grid-small': 'grid-cols-3 md:grid-cols-5 lg:grid-cols-6'
   }
 
+  const dashboardNavItems = [
+    { name: 'Dashboard', href: '/dashboard' },
+    { name: 'Activities', href: '/activities' },
+    { name: 'Settings', href: '/settings' },
+    { name: 'Marketplace', href: '/marketplace' },
+  ]
+
   return (
-    <AppLayout>
+    <>
+      <Navigation items={dashboardNavItems} showConnectWallet={true} />
+
+      {/* Mini Hero Section */}
+      <div className="pt-24 md:pt-32 pb-8 bg-black border-b border-border">
+        <div className="container mx-auto px-4 md:px-8">
+          <h1 className="text-4xl md:text-5xl font-bold font-mono text-white mb-3">
+            NFT Marketplace
+          </h1>
+          <p className="text-lg font-mono text-white/60">
+            Discover, collect, and trade exclusive NFTs
+          </p>
+        </div>
+      </div>
+
       <div className="min-h-screen bg-background font-mono">
       {/* Top Bar */}
       <div className="border-b border-border bg-card">
@@ -417,6 +438,6 @@ export default function Dashboard() {
         </div>
       </div>
       </div>
-    </AppLayout>
+    </>
   )
 }
