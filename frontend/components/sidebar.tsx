@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
-  MessageSquare,
   Activity,
   Settings,
   Menu,
@@ -15,8 +14,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Chat', href: '/chat', icon: MessageSquare },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Recent Activities', href: '/activities', icon: Activity },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]

@@ -11,7 +11,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, className }: AppLayoutProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-black">
       <Sidebar />
 
       <div className="flex flex-1 flex-col lg:pl-64">
