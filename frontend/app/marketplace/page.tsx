@@ -1,250 +1,449 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
-import { Plus, Filter, Search, RefreshCw } from 'lucide-react';
-import { NFTGrid, NFTGridSkeleton } from '@/components/nft-grid';
-import { CreateListingForm } from '@/components/create-listing-form';
-import { useListings } from '@/contexts/AppContext';
-import { NFTListing } from '@/contexts/AppContext';
+import { useState, useMemo } from 'react'
+import { Search, Grid3x3, LayoutGrid, Rows3, X, DollarSign } from 'lucide-react'
+import Image from 'next/image'
+import { Navigation } from '@/components/navigation'
+
+interface Product {
+  id: number
+  name: string
+  image: string
+  price: number
+  instantSell: number
+  rarity: number
+  traits: number
+  backgroundColor: string
+}
+
+const products: Product[] = [
+  {
+    id: 1641,
+    name: 'Yeezy Foam Runner Beige',
+    image: '/beige-yeezy-foam-runner-shoe-on-neutral-background.jpg',
+    price: 26.55,
+    instantSell: 23.16,
+    rarity: 5583,
+    traits: 7,
+    backgroundColor: '#FF6B6B'
+  },
+  {
+    id: 3310,
+    name: 'Yeezy Foam Runner Black',
+    image: '/black-yeezy-foam-runner-shoe-on-neutral-background.jpg',
+    price: 26.55,
+    instantSell: 23.16,
+    rarity: 5801,
+    traits: 6,
+    backgroundColor: '#C9A0DC'
+  },
+  {
+    id: 9864,
+    name: 'Yeezy 350 V2 Grey',
+    image: '/grey-yeezy-350-v2-sneaker-on-neutral-background.jpg',
+    price: 27.61,
+    instantSell: 24.12,
+    rarity: 4082,
+    traits: 8,
+    backgroundColor: '#FFB6C1'
+  },
+  {
+    id: 2534,
+    name: 'Yeezy Slide Beige',
+    image: '/minimalist-beige-yeezy-slide-sandal-on-neutral-bac.jpg',
+    price: 27.61,
+    instantSell: 24.12,
+    rarity: 4589,
+    traits: 7,
+    backgroundColor: '#FF8A80'
+  },
+  {
+    id: 524,
+    name: 'Yeezy 700 V3 White',
+    image: '/white-yeezy-700-v3-sneaker-on-neutral-background.jpg',
+    price: 28.49,
+    instantSell: 24.87,
+    rarity: 1980,
+    traits: 9,
+    backgroundColor: '#81D4FA'
+  },
+  {
+    id: 7154,
+    name: 'Yeezy QNTM Grey',
+    image: '/grey-yeezy-qntm-basketball-sneaker-on-neutral-back.jpg',
+    price: 28.50,
+    instantSell: 24.89,
+    rarity: 1820,
+    traits: 8,
+    backgroundColor: '#FFF9C4'
+  },
+  {
+    id: 6797,
+    name: 'Yeezy Slide White',
+    image: '/white-yeezy-slide-sandal-on-neutral-background.jpg',
+    price: 28.57,
+    instantSell: 24.95,
+    rarity: 1654,
+    traits: 7,
+    backgroundColor: '#FFCCBC'
+  },
+  {
+    id: 3242,
+    name: 'Yeezy 500 Taupe',
+    image: '/taupe-yeezy-500-sneaker-on-neutral-background.jpg',
+    price: 28.66,
+    instantSell: 25.03,
+    rarity: 3580,
+    traits: 8,
+    backgroundColor: '#FF6B6B'
+  },
+  {
+    id: 8278,
+    name: 'Yeezy Foam Runner Bone',
+    image: '/beige-yeezy-foam-runner-shoe-on-neutral-background.jpg',
+    price: 28.66,
+    instantSell: 25.03,
+    rarity: 5260,
+    traits: 6,
+    backgroundColor: '#FFB6C1'
+  },
+  {
+    id: 6862,
+    name: 'Yeezy 350 V2 Slate',
+    image: '/grey-yeezy-350-v2-sneaker-on-neutral-background.jpg',
+    price: 28.66,
+    instantSell: 25.03,
+    rarity: 7050,
+    traits: 7,
+    backgroundColor: '#FFB6C1'
+  },
+  {
+    id: 6121,
+    name: 'Yeezy 700 V3 Cream',
+    image: '/white-yeezy-700-v3-sneaker-on-neutral-background.jpg',
+    price: 28.66,
+    instantSell: 25.03,
+    rarity: 7427,
+    traits: 8,
+    backgroundColor: '#C9A0DC'
+  },
+  {
+    id: 9032,
+    name: 'Yeezy QNTM Onyx',
+    image: '/grey-yeezy-qntm-basketball-sneaker-on-neutral-back.jpg',
+    price: 28.66,
+    instantSell: 25.03,
+    rarity: 4923,
+    traits: 9,
+    backgroundColor: '#81D4FA'
+  },
+]
 
 export default function MarketplacePage() {
-  const { listings, isLoading, error } = useListings();
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'price-high' | 'price-low'>(
-    'recent'
-  );
-  const [selectedNFT, setSelectedNFT] = useState<NFTListing | null>(null);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<'price-low' | 'price-high' | 'rarity-low' | 'rarity-high'>('price-low')
+  const [viewMode, setViewMode] = useState<'grid-large' | 'grid-medium' | 'grid-small'>('grid-medium')
+  const [showInstantSell, setShowInstantSell] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
-  // Filter and sort listings
-  const filteredListings = React.useMemo(() => {
-    let filtered = [...listings];
+  const filteredAndSortedProducts = useMemo(() => {
+    let filtered = products.filter(product =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.id.toString().includes(searchQuery)
+    )
 
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (listing) =>
-          listing.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          listing.nft_mint_address.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Sort
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'recent':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'price-high':
-          return b.listing_price_sol - a.listing_price_sol;
         case 'price-low':
-          return a.listing_price_sol - b.listing_price_sol;
+          return a.price - b.price
+        case 'price-high':
+          return b.price - a.price
+        case 'rarity-low':
+          return a.rarity - b.rarity
+        case 'rarity-high':
+          return b.rarity - a.rarity
         default:
-          return 0;
+          return 0
       }
-    });
+    })
 
-    return filtered;
-  }, [listings, searchQuery, sortBy]);
+    return filtered
+  }, [searchQuery, sortBy])
+
+  const gridCols = {
+    'grid-large': 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+    'grid-medium': 'grid-cols-2 md:grid-cols-4 lg:grid-cols-5',
+    'grid-small': 'grid-cols-3 md:grid-cols-5 lg:grid-cols-6'
+  }
+
+  const marketplaceNavItems = [
+    { name: 'Marketplace', href: '/marketplace' },
+    { name: 'Collections', href: '/collections' },
+    { name: 'Activities', href: '/activities' },
+  ]
 
   return (
-    <div className="min-h-screen p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">NFT Marketplace</h1>
-          <p className="text-muted-foreground mt-1">
-            AI-verified authentic product NFTs on Solana
+    <>
+      <Navigation items={marketplaceNavItems} showConnectWallet={true} />
+
+      {/* Mini Hero Section */}
+      <div className="pt-24 md:pt-32 pb-8 bg-black border-b border-border">
+        <div className="container mx-auto px-4 md:px-8">
+          <h1 className="text-4xl md:text-5xl font-bold font-mono text-white mb-3">
+            NFT Marketplace
+          </h1>
+          <p className="text-lg font-mono text-white/60">
+            Discover, collect, and trade exclusive NFTs
           </p>
         </div>
-
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Create Listing
-        </button>
       </div>
 
-      {/* Create Listing Form Modal */}
-      {showCreateForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="relative max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="min-h-screen bg-background font-mono">
+      {/* Top Bar */}
+      <div className="border-b border-border bg-card">
+        <div className="px-6 py-4">
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-6">
+            {/* Left: View Mode + Sort Controls */}
+            <div className="flex items-center gap-3">
+              {/* View Mode */}
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1" role="group" aria-label="View mode toggle">
+                <button
+                  onClick={() => setViewMode('grid-large')}
+                  className={`p-2 rounded ${viewMode === 'grid-large' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
+                  aria-label="Large grid view"
+                >
+                  <Grid3x3 className="w-4 h-4 text-foreground" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid-medium')}
+                  className={`p-2 rounded ${viewMode === 'grid-medium' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
+                  aria-label="Medium grid view"
+                >
+                  <LayoutGrid className="w-4 h-4 text-foreground" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid-small')}
+                  className={`p-2 rounded ${viewMode === 'grid-small' ? 'bg-card shadow-sm' : 'hover:bg-accent'}`}
+                  aria-label="Small grid view"
+                >
+                  <Rows3 className="w-4 h-4 text-foreground" />
+                </button>
+              </div>
+
+              {/* Sort */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-4 py-2 bg-card border border-border rounded-lg text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary hover:bg-accent transition"
+                aria-label="Sort products"
+              >
+                <option value="price-low">price (low to high)</option>
+                <option value="price-high">price (high to low)</option>
+                <option value="rarity-low">rarity (low to high)</option>
+                <option value="rarity-high">rarity (high to low)</option>
+              </select>
+            </div>
+
+            {/* Center: Search */}
+            <div className="flex justify-center">
+              <div className="relative w-full max-w-lg">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search NFTs by Name"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-lg text-sm text-foreground font-mono placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition"
+                  aria-label="Search NFTs"
+                />
+              </div>
+            </div>
+
+            {/* Right: Close Button */}
             <button
-              onClick={() => setShowCreateForm(false)}
-              className="absolute top-4 right-4 z-10 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              className="p-2 hover:bg-accent rounded-lg transition"
+              aria-label="Close marketplace"
             >
-              Close
+              <X className="w-5 h-5 text-foreground" />
             </button>
-            <CreateListingForm />
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Total Listings</p>
-          <p className="text-3xl font-bold mt-2">{listings.length}</p>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Total Volume</p>
-          <p className="text-3xl font-bold mt-2">
-            {listings.reduce((sum, l) => sum + l.listing_price_sol, 0).toFixed(2)}{' '}
-            SOL
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-6">
-          <p className="text-sm text-muted-foreground">Active Today</p>
-          <p className="text-3xl font-bold mt-2">
-            {
-              listings.filter((l) => {
-                const today = new Date();
-                const listingDate = new Date(l.createdAt);
-                return listingDate.toDateString() === today.toDateString();
-              }).length
-            }
-          </p>
+      {/* Instant Sell Sidebar */}
+      <div className={`fixed left-0 top-[73px] bottom-0 bg-card border-r border-border transition-all duration-300 ${showInstantSell ? 'w-48' : 'w-0'} overflow-hidden z-10`}>
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <DollarSign className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold font-mono text-foreground">Instant sell</h3>
+          </div>
+          <p className="text-2xl font-bold font-mono text-foreground mb-2">23.16</p>
+          <button className="w-full bg-primary text-primary-foreground py-2 rounded-lg font-medium font-mono hover:bg-primary/90 transition mb-2">
+            SELL NOW
+          </button>
+          <button className="w-full border border-border py-2 rounded-lg font-medium font-mono text-foreground hover:bg-accent transition">
+            ALL BIDS
+          </button>
         </div>
       </div>
 
-      {/* Filters & Search */}
-      <div className="flex flex-col md:flex-row gap-4">
-        {/* Search */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by name or mint address..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-card border border-border rounded-lg focus:ring-2 focus:ring-primary"
-          />
-        </div>
+      {/* Products Grid */}
+      <div className={`p-6 transition-all duration-300 ${showInstantSell ? 'ml-48' : 'ml-0'}`}>
+        <div className={`grid ${gridCols[viewMode]} gap-4`}>
+          {filteredAndSortedProducts.map((product) => (
+            <div
+              key={product.id}
+              onClick={() => setSelectedProduct(product)}
+              className="bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-all cursor-pointer group"
+            >
+              {/* Product Image with Background */}
+              <div
+                className="relative aspect-square overflow-hidden"
+                style={{ backgroundColor: product.backgroundColor }}
+              >
+                <Image
+                  src={product.image}
+                  alt={product.name}
+                  fill
+                  className="object-contain p-4"
+                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                />
 
-        {/* Sort */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-muted-foreground" />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-4 py-3 bg-card border border-border rounded-lg focus:ring-2 focus:ring-primary"
-          >
-            <option value="recent">Most Recent</option>
-            <option value="price-high">Price: High to Low</option>
-            <option value="price-low">Price: Low to High</option>
-          </select>
-        </div>
+                {/* Badges */}
+                <div className="absolute top-2 left-2 flex flex-col gap-1">
+                  <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                    <span>{product.rarity}</span>
+                  </div>
+                  {product.traits && (
+                    <div className="bg-gray-800/80 text-white text-xs px-2 py-1 rounded-full">
+                      🎯 {product.traits}
+                    </div>
+                  )}
+                </div>
 
-        {/* Refresh */}
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-3 bg-card border border-border rounded-lg hover:bg-muted transition flex items-center gap-2"
-        >
-          <RefreshCw className="w-5 h-5" />
-          Refresh
-        </button>
+                {/* ID Badge */}
+                <div className="absolute top-2 right-2 bg-card/90 backdrop-blur-sm text-foreground text-xs px-2 py-1 rounded-full font-mono">
+                  #{product.id}
+                </div>
+
+                {/* More Options */}
+                <button className="absolute bottom-2 right-2 bg-card/90 backdrop-blur-sm p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition">
+                  <span className="text-foreground font-mono">...</span>
+                </button>
+              </div>
+
+              {/* Product Info */}
+              <div className="p-3 border-t border-border">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground font-mono mb-0.5">SOL</p>
+                    <p className="font-bold font-mono text-sm text-foreground">≡ {product.price.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Results count */}
-      {searchQuery && (
-        <p className="text-sm text-muted-foreground">
-          Found {filteredListings.length} listing(s) matching "{searchQuery}"
-        </p>
-      )}
-
-      {/* NFT Grid */}
-      {isLoading ? (
-        <NFTGridSkeleton count={8} />
-      ) : (
-        <NFTGrid
-          listings={filteredListings}
-          loading={isLoading}
-          error={error}
-          onNFTClick={(nft) => setSelectedNFT(nft)}
-        />
-      )}
-
-      {/* NFT Detail Modal */}
-      {selectedNFT && (
+      {/* Product Detail Modal */}
+      {selectedProduct && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedNFT(null)}
+          onClick={() => setSelectedProduct(null)}
         >
           <div
-            className="bg-card border border-border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-card rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="grid md:grid-cols-2 gap-6 p-6">
+            <div className="grid md:grid-cols-2 gap-6 p-8">
               {/* Image */}
-              <div className="aspect-square relative rounded-lg overflow-hidden">
-                <img
-                  src={selectedNFT.nft_image_url}
-                  alt={selectedNFT.product_name}
-                  className="w-full h-full object-cover"
+              <div
+                className="aspect-square relative rounded-xl overflow-hidden"
+                style={{ backgroundColor: selectedProduct.backgroundColor }}
+              >
+                <Image
+                  src={selectedProduct.image}
+                  alt={selectedProduct.name}
+                  fill
+                  className="object-contain p-8"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                 />
               </div>
 
               {/* Details */}
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-3xl font-bold">{selectedNFT.product_name}</h2>
-                  <p className="text-4xl font-bold font-mono mt-4">
-                    {selectedNFT.listing_price_sol} SOL
-                  </p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-primary/20 text-primary text-xs px-3 py-1 rounded-full font-medium font-mono">
+                      #{selectedProduct.id}
+                    </span>
+                    <span className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full font-medium font-mono">
+                      Rarity: {selectedProduct.rarity}
+                    </span>
+                  </div>
+                  <h2 className="text-3xl font-bold font-mono text-foreground">{selectedProduct.name}</h2>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-border">
                   <div>
-                    <p className="text-sm text-muted-foreground">Mint Address</p>
-                    <p className="font-mono text-sm text-blue-400 break-all">
-                      {selectedNFT.nft_mint_address}
-                    </p>
+                    <p className="text-sm text-muted-foreground font-mono mb-1">Current Price</p>
+                    <p className="text-4xl font-bold font-mono text-foreground">{selectedProduct.price.toFixed(2)} SOL</p>
                   </div>
 
                   <div>
-                    <p className="text-sm text-muted-foreground">Owner</p>
-                    <p className="font-mono text-sm break-all">
-                      {selectedNFT.userWallet}
-                    </p>
+                    <p className="text-sm text-muted-foreground font-mono mb-1">Instant Sell Price</p>
+                    <p className="text-2xl font-bold font-mono text-foreground">{selectedProduct.instantSell.toFixed(2)} SOL</p>
                   </div>
 
                   <div>
-                    <p className="text-sm text-muted-foreground">Created</p>
-                    <p className="text-sm">
-                      {new Date(selectedNFT.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-muted-foreground">IPFS Image</p>
-                    <a
-                      href={selectedNFT.nft_image_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary hover:underline break-all"
-                    >
-                      {selectedNFT.nft_image_url}
-                    </a>
+                    <p className="text-sm text-muted-foreground font-mono mb-1">Traits</p>
+                    <p className="text-lg font-semibold font-mono text-foreground">{selectedProduct.traits} attributes</p>
                   </div>
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition">
+                  <button className="flex-1 px-6 py-4 bg-primary text-primary-foreground rounded-xl font-bold font-mono hover:bg-primary/90 transition text-lg">
                     Buy Now
                   </button>
-                  <button
-                    onClick={() => setSelectedNFT(null)}
-                    className="px-6 py-3 bg-muted text-foreground rounded-lg font-medium hover:opacity-90 transition"
-                  >
-                    Close
+                  <button className="flex-1 px-6 py-4 bg-muted text-foreground rounded-xl font-bold font-mono hover:bg-accent transition text-lg">
+                    Make Offer
                   </button>
                 </div>
+
+                <button
+                  onClick={() => setSelectedProduct(null)}
+                  className="w-full px-6 py-3 border border-border text-muted-foreground rounded-xl font-medium font-mono hover:bg-accent transition"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
+
+      {/* Bottom Info Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-6 py-3 flex items-center justify-between text-xs text-muted-foreground font-mono">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Live</span>
+          </div>
+          <span>⭐</span>
+          <span>⚙️</span>
+          <span>🎬</span>
+          <span className="bg-muted px-3 py-1 rounded">Lite 🌙 Pro</span>
+        </div>
+
+        <div className="flex items-center gap-6 font-mono">
+          <span>24h Vol: 2,574</span>
+          <span className="text-green-500">≡ $142.19</span>
+          <span>TPS: 2,740</span>
+        </div>
+      </div>
+      </div>
+    </>
+  )
 }

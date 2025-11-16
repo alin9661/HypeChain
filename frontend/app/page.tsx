@@ -36,7 +36,7 @@ export default function LandingPage() {
           </p>
 
           {/* Desktop Button */}
-          <Link className="contents max-sm:hidden" href="/dashboard">
+          <Link className="contents max-sm:hidden" href="/waitlist">
             <Button
               className="mt-14"
               onMouseEnter={() => setHovering(true)}
@@ -47,7 +47,7 @@ export default function LandingPage() {
           </Link>
 
           {/* Mobile Button */}
-          <Link className="contents sm:hidden" href="/dashboard">
+          <Link className="contents sm:hidden" href="/waitlist">
             <Button
               size="sm"
               className="mt-14"

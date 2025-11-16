@@ -1,4 +1,6 @@
 import express from 'express';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 import { isValidSolanaPublicKey, validateBase64Image } from '../utils/validation.js';
 import {
   verifyProduct,
@@ -7,6 +9,14 @@ import {
 } from '../services/openrouter.js';
 import { createAndUploadNFTMetadata } from '../services/ipfs.js';
 import { mintNFT, listItemOnMarketplace } from '../services/solana.js';
+
+dotenv.config();
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 const router = express.Router();
 
@@ -136,11 +146,52 @@ router.post('/create-listing', async (req, res) => {
     console.log('✅ NFT minted successfully');
 
     // ========================================
-    // STEP 4: List on Marketplace
+    // STEP 4: Save Listing to Database
     // ========================================
-    console.log('🏪 Step 4: Listing on marketplace...');
+    console.log('💾 Step 4: Saving listing to database...');
 
     const listingPrice = optionalPriceSol ?? 0;
+
+    // Get user ID from wallet address (if exists)
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id')
+      .eq('wallet_address', userWallet)
+      .single();
+
+    const listingData = {
+      nft_mint_address: nftMintAddress,
+      seller_wallet: userWallet,
+      seller_user_id: userData?.id || null,
+      product_name: productName,
+      description: description,
+      category: verificationResult.product_identification.brand || 'Luxury Goods',
+      condition: 'Verified Authentic',
+      image_url: imageUrl,
+      metadata_uri: metadataUri,
+      price_sol: listingPrice,
+      status: 'active',
+      ai_verified: true,
+      ai_confidence_score: verificationResult.product_identification.confidence
+    };
+
+    const { data: listing, error: dbError } = await supabase
+      .from('listings')
+      .insert(listingData)
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      throw new Error(`Failed to save listing to database: ${dbError.message}`);
+    }
+
+    console.log('✅ Listing saved to database with ID:', listing.id);
+
+    // ========================================
+    // STEP 5: List on Marketplace (Optional)
+    // ========================================
+    console.log('🏪 Step 5: Listing on marketplace...');
 
     try {
       const listingSignature = await listItemOnMarketplace(
@@ -160,10 +211,17 @@ router.post('/create-listing', async (req, res) => {
     // ========================================
     const successResponse = {
       success: true,
+      listing_id: listing.id,
       nft_mint_address: nftMintAddress,
       nft_image_url: imageUrl,
       product_name: productName,
-      listing_price_sol: listingPrice
+      listing_price_sol: listingPrice,
+      verification: {
+        brand: verificationResult.product_identification.brand,
+        model: verificationResult.product_identification.model,
+        confidence: verificationResult.product_identification.confidence,
+        liveness_score: verificationResult.liveness_check.liveness_score
+      }
     };
 
     console.log('🎉 Listing created successfully!');

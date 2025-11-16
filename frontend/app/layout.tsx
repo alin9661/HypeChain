@@ -6,6 +6,7 @@ import { AppProvider } from '@/contexts/AppContext'
 import { ToastContainer } from '@/components/toast'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { FloatingChatButton } from '@/components/floating-chat-button'
+import { PrivyProviderWrapper } from '@/components/privy-provider-wrapper'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -43,13 +44,15 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          <ErrorBoundary>
-            <AppProvider>
-              {children}
-              <ToastContainer />
-              <FloatingChatButton />
-            </AppProvider>
-          </ErrorBoundary>
+          <PrivyProviderWrapper>
+            <ErrorBoundary>
+              <AppProvider>
+                {children}
+                <ToastContainer />
+                <FloatingChatButton />
+              </AppProvider>
+            </ErrorBoundary>
+          </PrivyProviderWrapper>
           <Analytics />
         </ThemeProvider>
       </body>

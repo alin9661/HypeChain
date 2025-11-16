@@ -64,6 +64,147 @@ export interface ListingEndpointInfo {
   };
 }
 
+// User Management Types
+export interface RegisterUserRequest {
+  walletAddress: string;
+  privyUserId: string;
+  chainType: 'ethereum' | 'solana';
+  email?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  walletAddress: string;
+  chainType: 'ethereum' | 'solana';
+  username?: string | null;
+  email?: string | null;
+  profileImage?: string | null;
+  createdAt: string;
+  lastLogin?: string | null;
+  totalVolume: number;
+  isNewUser?: boolean;
+}
+
+export interface RegisterUserResponse {
+  success: true;
+  user: UserProfile;
+}
+
+export interface GetUserResponse {
+  success: true;
+  user: UserProfile;
+}
+
+// Payment Types
+export interface CreatePaymentRequest {
+  listingId: string;
+  buyerWallet: string;
+}
+
+export interface PaymentRequest {
+  recipient: string;
+  amount: number;
+  splToken: string | null;
+  reference: string;
+  label: string;
+  message: string;
+  memo: string;
+  listingId: string;
+  nftMintAddress: string;
+  productName: string;
+  imageUrl: string;
+}
+
+export interface CreatePaymentResponse {
+  success: true;
+  paymentRequest: PaymentRequest;
+}
+
+export interface VerifyPaymentRequest {
+  signature: string;
+  listingId: string;
+  buyerWallet: string;
+  buyerUserId?: string;
+}
+
+export interface VerifyPaymentResponse {
+  success: true;
+  verification: {
+    valid: boolean;
+    amountTransferred: number;
+    blockTime: number;
+    slot: number;
+  };
+  purchase: {
+    transaction: Transaction;
+    listing: {
+      id: string;
+      nft_mint_address: string;
+      product_name: string;
+    };
+  };
+}
+
+export interface Transaction {
+  id: string;
+  listing_id: string;
+  buyer_wallet: string;
+  seller_wallet: string;
+  amount_sol: number;
+  signature: string;
+  status: 'pending' | 'confirmed' | 'failed' | 'refunded';
+  created_at: string;
+  confirmed_at?: string;
+  listing?: {
+    product_name: string;
+    image_url: string;
+    nft_mint_address: string;
+  };
+}
+
+export interface TransactionHistoryResponse {
+  success: true;
+  transactions: Transaction[];
+  count: number;
+}
+
+export interface WalletBalanceResponse {
+  success: true;
+  walletAddress: string;
+  balance: number;
+}
+
+export interface Listing {
+  id: string;
+  nft_mint_address: string;
+  seller_wallet: string;
+  seller_user_id: string | null;
+  product_name: string;
+  description: string;
+  category: string;
+  condition: string;
+  image_url: string;
+  metadata_uri: string;
+  price_sol: number;
+  price_usdc: number | null;
+  status: 'active' | 'sold' | 'delisted' | 'pending';
+  ai_verified: boolean;
+  ai_confidence_score: number | null;
+  created_at: string;
+  updated_at: string;
+  sold_at: string | null;
+  buyer_wallet: string | null;
+  buyer_user_id: string | null;
+  transaction_signature: string | null;
+  views: number;
+  favorites: number;
+}
+
+export interface GetListingResponse {
+  success: true;
+  listing: Listing;
+}
+
 class ApiClient {
   private baseURL: string;
   private defaultHeaders: HeadersInit;
@@ -147,6 +288,141 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * POST /api/users/register - Register or login user after wallet connection
+   */
+  async registerUser(
+    data: RegisterUserRequest
+  ): Promise<ApiResponse<RegisterUserResponse>> {
+    // Use the local Next.js API route (not backend server)
+    const url = '/api/users/register';
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
+        };
+      }
+
+      return {
+        success: true,
+        data: responseData,
+      };
+    } catch (error) {
+      console.error(`API request failed for ${url}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * GET /api/users/[walletAddress] - Get user profile by wallet address
+   */
+  async getUserProfile(walletAddress: string): Promise<ApiResponse<GetUserResponse>> {
+    // Use the local Next.js API route (not backend server)
+    const url = `/api/users/${encodeURIComponent(walletAddress)}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
+        };
+      }
+
+      return {
+        success: true,
+        data: responseData,
+      };
+    } catch (error) {
+      console.error(`API request failed for ${url}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * POST /api/payments/create - Create payment request for a listing
+   */
+  async createPayment(
+    data: CreatePaymentRequest
+  ): Promise<ApiResponse<CreatePaymentResponse>> {
+    return this.request<CreatePaymentResponse>('/api/payments/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * POST /api/payments/verify - Verify payment transaction
+   */
+  async verifyPayment(
+    data: VerifyPaymentRequest
+  ): Promise<ApiResponse<VerifyPaymentResponse>> {
+    return this.request<VerifyPaymentResponse>('/api/payments/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * GET /api/payments/history/:walletAddress - Get transaction history
+   */
+  async getTransactionHistory(
+    walletAddress: string,
+    type: 'buyer' | 'seller' | 'all' = 'all'
+  ): Promise<ApiResponse<TransactionHistoryResponse>> {
+    return this.request<TransactionHistoryResponse>(
+      `/api/payments/history/${encodeURIComponent(walletAddress)}?type=${type}`
+    );
+  }
+
+  /**
+   * GET /api/payments/balance/:walletAddress - Get wallet balance
+   */
+  async getWalletBalance(
+    walletAddress: string
+  ): Promise<ApiResponse<WalletBalanceResponse>> {
+    return this.request<WalletBalanceResponse>(
+      `/api/payments/balance/${encodeURIComponent(walletAddress)}`
+    );
+  }
+
+  /**
+   * GET /api/payments/listing/:listingId - Get listing details
+   */
+  async getListingDetails(
+    listingId: string
+  ): Promise<ApiResponse<GetListingResponse>> {
+    return this.request<GetListingResponse>(
+      `/api/payments/listing/${encodeURIComponent(listingId)}`
+    );
   }
 
   /**

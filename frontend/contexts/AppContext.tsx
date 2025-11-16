@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { CreateListingResponse } from '@/lib/api-client';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { CreateListingResponse, UserProfile, apiClient } from '@/lib/api-client';
 
 // Types
 export interface NFTListing extends CreateListingResponse {
@@ -24,6 +25,11 @@ export interface AppState {
 
   // Wallet
   wallet: WalletState;
+
+  // User Profile
+  userProfile: UserProfile | null;
+  isRegistering: boolean;
+  registrationError: string | null;
 
   // UI State
   sidebarCollapsed: boolean;
@@ -77,6 +83,9 @@ const initialState: AppState = {
     connected: false,
     balance: null,
   },
+  userProfile: null,
+  isRegistering: false,
+  registrationError: null,
   sidebarCollapsed: false,
   theme: 'dark',
   notifications: [],
@@ -84,6 +93,103 @@ const initialState: AppState = {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
+  const { authenticated, user } = usePrivy();
+  const { wallets } = useWallets();
+  const registrationAttempted = useRef<Set<string>>(new Set());
+
+  // Sync Privy wallet state and register user
+  useEffect(() => {
+    const registerUserAccount = async () => {
+      if (authenticated && user && wallets.length > 0) {
+        const primaryWallet = wallets[0];
+        const address = primaryWallet.address;
+        const chainType = primaryWallet.chainType as 'ethereum' | 'solana';
+
+        // Update wallet state immediately for UI responsiveness
+        setState((prev) => ({
+          ...prev,
+          wallet: {
+            address,
+            connected: true,
+            balance: prev.wallet.balance,
+          },
+        }));
+
+        // Check if user is already registered (avoid duplicate API calls)
+        if (registrationAttempted.current.has(address)) {
+          console.log('[User Registration] User already registered, skipping...');
+          return;
+        }
+
+        // Mark as attempted to prevent duplicate registrations
+        registrationAttempted.current.add(address);
+
+        // Register user with backend
+        console.log('[User Registration] Starting registration for:', address);
+        setState((prev) => ({ ...prev, isRegistering: true, registrationError: null }));
+
+        try {
+          const response = await apiClient.registerUser({
+            walletAddress: address,
+            privyUserId: user.id,
+            chainType: chainType,
+            email: user.email?.address,
+          });
+
+          if (response.success && response.data) {
+            console.log('[User Registration] Success:', response.data.user);
+
+            setState((prev) => ({
+              ...prev,
+              userProfile: response.data!.user,
+              isRegistering: false,
+              registrationError: null,
+            }));
+
+            // Show welcome notification
+            addNotification({
+              type: 'success',
+              message: response.data.user.isNewUser
+                ? '🎉 Welcome! Your account has been created.'
+                : '👋 Welcome back!',
+            });
+          } else {
+            throw new Error(response.error || 'Registration failed');
+          }
+        } catch (error) {
+          console.error('[User Registration] Error:', error);
+
+          const errorMsg = error instanceof Error ? error.message : 'Failed to register user';
+
+          setState((prev) => ({
+            ...prev,
+            isRegistering: false,
+            registrationError: errorMsg,
+          }));
+
+          addNotification({
+            type: 'error',
+            message: `Registration failed: ${errorMsg}`,
+          });
+        }
+      } else {
+        // Clear user when disconnected
+        setState((prev) => ({
+          ...prev,
+          wallet: {
+            address: null,
+            connected: false,
+            balance: null,
+          },
+          userProfile: null,
+          isRegistering: false,
+          registrationError: null,
+        }));
+      }
+    };
+
+    registerUserAccount();
+  }, [authenticated, user, wallets]);
 
   // Listings actions
   const addListing = useCallback((listing: NFTListing) => {

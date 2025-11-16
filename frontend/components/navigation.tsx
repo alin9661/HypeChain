@@ -1,7 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { WalletConnectionModal } from './wallet-connection-modal'
+import { WalletConnectButton } from './wallet-connect-button'
+import { WalletDropdown } from './wallet-dropdown'
+import { useWallet } from '@/contexts/AppContext'
 
 interface NavItem {
   name: string
@@ -15,6 +20,8 @@ interface NavigationProps {
 
 export function Navigation({ items, showConnectWallet = true }: NavigationProps) {
   const pathname = usePathname()
+  const { wallet } = useWallet()
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false)
 
   return (
     <div className="fixed z-50 pt-8 md:pt-14 top-0 left-0 w-full bg-black/80 backdrop-blur-md">
@@ -59,26 +66,23 @@ export function Navigation({ items, showConnectWallet = true }: NavigationProps)
           })}
         </nav>
 
-        {/* Connect Wallet / Sign In */}
+        {/* Connect Wallet / Wallet Dropdown */}
         {showConnectWallet && (
-          <>
-            <Link
-              className="uppercase max-lg:hidden transition-colors ease-out duration-150 font-mono text-[#FFC700] hover:text-[#FFC700]/80 text-sm"
-              href="/dashboard"
-            >
-              Connect Wallet
-            </Link>
-
-            {/* Mobile Connect Wallet */}
-            <Link
-              href="/dashboard"
-              className="lg:hidden uppercase font-mono text-[#FFC700] hover:text-[#FFC700]/80 text-sm"
-            >
-              Connect Wallet
-            </Link>
-          </>
+          <div className="flex items-center gap-4">
+            {wallet.connected && wallet.address ? (
+              <WalletDropdown address={wallet.address} />
+            ) : (
+              <WalletConnectButton onClick={() => setIsWalletModalOpen(true)} />
+            )}
+          </div>
         )}
       </header>
+
+      {/* Wallet Connection Modal */}
+      <WalletConnectionModal
+        open={isWalletModalOpen}
+        onOpenChange={setIsWalletModalOpen}
+      />
     </div>
   )
 }
