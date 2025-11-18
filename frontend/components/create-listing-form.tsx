@@ -8,18 +8,32 @@ import { Upload, Loader2, CheckCircle, XCircle, Wallet } from 'lucide-react';
 import { useCreateListing, useImageUpload } from '@/hooks/useApi';
 import { useWallet } from '@/contexts/AppContext';
 
-// Validation schema
+// Validation schema - wallet is now optional
 const listingFormSchema = z.object({
   userWallet: z
     .string()
-    .min(32, 'Invalid Solana wallet address')
-    .max(44, 'Invalid Solana wallet address'),
+    .optional()
+    .refine(
+      (val) => !val || (val.length >= 32 && val.length <= 44),
+      'Invalid Solana wallet address'
+    ),
+  userEmail: z
+    .string()
+    .email('Please enter a valid email address')
+    .optional()
+    .or(z.literal('')),
   optionalPriceSol: z
     .number()
     .min(0, 'Price must be positive')
     .optional()
     .or(z.literal('')),
-});
+}).refine(
+  (data) => data.userWallet || data.userEmail,
+  {
+    message: 'Please provide either a wallet address or email',
+    path: ['userEmail'],
+  }
+);
 
 type ListingFormData = z.infer<typeof listingFormSchema>;
 
@@ -40,6 +54,7 @@ export function CreateListingForm() {
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
       userWallet: wallet.address || '',
+      userEmail: '',
       optionalPriceSol: 0,
     },
   });
@@ -58,7 +73,8 @@ export function CreateListingForm() {
     }
 
     const result = await createListing({
-      userWallet: formData.userWallet,
+      userWallet: formData.userWallet || undefined,
+      userEmail: formData.userEmail || undefined,
       productImage: preview,
       optionalPriceSol:
         typeof formData.optionalPriceSol === 'number'
@@ -70,6 +86,9 @@ export function CreateListingForm() {
       // Reset form after successful creation
       resetImage();
       setValue('optionalPriceSol', 0);
+      if (!wallet.connected) {
+        setValue('userEmail', '');
+      }
     }
   };
 
@@ -110,40 +129,55 @@ export function CreateListingForm() {
       <h2 className="text-2xl font-bold mb-6">Create NFT Listing</h2>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Wallet Connection */}
+        {/* Wallet Connection - Optional */}
         <div>
           <label className="block text-sm font-medium mb-2">
-            Solana Wallet Address
+            Solana Wallet Address <span className="text-muted-foreground font-normal">(Optional)</span>
           </label>
-          {!wallet.connected ? (
-            <button
-              type="button"
-              onClick={handleConnectWallet}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition"
-            >
-              <Wallet className="w-5 h-5" />
-              Connect Wallet
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+          <p className="text-xs text-muted-foreground mb-3" title="You can add your wallet later to mint the NFT">
+            Connect now or add later to mint your NFT on Solana blockchain
+          </p>
+          {wallet.connected && (
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg mb-2">
               <CheckCircle className="w-5 h-5 text-green-500" />
               <span className="font-mono text-sm truncate flex-1">
                 {wallet.address}
               </span>
               <span className="text-sm text-muted-foreground">
-                {wallet.balance?.toFixed(2)} SOL
+                {wallet.balance?.toFixed(2)} USDC
               </span>
             </div>
           )}
           <input
             type="text"
             {...register('userWallet')}
-            className="mt-2 w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary font-mono text-sm"
-            placeholder="Enter Solana wallet address"
+            className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary font-mono text-sm"
+            placeholder="Enter Solana wallet address (optional)"
           />
           {errors.userWallet && (
             <p className="mt-1 text-sm text-red-500">
               {errors.userWallet.message}
+            </p>
+          )}
+        </div>
+
+        {/* Email for Guest Users */}
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Email Address {!watch('userWallet') && <span className="text-red-500">*</span>}
+          </label>
+          <p className="text-xs text-muted-foreground mb-3" title="Required if no wallet provided">
+            We'll notify you when your listing is ready {watch('userWallet') ? '(optional if wallet provided)' : '(required)'}
+          </p>
+          <input
+            type="email"
+            {...register('userEmail')}
+            className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary"
+            placeholder="your@email.com"
+          />
+          {errors.userEmail && (
+            <p className="mt-1 text-sm text-red-500">
+              {errors.userEmail.message}
             </p>
           )}
         </div>
@@ -204,7 +238,7 @@ export function CreateListingForm() {
         {/* Price Input */}
         <div>
           <label className="block text-sm font-medium mb-2">
-            Price (SOL) - Optional
+            Price (USDC) - Optional
           </label>
           <input
             type="number"
@@ -260,7 +294,7 @@ export function CreateListingForm() {
               </p>
               <p>
                 <span className="text-muted-foreground">Price:</span>{' '}
-                <span className="font-medium">{data.listing_price_sol} SOL</span>
+                <span className="font-medium">{data.listing_price_sol} USDC</span>
               </p>
               <a
                 href={data.nft_image_url}

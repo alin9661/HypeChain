@@ -209,7 +209,7 @@ export function PurchaseButton({
             {status || 'Processing...'}
           </span>
         ) : (
-          `Buy for ${price} SOL`
+          `Buy for ${price} USDC`
         )}
       </button>
 

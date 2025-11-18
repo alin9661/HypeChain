@@ -28,6 +28,7 @@ export function PrivyProviderWrapper({ children }: { children: ReactNode }) {
         embeddedWallets: {
           createOnLogin: 'off',
         },
+        loginMethods: ['wallet'],
       }}
     >
       {children}

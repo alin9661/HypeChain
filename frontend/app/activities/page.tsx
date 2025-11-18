@@ -166,7 +166,7 @@ export default function ActivitiesPage() {
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Total Volume</p>
               <ArrowUpRight className="h-5 w-5 text-slate-500 transition-colors group-hover:text-emerald-500" />
             </div>
-            <p className="mt-2 font-mono text-3xl font-bold text-emerald-500">{stats.totalVolume.toFixed(2)} SOL</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-emerald-500">{stats.totalVolume.toFixed(2)} USDC</p>
           </div>
 
           <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
@@ -283,7 +283,7 @@ export default function ActivitiesPage() {
                     {activity.price > 0 && (
                       <div className="text-right">
                         <p className="font-mono text-2xl font-bold text-[#FFC700]">
-                          {activity.price.toFixed(2)} SOL
+                          {activity.price.toFixed(2)} USDC
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
                           ${(activity.price * 125).toFixed(2)} USD

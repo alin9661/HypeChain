@@ -20,7 +20,7 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.HACKNYU_FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
 
@@ -97,11 +97,11 @@ app.use((err, req, res, next) => {
 // Server Start
 // ========================================
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log('🚀 HypeChain Backend Server Started');
   console.log(`📍 Server running on http://localhost:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`🔗 Frontend URL: ${process.env.HACKNYU_FRONTEND_URL || 'http://localhost:3000'}`);
   console.log('\n✨ Available endpoints:');
   console.log(`   GET  /                              - API information`);
   console.log(`   GET  /health                        - Health check`);
@@ -117,11 +117,31 @@ app.listen(PORT, () => {
   console.log('\n🎯 Ready to mint NFTs and process payments!\n');
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  app.close(() => {
-    console.log('HTTP server closed');
+// Graceful shutdown handler
+const gracefulShutdown = (signal) => {
+  console.log(`\n${signal} signal received: closing HTTP server gracefully`);
+
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
+
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('⚠️  Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+// Handle different shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle nodemon restart
+process.once('SIGUSR2', () => {
+  console.log('\n🔄 Nodemon restart detected: closing server');
+  server.close(() => {
+    process.kill(process.pid, 'SIGUSR2');
   });
 });
 

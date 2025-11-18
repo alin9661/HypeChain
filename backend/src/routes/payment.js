@@ -220,7 +220,7 @@ router.get('/history/:walletAddress', async (req, res) => {
 
 /**
  * GET /api/payments/balance/:walletAddress
- * Get SOL balance for a wallet
+ * Get USDC balance for a wallet
  *
  * Response:
  * {

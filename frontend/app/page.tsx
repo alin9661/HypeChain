@@ -8,11 +8,7 @@ import { Navigation } from '@/components/navigation'
 import { useState } from 'react'
 import { Leva } from 'leva'
 
-const landingNavItems = [
-  { name: 'Marketplace', href: '/marketplace' },
-  { name: 'Collections', href: '/collections' },
-  { name: 'Activities', href: '/activities' },
-]
+const landingNavItems = []
 
 export default function LandingPage() {
   const [hovering, setHovering] = useState(false)
@@ -35,28 +31,49 @@ export default function LandingPage() {
             Trade NFTs with AI-powered insights and lightning-fast transactions on Solana
           </p>
 
-          {/* Desktop Button */}
-          <Link className="contents max-sm:hidden" href="/waitlist">
-            <Button
-              className="mt-14"
-              onMouseEnter={() => setHovering(true)}
-              onMouseLeave={() => setHovering(false)}
-            >
-              [Join Waitlist]
-            </Button>
-          </Link>
+          {/* Desktop Buttons */}
+          <div className="flex gap-4 justify-center mt-14 max-sm:hidden">
+            <Link href="/waitlist">
+              <Button
+                onMouseEnter={() => setHovering(true)}
+                onMouseLeave={() => setHovering(false)}
+              >
+                [Join Waitlist]
+              </Button>
+            </Link>
+            <Link href="/marketplace">
+              <Button
+                variant="outline"
+                onMouseEnter={() => setHovering(true)}
+                onMouseLeave={() => setHovering(false)}
+              >
+                [Marketplace]
+              </Button>
+            </Link>
+          </div>
 
-          {/* Mobile Button */}
-          <Link className="contents sm:hidden" href="/waitlist">
-            <Button
-              size="sm"
-              className="mt-14"
-              onMouseEnter={() => setHovering(true)}
-              onMouseLeave={() => setHovering(false)}
-            >
-              [Join Waitlist]
-            </Button>
-          </Link>
+          {/* Mobile Buttons */}
+          <div className="flex gap-3 justify-center mt-14 sm:hidden">
+            <Link href="/waitlist">
+              <Button
+                size="sm"
+                onMouseEnter={() => setHovering(true)}
+                onMouseLeave={() => setHovering(false)}
+              >
+                [Join Waitlist]
+              </Button>
+            </Link>
+            <Link href="/marketplace">
+              <Button
+                size="sm"
+                variant="outline"
+                onMouseEnter={() => setHovering(true)}
+                onMouseLeave={() => setHovering(false)}
+              >
+                [Marketplace]
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
