@@ -53,7 +53,7 @@ export function NFTCard({ listing, onClick }: NFTCardProps) {
         {/* Price */}
         <div className="flex items-center justify-between">
           <span className="text-2xl font-bold font-mono">
-            {listing.listing_price_sol} SOL
+            {listing.listing_price_sol} USDC
           </span>
           {listing.listing_price_sol > 0 && (
             <span className="text-sm text-muted-foreground">

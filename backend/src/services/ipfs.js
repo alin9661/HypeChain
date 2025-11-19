@@ -1,10 +1,10 @@
 import { NFTStorage, File, Blob } from 'nft.storage';
 import { base64ToBuffer } from '../utils/validation.js';
 
-const NFT_STORAGE_API_KEY = process.env.NFT_STORAGE_API_KEY;
+const NFT_STORAGE_API_KEY = process.env.HACKNYU_NFT_STORAGE_API_KEY;
 
 if (!NFT_STORAGE_API_KEY) {
-  throw new Error('NFT_STORAGE_API_KEY is not set in environment variables');
+  throw new Error('HACKNYU_NFT_STORAGE_API_KEY is not set in environment variables');
 }
 
 const nftStorageClient = new NFTStorage({ token: NFT_STORAGE_API_KEY });

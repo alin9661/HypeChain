@@ -1,0 +1,19 @@
+{
+  "watch": [
+    "src"
+  ],
+  "ext": "js,mjs,cjs,json",
+  "ignore": [
+    "node_modules",
+    "*.test.js",
+    "*.spec.js",
+    ".git",
+    "logs"
+  ],
+  "delay": 2500,
+  "verbose": true,
+  "signal": "SIGUSR2",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

@@ -4,15 +4,15 @@ import { createNft, mplTokenMetadata } from '@metaplex-foundation/mpl-token-meta
 import { generateSigner, keypairIdentity, percentAmount, publicKey as umiPublicKey } from '@metaplex-foundation/umi';
 import bs58 from 'bs58';
 
-const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const MARKETPLACE_PROGRAM_ID = process.env.MARKETPLACE_PROGRAM_ID;
+const SOLANA_RPC_URL = process.env.HACKNYU_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+const MARKETPLACE_PROGRAM_ID = process.env.HACKNYU_MARKETPLACE_PROGRAM_ID;
 
 export function getConnection() {
   return new Connection(SOLANA_RPC_URL, 'confirmed');
 }
 
 function getServerWallet() {
-  const privateKeyString = process.env.SERVER_WALLET_PRIVATE_KEY;
+  const privateKeyString = process.env.HACKNYU_SERVER_WALLET_PRIVATE_KEY;
   if (!privateKeyString) {
     throw new Error('SERVER_WALLET_PRIVATE_KEY not set in environment');
   }

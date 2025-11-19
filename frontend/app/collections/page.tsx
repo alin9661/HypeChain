@@ -179,7 +179,7 @@ export default function CollectionsPage() {
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Combined Floor Value</p>
               <DollarSign className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#FFC700]" />
             </div>
-            <p className="mt-2 font-mono text-3xl font-bold text-[#FFC700]">{stats.totalFloorValue.toFixed(0)} SOL</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-[#FFC700]">{stats.totalFloorValue.toFixed(0)} USDC</p>
           </div>
 
           <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
@@ -187,7 +187,7 @@ export default function CollectionsPage() {
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Total Trading Volume</p>
               <TrendingUp className="h-5 w-5 text-slate-500 transition-colors group-hover:text-emerald-500" />
             </div>
-            <p className="mt-2 font-mono text-3xl font-bold text-emerald-500">{stats.totalVolume.toFixed(0)} SOL</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-emerald-500">{stats.totalVolume.toFixed(0)} USDC</p>
           </div>
         </div>
 
@@ -386,13 +386,13 @@ export default function CollectionsPage() {
                   <div className="text-center">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Floor</p>
                     <p className="mt-1 font-mono text-lg font-semibold text-[#FFC700]">
-                      {collection.floorPrice.toFixed(1)} SOL
+                      {collection.floorPrice.toFixed(1)} USDC
                     </p>
                   </div>
                   <div className="text-center">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Volume</p>
                     <p className="mt-1 font-mono text-lg font-semibold text-emerald-500">
-                      {collection.totalVolume.toFixed(0)} SOL
+                      {collection.totalVolume.toFixed(0)} USDC
                     </p>
                   </div>
                 </div>

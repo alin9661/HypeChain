@@ -175,8 +175,8 @@ export default function ApiDocsPage() {
           ]}
           processingSteps={[
             'Validate Solana wallet address and image format',
-            'AI verification using GLM-4-Plus vision model (liveness score > 50 required)',
-            'Generate marketing image with OpenRouter (1024x1024 PNG)',
+            'AI verification using GLM-4-Plus vision model - extracts item name (liveness score > 50 required)',
+            'Generate NFTified artwork using item name with GPT-5-Image-Mini (digital art, blockchain aesthetic)',
             'Upload images to IPFS via nft.storage',
             'Mint NFT on Solana blockchain using Metaplex',
             'List item on marketplace smart contract (if configured)',

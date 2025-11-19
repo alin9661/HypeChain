@@ -36,57 +36,39 @@ export default function ListingsPage() {
               </p>
             </div>
 
-            {/* Tokenize Asset Button */}
-            {wallet.connected ? (
-              <Button
-                onClick={() => setShowForm(!showForm)}
-                className="whitespace-nowrap"
-                aria-label="Toggle tokenize asset form"
-              >
-                <Plus className="w-5 h-5 mr-2" aria-hidden="true" />
-                [Tokenize Asset]
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  // This will trigger the wallet connection modal via Navigation component
-                  const walletButton = document.querySelector('[data-wallet-button]')
-                  if (walletButton instanceof HTMLElement) {
-                    walletButton.click()
-                  }
-                }}
-                variant="default"
-                className="whitespace-nowrap"
-                aria-label="Connect wallet to tokenize assets"
-              >
-                <Wallet className="w-5 h-5 mr-2" aria-hidden="true" />
-                [Connect Wallet]
-              </Button>
-            )}
+            {/* Tokenize Asset Button - No wallet required */}
+            <Button
+              onClick={() => setShowForm(!showForm)}
+              className="whitespace-nowrap"
+              aria-label="Create new listing - wallet optional"
+              title="Create listing now, connect wallet later to mint NFT"
+            >
+              <Plus className="w-5 h-5 mr-2" aria-hidden="true" />
+              [Create Listing]
+            </Button>
           </div>
 
-          {/* Wallet Connection Message */}
+          {/* Informational Message - Wallet Optional */}
           {!wallet.connected && (
-            <div className="mb-8 p-6 bg-[#FFC700]/10 border border-[#FFC700]/30 rounded-lg">
+            <div className="mb-8 p-6 bg-blue-500/10 border border-blue-500/30 rounded-lg">
               <div className="flex items-start gap-4">
-                <Wallet className="w-6 h-6 text-[#FFC700] flex-shrink-0 mt-1" aria-hidden="true" />
+                <Wallet className="w-6 h-6 text-blue-400 flex-shrink-0 mt-1" aria-hidden="true" />
                 <div>
-                  <h3 className="font-mono text-lg text-[#FFC700] mb-2">
-                    Wallet Connection Required
+                  <h3 className="font-mono text-lg text-blue-400 mb-2">
+                    Wallet Connection Optional
                   </h3>
                   <p className="font-mono text-sm text-white/70 mb-4">
-                    Connect your Solana wallet to tokenize your real-world assets such as real estate,
-                    art, or commodities into blockchain-based tokens for trading or investment.
+                    You can create listings now without a wallet! Connect your Solana wallet later to mint your NFT and enable trading.
                   </p>
                   <div className="flex flex-wrap gap-2 text-xs font-mono text-white/50">
                     <span className="px-3 py-1 bg-white/5 border border-white/10 rounded">
-                      ✓ Secure authentication
+                      ✓ Create listings immediately
                     </span>
                     <span className="px-3 py-1 bg-white/5 border border-white/10 rounded">
-                      ✓ NFT minting on Solana
+                      ✓ Connect wallet anytime
                     </span>
                     <span className="px-3 py-1 bg-white/5 border border-white/10 rounded">
-                      ✓ IPFS storage
+                      ✓ Claim NFT when ready
                     </span>
                   </div>
                 </div>
@@ -94,53 +76,52 @@ export default function ListingsPage() {
             </div>
           )}
 
-          {/* Create Listing Form */}
-          {showForm && wallet.connected && (
+          {/* Create Listing Form - Always available */}
+          {showForm && (
             <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-300">
               <CreateListingForm />
             </div>
           )}
 
-          {/* Listings Grid */}
-          {wallet.connected && (
-            <div>
-              <div className="flex items-center gap-3 mb-6">
-                <Package className="w-5 h-5 text-[#FFC700]" aria-hidden="true" />
-                <h2 className="text-2xl font-mono text-white">
-                  [Your Tokenized Assets]
-                </h2>
-              </div>
+          {/* Listings Grid - Show for all users */}
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <Package className="w-5 h-5 text-[#FFC700]" aria-hidden="true" />
+              <h2 className="text-2xl font-mono text-white">
+                [Your Listings]
+              </h2>
+            </div>
 
-              {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <svg
-                      className="animate-spin h-8 w-8 text-[#FFC700] mx-auto mb-4"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      aria-label="Loading"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    <p className="font-mono text-sm text-white/60">
-                      Loading your listings...
-                    </p>
-                  </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <svg
+                    className="animate-spin h-8 w-8 text-[#FFC700] mx-auto mb-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-label="Loading"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <p className="font-mono text-sm text-white/60">
+                    Loading your listings...
+                  </p>
                 </div>
-              ) : listings.length > 0 ? (
+              </div>
+            ) : wallet.connected && listings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {listings.map((listing) => (
                     <div
@@ -174,7 +155,7 @@ export default function ListingsPage() {
                               Price
                             </span>
                             <span className="font-mono text-sm text-[#FFC700]">
-                              {listing.price || '0'} SOL
+                              {listing.price || '0'} USDC
                             </span>
                           </div>
 
@@ -213,31 +194,28 @@ export default function ListingsPage() {
                     No listings yet
                   </h3>
                   <p className="font-mono text-sm text-white/60 mb-6 max-w-md mx-auto">
-                    Start tokenizing your real-world assets by clicking the
-                    <span className="text-[#FFC700]"> [Tokenize Asset] </span>
-                    button above.
+                    Start creating your listings by clicking the
+                    <span className="text-[#FFC700]"> [Create Listing] </span>
+                    button above. {!wallet.connected && "You can connect your wallet later to mint the NFT."}
                   </p>
                   {!showForm && (
                     <Button onClick={() => setShowForm(true)}>
                       <Plus className="w-5 h-5 mr-2" aria-hidden="true" />
-                      [Create Your First NFT]
+                      [Create Your First Listing]
                     </Button>
                   )}
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
-          {/* Browse Marketplace CTA (when not connected) */}
-          {!wallet.connected && (
-            <div className="mt-12 text-center">
-              <Link href="/marketplace">
-                <Button>
-                  [Browse Marketplace]
-                </Button>
-              </Link>
-            </div>
-          )}
+          {/* Browse Marketplace CTA */}
+          <div className="mt-12 text-center">
+            <Link href="/marketplace">
+              <Button variant="outline">
+                [Browse Marketplace]
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </>

@@ -426,6 +426,57 @@ class ApiClient {
   }
 
   /**
+   * GET /api/listings - Fetch all listings
+   */
+  async getAllListings(params?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+    sortBy?: string;
+    order?: 'asc' | 'desc';
+    search?: string;
+  }): Promise<ApiResponse<{ success: true; listings: Listing[]; count: number }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.set('status', params.status);
+    if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.offset) queryParams.set('offset', params.offset.toString());
+    if (params?.sortBy) queryParams.set('sortBy', params.sortBy);
+    if (params?.order) queryParams.set('order', params.order);
+    if (params?.search) queryParams.set('search', params.search);
+
+    const url = `/api/listings${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
+        };
+      }
+
+      return {
+        success: true,
+        data: responseData,
+      };
+    } catch (error) {
+      console.error(`API request failed for ${url}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  /**
    * Validate image file before upload
    */
   validateImage(file: File): { valid: boolean; error?: string } {

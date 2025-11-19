@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, Grid3x3, LayoutGrid, Rows3, X, DollarSign } from 'lucide-react'
+import { Search, Grid3x3, LayoutGrid, Rows3, Plus, DollarSign } from 'lucide-react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
 
 interface Product {
@@ -140,6 +141,7 @@ const products: Product[] = [
 ]
 
 export default function MarketplacePage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'price-low' | 'price-high' | 'rarity-low' | 'rarity-high'>('price-low')
   const [viewMode, setViewMode] = useState<'grid-large' | 'grid-medium' | 'grid-small'>('grid-medium')
@@ -176,11 +178,7 @@ export default function MarketplacePage() {
     'grid-small': 'grid-cols-3 md:grid-cols-5 lg:grid-cols-6'
   }
 
-  const marketplaceNavItems = [
-    { name: 'Marketplace', href: '/marketplace' },
-    { name: 'Collections', href: '/collections' },
-    { name: 'Activities', href: '/activities' },
-  ]
+  const marketplaceNavItems = []
 
   return (
     <>
@@ -259,12 +257,16 @@ export default function MarketplacePage() {
               </div>
             </div>
 
-            {/* Right: Close Button */}
+            {/* Right: Create Listing Button */}
             <button
-              className="p-2 hover:bg-accent rounded-lg transition"
-              aria-label="Close marketplace"
+              onClick={() => router.push('/listings')}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition font-mono font-semibold"
+              aria-label="Create new listing without wallet"
+              title="Create new listing - wallet optional"
             >
-              <X className="w-5 h-5 text-foreground" />
+              <Plus className="w-5 h-5" />
+              <span className="hidden sm:inline">[Create Listing]</span>
+              <span className="sm:hidden">Listing</span>
             </button>
           </div>
         </div>
@@ -337,7 +339,7 @@ export default function MarketplacePage() {
               <div className="p-3 border-t border-border">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground font-mono mb-0.5">SOL</p>
+                    <p className="text-xs text-muted-foreground font-mono mb-0.5">USDC</p>
                     <p className="font-bold font-mono text-sm text-foreground">≡ {product.price.toFixed(2)}</p>
                   </div>
                 </div>
@@ -389,12 +391,12 @@ export default function MarketplacePage() {
                 <div className="space-y-4 pt-4 border-t border-border">
                   <div>
                     <p className="text-sm text-muted-foreground font-mono mb-1">Current Price</p>
-                    <p className="text-4xl font-bold font-mono text-foreground">{selectedProduct.price.toFixed(2)} SOL</p>
+                    <p className="text-4xl font-bold font-mono text-foreground">{selectedProduct.price.toFixed(2)} USDC</p>
                   </div>
 
                   <div>
                     <p className="text-sm text-muted-foreground font-mono mb-1">Instant Sell Price</p>
-                    <p className="text-2xl font-bold font-mono text-foreground">{selectedProduct.instantSell.toFixed(2)} SOL</p>
+                    <p className="text-2xl font-bold font-mono text-foreground">{selectedProduct.instantSell.toFixed(2)} USDC</p>
                   </div>
 
                   <div>

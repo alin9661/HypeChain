@@ -16,13 +16,13 @@ dotenv.config();
 
 // Initialize Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY // Use service key for backend operations
+  process.env.HACKNYU_SUPABASE_URL,
+  process.env.HACKNYU_SUPABASE_SERVICE_ROLE_KEY // Use service key for backend operations
 );
 
 // Initialize Solana connection
 const connection = new Connection(
-  process.env.SOLANA_RPC_URL || clusterApiUrl('devnet'),
+  process.env.HACKNYU_SOLANA_RPC_URL || clusterApiUrl('devnet'),
   'confirmed'
 );
 
