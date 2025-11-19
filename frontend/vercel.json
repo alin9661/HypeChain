@@ -1,0 +1,88 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "pnpm install && pnpm build",
+  "installCommand": "pnpm install",
+  "outputDirectory": ".next",
+
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    }
+  ],
+
+  "rewrites": [
+    {
+      "source": "/backend-api/:path*",
+      "destination": "/api/proxy/:path*"
+    }
+  ],
+
+  "redirects": [
+    {
+      "source": "/home",
+      "destination": "/",
+      "permanent": true
+    }
+  ],
+
+  "functions": {
+    "app/api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "app/api/listings/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+
+  "images": {
+    "domains": [
+      "nftstorage.link",
+      "ipfs.io",
+      "arweave.net"
+    ],
+    "formats": ["image/avif", "image/webp"],
+    "minimumCacheTTL": 60
+  },
+
+  "cleanUrls": true,
+  "trailingSlash": false,
+
+  "env": {
+    "NEXT_PUBLIC_CHAIN": "solana",
+    "NEXT_PUBLIC_SOLANA_NETWORK": "devnet"
+  }
+}
