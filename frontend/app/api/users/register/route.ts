@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-export const runtime = 'edge' // Optional: Use edge runtime for faster responses
-
 interface RegisterUserRequest {
   walletAddress: string
   privyUserId: string
