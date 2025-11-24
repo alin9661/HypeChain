@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: hypechain-backend
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    rootDir: backend
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: HACKNYU_FRONTEND_URL
+        sync: false
+      - key: HACKNYU_OPENROUTER_API_KEY
+        sync: false
+      - key: NFT_STORAGE_API_KEY
+        sync: false
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: SOLANA_NETWORK
+        value: devnet
+      - key: SERVER_WALLET_PRIVATE_KEY
+        sync: false
+      - key: MARKETPLACE_PROGRAM_ID
+        sync: false
+      - key: MERKLE_TREE_ADDRESS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
