@@ -2,7 +2,7 @@
 
 Express.js backend for the HypeChain NFT Marketplace with AI-powered product verification.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Install Dependencies
 
@@ -41,7 +41,7 @@ npm start
 
 Server runs on `http://localhost:3001`
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### POST /api/create-listing
 
@@ -75,7 +75,7 @@ Health check endpoint.
 
 API information and available endpoints.
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 backend/
@@ -93,7 +93,7 @@ backend/
 └── .env.example
 ```
 
-## 🔐 Environment Variables
+## Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -105,7 +105,7 @@ backend/
 | SERVER_WALLET_PRIVATE_KEY | Server wallet (base58) | Yes |
 | MARKETPLACE_PROGRAM_ID | Smart contract ID | No |
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Test with cURL
@@ -118,7 +118,7 @@ curl -X POST http://localhost:3001/api/create-listing \
   }'
 ```
 
-## 📦 Dependencies
+## Dependencies
 
 - **express** - Web framework
 - **@solana/web3.js** - Solana blockchain
@@ -129,7 +129,7 @@ curl -X POST http://localhost:3001/api/create-listing \
 - **helmet** - Security headers
 - **morgan** - Request logging
 
-## 🔧 Development
+## Development
 
 ```bash
 # Run with nodemon
@@ -142,6 +142,6 @@ npm run lint
 npm test
 ```
 
-## 📝 License
+## License
 
 MIT

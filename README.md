@@ -1,8 +1,20 @@
+# 🏆 HackNYU 2025 - First Place Winner 🏆
+### Best Use of Solana
+
+[![Live Demo](https://img.shields.io/badge/Live-Demo-00D9FF?style=for-the-badge&logo=vercel&logoColor=white)](https://hypechain.vercel.app/)
+[![DevPost](https://img.shields.io/badge/Dev-Post-003E54?style=for-the-badge&logo=devpost&logoColor=white)](https://devpost.com/software/hypechain)
+
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Solana](https://img.shields.io/badge/Solana-9945FF?style=for-the-badge&logo=solana&logoColor=white)](https://solana.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+
+---
+
 # HypeChain - AI-Powered NFT Marketplace
 
 HypeChain is a next-generation NFT marketplace that uses AI to verify product authenticity and generate professional marketing images before minting on the Solana blockchain.
 
-## 🌟 Features
+## Features
 
 - **AI Product Verification**: Uses GLM 4.6 vision model to analyze product authenticity
 - **Liveness Detection**: Scores images to detect screenshots or AI-generated fakes
@@ -11,7 +23,7 @@ HypeChain is a next-generation NFT marketplace that uses AI to verify product au
 - **IPFS Storage**: Decentralized storage via nft.storage
 - **On-Chain Marketplace**: Anchor smart contract for buying/selling
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Node.js 18+ and pnpm
 - Rust 1.75+ (for smart contract development)
@@ -20,7 +32,7 @@ HypeChain is a next-generation NFT marketplace that uses AI to verify product au
 - OpenRouter API key
 - NFT.Storage API key
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install Dependencies
 
@@ -97,7 +109,7 @@ pnpm dev
 ```
 App runs on `http://localhost:3000`
 
-## 🔌 API Usage
+## API Usage
 
 ### POST `/api/create-listing`
 
@@ -136,7 +148,7 @@ Creates a new NFT listing with AI verification.
 5. **NFT Minting**: Mints NFT to user's wallet via Metaplex
 6. **Marketplace Listing**: Lists on-chain at specified price
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -170,7 +182,7 @@ Creates a new NFT listing with AI verification.
     └──────────────────┘
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 HackNYU 2025/
@@ -205,7 +217,7 @@ HackNYU 2025/
     └── Anchor.toml
 ```
 
-## 🔐 Smart Contract
+## Smart Contract
 
 ### Instructions
 
@@ -252,7 +264,7 @@ pub struct ProductListing {
 }
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Test API Endpoint
 
@@ -273,7 +285,7 @@ cd contracts
 anchor test
 ```
 
-## 🛠️ Development
+## Development
 
 ### Build Smart Contract
 
@@ -294,7 +306,7 @@ anchor deploy --provider.cluster devnet
 anchor deploy --provider.cluster mainnet-beta
 ```
 
-## 📦 Dependencies
+## Dependencies
 
 ### Frontend
 - `@solana/web3.js` - Solana blockchain interaction
@@ -307,7 +319,7 @@ anchor deploy --provider.cluster mainnet-beta
 - `anchor-lang` - Solana program framework
 - `anchor-spl` - Token program integration
 
-## 🔑 API Keys
+## API Keys
 
 1. **OpenRouter**: https://openrouter.ai/
    - Sign up and create an API key
@@ -321,7 +333,7 @@ anchor deploy --provider.cluster mainnet-beta
    - Devnet: `https://api.devnet.solana.com` (free)
    - Mainnet: Use QuickNode, Helius, or Alchemy
 
-## 🚨 Important Notes
+## Important Notes
 
 - **Devnet Testing**: Always test on devnet first
 - **Transaction Fees**: Server wallet pays for NFT minting (~0.01 SOL)
@@ -329,15 +341,15 @@ anchor deploy --provider.cluster mainnet-beta
 - **Liveness Score**: Minimum 50/100 to pass verification
 - **NFT Ownership**: NFTs are minted directly to user's wallet
 
-## 📝 License
+## License
 
 MIT License - see LICENSE file for details
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please open an issue or PR.
 
-## 🎯 Roadmap
+## Roadmap
 
 - [ ] Frontend UI for listing creation
 - [ ] Browse marketplace page
@@ -346,7 +358,7 @@ Contributions welcome! Please open an issue or PR.
 - [ ] Auction functionality
 - [ ] Mobile app (React Native)
 
-## 📞 Support
+## Support
 
 For questions or issues:
 - Open a GitHub issue
@@ -354,4 +366,4 @@ For questions or issues:
 
 ---
 
-Built with ❤️ for HackNYU 2025
+Built for HackNYU 2025
