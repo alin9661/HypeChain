@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "pnpm install && pnpm build --webpack",
-  "installCommand": "pnpm install",
+  "buildCommand": "bun run build --webpack",
+  "installCommand": "bun install",
   "outputDirectory": ".next",
 
   "headers": [
@@ -59,10 +59,6 @@
 
   "functions": {
     "app/api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 30
-    },
-    "app/api/listings/**/*.ts": {
       "memory": 1024,
       "maxDuration": 30
     }
