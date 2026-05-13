@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Use HACKNYU_ prefixed variables for server-side API routes
-// These are NOT exposed to the client bundle
-const supabaseUrl = process.env.HACKNYU_SUPABASE_URL!;
-const supabaseKey = process.env.HACKNYU_SUPABASE_ANON_KEY!;
+// Lazy singleton — server-only env vars aren't available during
+// `next build` page data collection, so we defer initialization
+let _supabase: ReturnType<typeof createClient> | null = null;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.HACKNYU_SUPABASE_URL!,
+      process.env.HACKNYU_SUPABASE_ANON_KEY!
+    );
+  }
+  return _supabase;
+}
 
 /**
  * GET /api/listings - Fetch all active listings
@@ -28,6 +35,7 @@ export async function GET(request: NextRequest) {
     const order = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
     const searchQuery = searchParams.get('search') || '';
 
+    const supabase = getSupabase();
     let query = supabase
       .from('listings')
       .select('*')
