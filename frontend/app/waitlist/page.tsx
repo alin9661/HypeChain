@@ -25,16 +25,25 @@ const POLY_12 = 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12p
 const POLY_16 = 'polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px)'
 
 function buildSubmissionId(): string {
-  // HC-W-NNNNNN format; mirrors listings-detail's HC-YYYY-NNNNNN case-file format.
-  const n = String(Math.floor(1848 + Math.random() * 50)).padStart(6, '0')
-  return `HC-W-${n}`
+  // Stub — real submission ID will come from the /api/waitlist response.
+  // Use crypto.randomUUID() for unique client-side preview IDs; collision space
+  // is effectively unbounded (2^128).
+  const uuid =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
+      : Math.random().toString(36).slice(2, 10).toUpperCase()
+  return `HC-W-${uuid}`
 }
 
 function nowIntakeStamp(): string {
-  // 2026-05-18 13:47:21 EST format (case-file vocabulary)
+  // Stub — real intake timestamp will come from the /api/waitlist response.
+  // Show the user's actual timezone abbreviation instead of hardcoding "EST"
+  // (which lied to anyone outside America/New_York).
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} EST`
+  const tzMatch = d.toString().match(/\(([A-Z]{2,5})\)/)
+  const tz = tzMatch ? tzMatch[1] : Intl.DateTimeFormat().resolvedOptions().timeZone
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${tz}`
 }
 
 export default function WaitlistPage() {
