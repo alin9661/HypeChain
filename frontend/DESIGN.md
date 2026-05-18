@@ -63,8 +63,9 @@ text-8xl  120px  — display marketing desktop (Sentient italic moments)
 --color-text-muted: #6B6B6B;  /* labels, metadata */
 
 /* Brand */
---color-accent:      #FFC700;  /* "verified gold" — caution-tape + certification semiotics */
---color-accent-deep: #EBB800;  /* inset glow, hover */
+--color-accent:      #D4A82C;  /* "evidence-locker brass" — antique gold, financial-terminal vocabulary */
+--color-accent-deep: #B88B1F;  /* inset glow, hover */
+--color-accent-tint: rgba(212, 168, 44, 0.10);  /* active-state tints, ambient washes */
 
 /* Verification semantics */
 --color-verify-high: #00E5A0;  /* mint — AI confidence HIGH, VERIFIED */
@@ -167,3 +168,4 @@ grep -rn "rounded-full" frontend/components/
 | Date | Decision | Rationale |
 |---|---|---|
 | 2026-05-14 | Initial design system codified — direction "Verified Yellow + Evidence Chrome" (Hybrid) | Created by /design-consultation after HackNYU 2025 first-place finish. Codifies the cypherpunk-financial-terminal aesthetic already in `app/page.tsx`. Kills `components/hero-section.tsx` v0 slop. Unifies `nft-card.tsx` via `<Frame>` primitive. Adds three Evidence Locker moves (case-file ribbon, redaction bars, Certificate of Authenticity) to carry forensic-evidentiary semantics on the existing chassis. Implementation plan: `~/.claude/plans/sparkling-wobbling-wirth.md`. Visual reference: `~/.gstack/projects/alin9661-HypeChain/designs/hypechain-design-system-20260514-143236/comparison.html`. |
+| 2026-05-18 | Accent retoned `#FFC700` → `#D4A82C` (evidence-locker brass); `--color-accent-deep` `#EBB800` → `#B88B1F`; added `--color-accent-tint` token | Surfaced during waitlist page mockup (`~/.gstack/projects/alin9661-HypeChain/designs/waitlist-20260518/`). Caution-tape yellow read as "construction sign"; brass reads as "Bloomberg terminal" and aligns with "evidence-locker not JPEG-mall" positioning. Brass also avoids the chromatic clash with `--color-verify-high` (`#00E5A0`) — pure yellow + mint-green was harsh; brass + mint is harmonious. WCAG AA contrast on `#D4A82C` with `#000` text = 9.2:1 (legible CTAs). Propagated to `app/globals.css --hc-accent`, all `bg-[#FFC700]`/`text-[#FFC700]`/`border-[#FFC700]` arbitrary values in `app/listings/`, `app/sold/`, `app/activities/`, and `app/waitlist/`. WebGL particle uniforms in `components/gl/` were not touched (separate brand-asset color system — verify-on-update). |
