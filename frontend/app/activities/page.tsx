@@ -105,7 +105,7 @@ export default function ActivitiesPage() {
       case 'sale':
         return <ShoppingBag className="h-5 w-5 text-emerald-500" />
       case 'listing':
-        return <Package className="h-5 w-5 text-[#FFC700]" />
+        return <Package className="h-5 w-5 text-[#D4A82C]" />
       case 'transfer':
         return <RefreshCw className="h-5 w-5 text-blue-500" />
       case 'mint':
@@ -118,7 +118,7 @@ export default function ActivitiesPage() {
   const getActivityBadge = (type: string) => {
     const badges = {
       sale: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-      listing: 'bg-[#FFC700]/10 text-[#FFC700] border-[#FFC700]/20',
+      listing: 'bg-[#D4A82C]/10 text-[#D4A82C] border-[#D4A82C]/20',
       transfer: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
       mint: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
     }
@@ -141,7 +141,7 @@ export default function ActivitiesPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold text-white sm:text-4xl">Activity Feed</h1>
-              <span className="rounded-full bg-[#FFC700]/10 px-3 py-1 text-sm font-medium text-[#FFC700] border border-[#FFC700]/20">
+              <span className="rounded-full bg-[#D4A82C]/10 px-3 py-1 text-sm font-medium text-[#D4A82C] border border-[#D4A82C]/20">
                 {stats.totalActivities} Total
               </span>
             </div>
@@ -153,15 +153,15 @@ export default function ActivitiesPage() {
 
         {/* Stats Dashboard */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Total Activities</p>
-              <TrendingUp className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#FFC700]" />
+              <TrendingUp className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#D4A82C]" />
             </div>
             <p className="mt-2 font-mono text-3xl font-bold text-white">{stats.totalActivities}</p>
           </div>
 
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Total Volume</p>
               <ArrowUpRight className="h-5 w-5 text-slate-500 transition-colors group-hover:text-emerald-500" />
@@ -169,15 +169,15 @@ export default function ActivitiesPage() {
             <p className="mt-2 font-mono text-3xl font-bold text-emerald-500">{stats.totalVolume.toFixed(2)} USDC</p>
           </div>
 
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Active Listings</p>
-              <Package className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#FFC700]" />
+              <Package className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#D4A82C]" />
             </div>
             <p className="mt-2 font-mono text-3xl font-bold text-white">{stats.activeListings}</p>
           </div>
 
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Recent Sales (24h)</p>
               <ShoppingBag className="h-5 w-5 text-slate-500 transition-colors group-hover:text-emerald-500" />
@@ -196,7 +196,7 @@ export default function ActivitiesPage() {
               placeholder="Search by NFT, address, or transaction..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-400 transition-all focus:border-[#FFC700] focus:outline-none focus:ring-1 focus:ring-[#FFC700]"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-400 transition-all focus:border-[#D4A82C] focus:outline-none focus:ring-1 focus:ring-[#D4A82C]"
             />
           </div>
 
@@ -208,7 +208,7 @@ export default function ActivitiesPage() {
                 onClick={() => setFilterType(type)}
                 className={`rounded-lg px-4 py-2 text-sm font-medium uppercase tracking-wide transition-all duration-300 ${
                   filterType === type
-                    ? 'bg-[#FFC700] text-black shadow-lg shadow-[#FFC700]/30'
+                    ? 'bg-[#D4A82C] text-black shadow-lg shadow-[#D4A82C]/30'
                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
                 }`}
               >
@@ -230,7 +230,7 @@ export default function ActivitiesPage() {
             filteredActivities.map((activity) => (
               <div
                 key={activity.id}
-                className="group rounded-lg border border-slate-700 bg-slate-800/50 p-4 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70 sm:p-6"
+                className="group rounded-lg border border-slate-700 bg-slate-800/50 p-4 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70 sm:p-6"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   {/* Left: NFT Info */}
@@ -256,7 +256,7 @@ export default function ActivitiesPage() {
                           {activity.type}
                         </span>
                       </div>
-                      <h3 className="font-semibold text-white group-hover:text-[#FFC700] transition-colors">
+                      <h3 className="font-semibold text-white group-hover:text-[#D4A82C] transition-colors">
                         {activity.nftName}
                       </h3>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
@@ -282,7 +282,7 @@ export default function ActivitiesPage() {
                     {/* Price */}
                     {activity.price > 0 && (
                       <div className="text-right">
-                        <p className="font-mono text-2xl font-bold text-[#FFC700]">
+                        <p className="font-mono text-2xl font-bold text-[#D4A82C]">
                           {activity.price.toFixed(2)} USDC
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
@@ -298,7 +298,7 @@ export default function ActivitiesPage() {
                         href={`https://explorer.solana.com/tx/${activity.txHash}?cluster=devnet`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-all hover:bg-[#FFC700] hover:text-black"
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-all hover:bg-[#D4A82C] hover:text-black"
                       >
                         <span className="font-mono">{activity.txHash}</span>
                         <ExternalLink className="h-3.5 w-3.5" />
@@ -314,7 +314,7 @@ export default function ActivitiesPage() {
         {/* Load More Placeholder */}
         {filteredActivities.length > 0 && (
           <div className="flex justify-center pt-4">
-            <button className="rounded-lg border border-slate-700 bg-slate-800/50 px-6 py-3 text-sm font-medium uppercase text-white transition-all hover:border-[#FFC700] hover:bg-slate-800/70 hover:text-[#FFC700]">
+            <button className="rounded-lg border border-slate-700 bg-slate-800/50 px-6 py-3 text-sm font-medium uppercase text-white transition-all hover:border-[#D4A82C] hover:bg-slate-800/70 hover:text-[#D4A82C]">
               Load More Activities
             </button>
           </div>

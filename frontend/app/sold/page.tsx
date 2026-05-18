@@ -25,9 +25,9 @@ export default function SoldPage() {
               Track your successful NFT sales and transaction history
             </p>
 
-            <div className="inline-flex items-center gap-2 px-6 py-3 bg-[#FFC700]/10 border border-[#FFC700]/30 rounded-md">
+            <div className="inline-flex items-center gap-2 px-6 py-3 bg-[#D4A82C]/10 border border-[#D4A82C]/30 rounded-md">
               <svg
-                className="animate-spin h-5 w-5 text-[#FFC700]"
+                className="animate-spin h-5 w-5 text-[#D4A82C]"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -46,7 +46,7 @@ export default function SoldPage() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span className="font-mono text-[#FFC700] text-sm uppercase">
+              <span className="font-mono text-[#D4A82C] text-sm uppercase">
                 Coming Soon
               </span>
             </div>

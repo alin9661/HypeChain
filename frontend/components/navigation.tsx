@@ -50,7 +50,7 @@ export function Navigation({ items, showConnectWallet = true }: NavigationProps)
                 key={item.name}
                 className={`uppercase inline-block font-mono text-sm transition-colors ease-out duration-150 ${
                   isActive
-                    ? 'text-[#FFC700]'
+                    ? 'text-[#D4A82C]'
                     : 'text-white/60 hover:text-white/100'
                 }`}
                 href={item.href}

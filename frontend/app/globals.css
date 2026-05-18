@@ -54,8 +54,9 @@
   --hc-text-body:  #E5E5E5;
   --hc-text-muted: #6B6B6B;
 
-  --hc-accent:      #FFC700;
-  --hc-accent-deep: #EBB800;
+  --hc-accent:      #D4A82C;
+  --hc-accent-deep: #B88B1F;
+  --hc-accent-tint: rgba(212, 168, 44, 0.10);
 
   --hc-verify-high: #00E5A0;
   --hc-verify-med:  #FF9500;

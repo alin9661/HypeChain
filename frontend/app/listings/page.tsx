@@ -86,7 +86,7 @@ export default function ListingsPage() {
           {/* Listings Grid - Show for all users */}
           <div>
             <div className="flex items-center gap-3 mb-6">
-              <Package className="w-5 h-5 text-[#FFC700]" aria-hidden="true" />
+              <Package className="w-5 h-5 text-[#D4A82C]" aria-hidden="true" />
               <h2 className="text-2xl font-mono text-white">
                 [Your Listings]
               </h2>
@@ -96,7 +96,7 @@ export default function ListingsPage() {
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">
                   <svg
-                    className="animate-spin h-8 w-8 text-[#FFC700] mx-auto mb-4"
+                    className="animate-spin h-8 w-8 text-[#D4A82C] mx-auto mb-4"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -126,7 +126,7 @@ export default function ListingsPage() {
                   {listings.map((listing) => (
                     <div
                       key={listing.id}
-                      className="bg-[#0F0F0F] border border-[#424242] rounded-lg overflow-hidden hover:border-[#FFC700] transition-colors duration-300 group"
+                      className="bg-[#0F0F0F] border border-[#424242] rounded-lg overflow-hidden hover:border-[#D4A82C] transition-colors duration-300 group"
                     >
                       {/* NFT Image */}
                       <div className="aspect-square bg-black/50 relative overflow-hidden">
@@ -154,7 +154,7 @@ export default function ListingsPage() {
                             <span className="font-mono text-xs text-white/50">
                               Price
                             </span>
-                            <span className="font-mono text-sm text-[#FFC700]">
+                            <span className="font-mono text-sm text-[#D4A82C]">
                               {listing.price || '0'} USDC
                             </span>
                           </div>
@@ -176,7 +176,7 @@ export default function ListingsPage() {
                             href={listing.ipfsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 font-mono text-xs text-[#FFC700] hover:underline"
+                            className="inline-flex items-center gap-2 font-mono text-xs text-[#D4A82C] hover:underline"
                           >
                             View on IPFS →
                           </a>
@@ -187,15 +187,15 @@ export default function ListingsPage() {
                 </div>
               ) : (
                 <div className="text-center py-20">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FFC700]/10 border border-[#FFC700]/30 mb-4">
-                    <Package className="w-8 h-8 text-[#FFC700]" aria-hidden="true" />
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#D4A82C]/10 border border-[#D4A82C]/30 mb-4">
+                    <Package className="w-8 h-8 text-[#D4A82C]" aria-hidden="true" />
                   </div>
                   <h3 className="font-mono text-xl text-white mb-2">
                     No listings yet
                   </h3>
                   <p className="font-mono text-sm text-white/60 mb-6 max-w-md mx-auto">
                     Start creating your listings by clicking the
-                    <span className="text-[#FFC700]"> [Create Listing] </span>
+                    <span className="text-[#D4A82C]"> [Create Listing] </span>
                     button above. {!wallet.connected && "You can connect your wallet later to mint the NFT."}
                   </p>
                   {!showForm && (
