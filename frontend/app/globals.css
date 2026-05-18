@@ -40,6 +40,34 @@
   --input: 38 38 38;
   --ring: 255 199 0;
   --radius: 0.5rem;
+
+  /* DESIGN.md canonical tokens — Verified Yellow + Evidence Chrome.
+     Namespaced --hc-* so they don't collide with shadcn / Tailwind v4 above.
+     See frontend/DESIGN.md for the full system spec. */
+  --hc-bg:         #000000;
+  --hc-surface-1:  #0A0A0A;
+  --hc-surface-2:  #141414;
+  --hc-hairline:   #1F1F1F;
+  --hc-border:     #2A2A2A;
+
+  --hc-text:       #FFFFFF;
+  --hc-text-body:  #E5E5E5;
+  --hc-text-muted: #6B6B6B;
+
+  --hc-accent:      #FFC700;
+  --hc-accent-deep: #EBB800;
+
+  --hc-verify-high: #00E5A0;
+  --hc-verify-med:  #FF9500;
+  --hc-verify-low:  #FF3B30;
+
+  --hc-info:        #4D9EFF;
+  --hc-redaction:   #0A0A0A;
+
+  --hc-poly-4:  4px;
+  --hc-poly-6:  6px;
+  --hc-poly-16: 16px;
+  --hc-poly-24: 24px;
 }
 
 .dark {
@@ -117,4 +145,60 @@
 #webgl canvas {
   width: 100%;
   height: 100%;
+}
+
+/* =====================================================================
+   HypeChain Evidence Chrome utilities — polygon clip-path corners.
+   Use with --hc-poly-r set on the element (e.g. style={{ "--hc-poly-r":
+   "var(--hc-poly-16)" }}) to control corner roundness. Mirrors the
+   pattern used by frontend/components/pill.tsx so the visual primitive
+   is consistent across Pill, Frame, Button, and Chip.
+   ===================================================================== */
+.hc-poly {
+  clip-path: polygon(
+    var(--hc-poly-r, 6px) 0,
+    calc(100% - var(--hc-poly-r, 6px)) 0,
+    100% var(--hc-poly-r, 6px),
+    100% calc(100% - var(--hc-poly-r, 6px)),
+    calc(100% - var(--hc-poly-r, 6px)) 100%,
+    var(--hc-poly-r, 6px) 100%,
+    0 calc(100% - var(--hc-poly-r, 6px)),
+    0 var(--hc-poly-r, 6px)
+  );
+}
+
+/* Subtle scanline grain overlay — apply to a fixed ::before of a parent
+   to add the Evidence Locker mood without affecting child layout. */
+.hc-scanlines::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0px,
+    rgba(255, 255, 255, 0.012) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: lighten;
+}
+
+/* Caret blink for the typewriter unredact reveal — matches mockup cadence. */
+@keyframes hc-caret-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+/* Pulse used by the LIVE dot in the Case-File Ribbon. */
+@keyframes hc-live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+
+/* Primary CTA inset glow — DESIGN.md "Signature 1" hover state. */
+@keyframes hc-cta-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(0,0,0,0), 0 0 0 0 rgba(255,199,0,0); }
+  50%      { box-shadow: inset 0 0 24px rgba(0,0,0,0.15), 0 0 24px rgba(255,199,0,0.35); }
 }
