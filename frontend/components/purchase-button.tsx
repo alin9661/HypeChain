@@ -179,7 +179,7 @@ export function PurchaseButton({
           ${
             isDisabled
               ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
-              : 'bg-[#FFC700] text-black hover:bg-[#FFD700] hover:scale-105 active:scale-95'
+              : 'bg-[#D4A82C] text-black hover:bg-[#D4A82C] hover:scale-105 active:scale-95'
           }
           ${className}
         `}
@@ -220,7 +220,7 @@ export function PurchaseButton({
       )}
 
       {loading && status && (
-        <p className="text-sm text-[#FFC700] text-center font-mono animate-pulse">
+        <p className="text-sm text-[#D4A82C] text-center font-mono animate-pulse">
           {status}
         </p>
       )}

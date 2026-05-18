@@ -154,7 +154,7 @@ export default function CollectionsPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold text-white sm:text-4xl">Collections</h1>
-              <span className="rounded-full bg-[#FFC700]/10 px-3 py-1 text-sm font-medium text-[#FFC700] border border-[#FFC700]/20">
+              <span className="rounded-full bg-[#D4A82C]/10 px-3 py-1 text-sm font-medium text-[#D4A82C] border border-[#D4A82C]/20">
                 {stats.totalCollections} Total
               </span>
             </div>
@@ -166,23 +166,23 @@ export default function CollectionsPage() {
 
         {/* Stats Header */}
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Total Collections</p>
-              <Package className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#FFC700]" />
+              <Package className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#D4A82C]" />
             </div>
             <p className="mt-2 font-mono text-3xl font-bold text-white">{stats.totalCollections}</p>
           </div>
 
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Combined Floor Value</p>
-              <DollarSign className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#FFC700]" />
+              <DollarSign className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#D4A82C]" />
             </div>
-            <p className="mt-2 font-mono text-3xl font-bold text-[#FFC700]">{stats.totalFloorValue.toFixed(0)} USDC</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-[#D4A82C]">{stats.totalFloorValue.toFixed(0)} USDC</p>
           </div>
 
-          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70">
+          <div className="group rounded-lg border border-slate-700 bg-slate-800/50 p-6 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-wider text-slate-400">Total Trading Volume</p>
               <TrendingUp className="h-5 w-5 text-slate-500 transition-colors group-hover:text-emerald-500" />
@@ -201,7 +201,7 @@ export default function CollectionsPage() {
               placeholder="Search collections by name or creator..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-400 transition-all focus:border-[#FFC700] focus:outline-none focus:ring-1 focus:ring-[#FFC700]"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-400 transition-all focus:border-[#D4A82C] focus:outline-none focus:ring-1 focus:ring-[#D4A82C]"
             />
           </div>
 
@@ -226,7 +226,7 @@ export default function CollectionsPage() {
                     }}
                     className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                       sortBy === option.value
-                        ? 'bg-[#FFC700] text-black font-medium'
+                        ? 'bg-[#D4A82C] text-black font-medium'
                         : 'text-slate-300 hover:bg-slate-700 hover:text-white'
                     }`}
                   >
@@ -243,7 +243,7 @@ export default function CollectionsPage() {
               onClick={() => setViewMode('grid')}
               className={`rounded-lg p-2 transition-all ${
                 viewMode === 'grid'
-                  ? 'bg-[#FFC700] text-black'
+                  ? 'bg-[#D4A82C] text-black'
                   : 'text-slate-400 hover:text-white'
               }`}
               aria-label="Grid view"
@@ -254,7 +254,7 @@ export default function CollectionsPage() {
               onClick={() => setViewMode('list')}
               className={`rounded-lg p-2 transition-all ${
                 viewMode === 'list'
-                  ? 'bg-[#FFC700] text-black'
+                  ? 'bg-[#D4A82C] text-black'
                   : 'text-slate-400 hover:text-white'
               }`}
               aria-label="List view"
@@ -285,7 +285,7 @@ export default function CollectionsPage() {
             {filteredAndSortedCollections.map((collection) => (
               <div
                 key={collection.id}
-                className="group cursor-pointer overflow-hidden rounded-lg border border-slate-700 bg-slate-800/50 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70 hover:shadow-xl hover:shadow-[#FFC700]/10"
+                className="group cursor-pointer overflow-hidden rounded-lg border border-slate-700 bg-slate-800/50 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70 hover:shadow-xl hover:shadow-[#D4A82C]/10"
               >
                 {/* Banner */}
                 <div className="relative h-32 overflow-hidden bg-slate-900">
@@ -301,19 +301,19 @@ export default function CollectionsPage() {
                   {/* Avatar & Info */}
                   <div className="relative -mt-12 mb-4 flex items-end justify-between">
                     <div className="relative">
-                      <div className="h-20 w-20 overflow-hidden rounded-lg border-4 border-slate-800 bg-gradient-to-br from-[#FFC700] to-[#FFD700]">
+                      <div className="h-20 w-20 overflow-hidden rounded-lg border-4 border-slate-800 bg-gradient-to-br from-[#D4A82C] to-[#D4A82C]">
                         <img src={collection.avatar} alt={collection.name} className="h-full w-full object-cover" />
                       </div>
                       {collection.verified && (
                         <div className="absolute -right-1 -top-1 rounded-full bg-slate-800 p-0.5">
-                          <BadgeCheck className="h-5 w-5 text-[#FFC700]" />
+                          <BadgeCheck className="h-5 w-5 text-[#D4A82C]" />
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Collection Name */}
-                  <h3 className="mb-2 text-xl font-bold text-white transition-colors group-hover:text-[#FFC700]">
+                  <h3 className="mb-2 text-xl font-bold text-white transition-colors group-hover:text-[#D4A82C]">
                     {collection.name}
                   </h3>
 
@@ -333,7 +333,7 @@ export default function CollectionsPage() {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wide text-slate-500">Floor</p>
-                      <p className="mt-1 font-mono text-sm font-semibold text-[#FFC700]">
+                      <p className="mt-1 font-mono text-sm font-semibold text-[#D4A82C]">
                         {collection.floorPrice.toFixed(1)}
                       </p>
                     </div>
@@ -354,7 +354,7 @@ export default function CollectionsPage() {
             {filteredAndSortedCollections.map((collection) => (
               <div
                 key={collection.id}
-                className="group flex cursor-pointer items-center gap-6 rounded-lg border border-slate-700 bg-slate-800/50 p-4 transition-all duration-300 hover:border-[#FFC700]/50 hover:bg-slate-800/70"
+                className="group flex cursor-pointer items-center gap-6 rounded-lg border border-slate-700 bg-slate-800/50 p-4 transition-all duration-300 hover:border-[#D4A82C]/50 hover:bg-slate-800/70"
               >
                 {/* Thumbnail */}
                 <div className="relative h-20 w-32 flex-shrink-0 overflow-hidden rounded-lg bg-slate-900">
@@ -368,10 +368,10 @@ export default function CollectionsPage() {
                 {/* Info */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold text-white transition-colors group-hover:text-[#FFC700]">
+                    <h3 className="text-lg font-bold text-white transition-colors group-hover:text-[#D4A82C]">
                       {collection.name}
                     </h3>
-                    {collection.verified && <BadgeCheck className="h-5 w-5 text-[#FFC700]" />}
+                    {collection.verified && <BadgeCheck className="h-5 w-5 text-[#D4A82C]" />}
                   </div>
                   <p className="mt-1 font-mono text-xs text-slate-400">by {collection.creator}</p>
                   <p className="mt-1 line-clamp-1 text-sm text-slate-500">{collection.description}</p>
@@ -385,7 +385,7 @@ export default function CollectionsPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Floor</p>
-                    <p className="mt-1 font-mono text-lg font-semibold text-[#FFC700]">
+                    <p className="mt-1 font-mono text-lg font-semibold text-[#D4A82C]">
                       {collection.floorPrice.toFixed(1)} USDC
                     </p>
                   </div>
@@ -404,7 +404,7 @@ export default function CollectionsPage() {
         {/* Load More Placeholder */}
         {filteredAndSortedCollections.length > 0 && (
           <div className="flex justify-center pt-4">
-            <button className="rounded-lg border border-slate-700 bg-slate-800/50 px-6 py-3 text-sm font-medium uppercase text-white transition-all hover:border-[#FFC700] hover:bg-slate-800/70 hover:text-[#FFC700]">
+            <button className="rounded-lg border border-slate-700 bg-slate-800/50 px-6 py-3 text-sm font-medium uppercase text-white transition-all hover:border-[#D4A82C] hover:bg-slate-800/70 hover:text-[#D4A82C]">
               Load More Collections
             </button>
           </div>

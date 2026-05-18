@@ -51,7 +51,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
     <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
         <button
-          className="uppercase font-mono text-[#FFC700] text-sm px-4 py-2 border border-[#FFC700]/30 rounded-md hover:bg-[#FFC700]/5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFC700]/50"
+          className="uppercase font-mono text-[#D4A82C] text-sm px-4 py-2 border border-[#D4A82C]/30 rounded-md hover:bg-[#D4A82C]/5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4A82C]/50"
           aria-label="Wallet menu"
         >
           {truncateAddress(address)}
@@ -60,14 +60,14 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
 
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="min-w-[220px] bg-black border border-[#FFC700]/30 rounded-md shadow-lg z-[200] overflow-hidden"
+          className="min-w-[220px] bg-black border border-[#D4A82C]/30 rounded-md shadow-lg z-[200] overflow-hidden"
           sideOffset={8}
           align="end"
         >
           {/* Menu Items */}
           <div className="py-2">
             <DropdownMenu.Item
-              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#FFC700] hover:bg-[#FFC700]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
+              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#D4A82C] hover:bg-[#D4A82C]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
               onSelect={() => handleNavigation('/listings')}
             >
               <InventoryIcon />
@@ -75,17 +75,17 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
             </DropdownMenu.Item>
 
             <DropdownMenu.Item
-              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#FFC700] hover:bg-[#FFC700]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
+              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#D4A82C] hover:bg-[#D4A82C]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
               onSelect={() => handleNavigation('/sold')}
             >
               <SoldIcon />
               Sold
             </DropdownMenu.Item>
 
-            <DropdownMenu.Separator className="h-px bg-[#FFC700]/20 my-2" />
+            <DropdownMenu.Separator className="h-px bg-[#D4A82C]/20 my-2" />
 
             <DropdownMenu.Item
-              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#FFC700] hover:bg-[#FFC700]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
+              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#D4A82C] hover:bg-[#D4A82C]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
               onSelect={() => handleNavigation('/settings')}
             >
               <SettingsIcon />
@@ -93,7 +93,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
             </DropdownMenu.Item>
 
             <DropdownMenu.Item
-              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#FFC700] hover:bg-[#FFC700]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
+              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#D4A82C] hover:bg-[#D4A82C]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
               onSelect={handleChangeWallet}
             >
               <ChangeWalletIcon />
@@ -101,7 +101,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
             </DropdownMenu.Item>
 
             <DropdownMenu.Item
-              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#FFC700] hover:bg-[#FFC700]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
+              className="px-4 py-3 text-sm font-mono text-white/80 hover:text-[#D4A82C] hover:bg-[#D4A82C]/5 cursor-pointer outline-none transition-colors uppercase flex items-center gap-2"
               onSelect={handleDisconnect}
             >
               <DisconnectIcon />
@@ -110,7 +110,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
           </div>
 
           {/* Footer Section */}
-          <DropdownMenu.Separator className="h-px bg-[#FFC700]/20" />
+          <DropdownMenu.Separator className="h-px bg-[#D4A82C]/20" />
 
           <div className="py-3 px-4 space-y-3 bg-black/50">
             {/* Social Icons */}
@@ -119,7 +119,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
                 href="https://discord.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-white/60 hover:text-[#D4A82C] transition-colors"
                 aria-label="Discord"
               >
                 <DiscordIcon />
@@ -128,7 +128,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
                 href="https://twitter.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-white/60 hover:text-[#D4A82C] transition-colors"
                 aria-label="X (Twitter)"
               >
                 <XIcon />
@@ -139,7 +139,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
             <div className="flex flex-col gap-2 text-center">
               <a
                 href="#"
-                className="text-xs font-mono text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-xs font-mono text-white/60 hover:text-[#D4A82C] transition-colors"
                 onClick={(e) => {
                   e.preventDefault()
                   setOpen(false)
@@ -149,7 +149,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
               </a>
               <a
                 href="#"
-                className="text-xs font-mono text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-xs font-mono text-white/60 hover:text-[#D4A82C] transition-colors"
                 onClick={(e) => {
                   e.preventDefault()
                   setOpen(false)
@@ -159,7 +159,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
               </a>
               <a
                 href="#"
-                className="text-xs font-mono text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-xs font-mono text-white/60 hover:text-[#D4A82C] transition-colors"
                 onClick={(e) => {
                   e.preventDefault()
                   setOpen(false)
@@ -169,7 +169,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
               </a>
               <a
                 href="#"
-                className="text-xs font-mono text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-xs font-mono text-white/60 hover:text-[#D4A82C] transition-colors"
                 onClick={(e) => {
                   e.preventDefault()
                   setOpen(false)
@@ -179,7 +179,7 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
               </a>
               <a
                 href="#"
-                className="text-xs font-mono text-white/60 hover:text-[#FFC700] transition-colors"
+                className="text-xs font-mono text-white/60 hover:text-[#D4A82C] transition-colors"
                 onClick={(e) => {
                   e.preventDefault()
                   setOpen(false)
