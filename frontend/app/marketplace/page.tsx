@@ -4,10 +4,6 @@ import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { CaseFileRibbon } from '@/components/case-file-ribbon'
 
-// Public buyer-facing marketplace surface.
-// Sibling of /listings (Evidence Intake Bay, seller-facing).
-// Bottom CTA points back to the intake bay so sellers can find it
-// without leaving the public floor.
 const marketplaceNavItems = [
   { name: 'Marketplace', href: '/marketplace' },
   { name: 'Collections', href: '/collections' },
@@ -24,7 +20,50 @@ export default function MarketplacePage() {
         <CaseFileRibbon caseId={null} />
 
         <main className="mx-auto w-full max-w-[1536px] px-4 pb-24 pt-6 md:px-8 md:pt-8">
-          {/* Header, KPIs, table, and rails added in subsequent commits. */}
+
+          {/* EDITORIAL HERO
+              Per DESIGN.md, Instrument Serif italic is reserved for editorial
+              moments only. The marketplace title is one of those moments. */}
+          <header
+            className="border-b pb-8"
+            style={{ borderColor: 'var(--hc-hairline)' }}
+            aria-label="Market summary"
+          >
+            <div
+              className="mb-4 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em]"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              <span
+                className="inline-block px-1.5 py-0.5 text-[10px]"
+                style={{
+                  background: 'var(--hc-accent-tint)',
+                  border: '1px solid var(--hc-accent-deep)',
+                  color: 'var(--hc-accent)',
+                }}
+              >
+                02
+              </span>
+              <span>Cleared Dossiers · Public Floor</span>
+            </div>
+            <h1
+              className="italic leading-[1.02] tracking-[-0.01em]"
+              style={{
+                fontFamily: "'Instrument Serif', 'Sentient', serif",
+                fontStyle: 'italic',
+                fontWeight: 300,
+                fontSize: 'clamp(36px, 5.5vw, 64px)',
+                color: 'var(--hc-text)',
+              }}
+            >
+              Verified physical-asset marketplace.
+            </h1>
+            <p
+              className="mt-4 max-w-[60ch] font-mono text-[11px] uppercase tracking-[0.12em]"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              Every listing carries a Certificate of Authenticity issued by VISION-4O.
+            </p>
+          </header>
 
           <div
             className="mt-24 flex flex-wrap items-center justify-between gap-5 border-t pt-8"
