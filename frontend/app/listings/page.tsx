@@ -130,10 +130,10 @@ export default function ListingsPage() {
                     >
                       {/* NFT Image */}
                       <div className="aspect-square bg-black/50 relative overflow-hidden">
-                        {listing.image ? (
+                        {listing.nft_image_url ? (
                           <img
-                            src={listing.image}
-                            alt={listing.name}
+                            src={listing.nft_image_url}
+                            alt={listing.product_name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
@@ -146,7 +146,7 @@ export default function ListingsPage() {
                       {/* NFT Details */}
                       <div className="p-4">
                         <h3 className="font-mono text-lg text-white mb-2 truncate">
-                          {listing.name || 'Unnamed Asset'}
+                          {listing.product_name || 'Unnamed Asset'}
                         </h3>
 
                         <div className="space-y-2 mb-4">
@@ -155,17 +155,17 @@ export default function ListingsPage() {
                               Price
                             </span>
                             <span className="font-mono text-sm text-[#D4A82C]">
-                              {listing.price || '0'} USDC
+                              {listing.listing_price_sol || '0'} USDC
                             </span>
                           </div>
 
-                          {listing.mintAddress && (
+                          {listing.nft_mint_address && (
                             <div className="flex justify-between items-center">
                               <span className="font-mono text-xs text-white/50">
                                 Mint Address
                               </span>
                               <span className="font-mono text-xs text-white/70 truncate max-w-[150px]">
-                                {listing.mintAddress.slice(0, 4)}...{listing.mintAddress.slice(-4)}
+                                {listing.nft_mint_address.slice(0, 4)}...{listing.nft_mint_address.slice(-4)}
                               </span>
                             </div>
                           )}
