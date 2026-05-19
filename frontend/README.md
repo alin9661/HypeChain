@@ -264,23 +264,6 @@ frontend/
 * = Newly created/integrated files
 ```
 
-## Design System
-
-### Color Palette (Dark Mode)
-
-- **Background**: `rgb(2, 6, 23)` - Very dark blue
-- **Foreground**: `rgb(248, 250, 252)` - Light slate
-- **Primary**: `rgb(59, 130, 246)` - Blue
-- **Card**: `rgb(15, 23, 42)` - Dark slate
-- **Border**: `rgb(30, 41, 59)` - Slate gray
-
-### Typography
-
-- **Font**: Geist Sans & Geist Mono
-- **Headings**: Bold, white text
-- **Body**: Regular, slate-400
-- **Code**: Monospace, blue-400
-
 ## API Integration
 
 ### Using the API Client
