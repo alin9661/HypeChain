@@ -4,7 +4,8 @@ import { useMemo } from 'react'
 import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { CaseFileRibbon } from '@/components/case-file-ribbon'
-import { useListings, type NFTListing } from '@/contexts/AppContext'
+import { RedactedField } from '@/components/redacted-field'
+import { useListings, useWallet, type NFTListing } from '@/contexts/AppContext'
 
 const marketplaceNavItems = [
   { name: 'Marketplace', href: '/marketplace' },
@@ -58,9 +59,6 @@ function placeholderConfidence(status: Status, id: string): number | null {
   return 92 + (seed % 80) / 10
 }
 
-// placeholderConfidence is consumed in commit 8 (ConfidenceBar wiring).
-void placeholderConfidence
-
 function sortLabel(key: SortKey): string {
   switch (key) {
     case 'price-asc': return 'Price ▲'
@@ -72,6 +70,7 @@ function sortLabel(key: SortKey): string {
 
 export default function MarketplacePage() {
   const { listings, isLoading } = useListings()
+  const { wallet } = useWallet()
 
   const counts = useMemo(() => {
     const verified = listings.filter((l) => deriveStatus(l) === 'verified').length
@@ -288,7 +287,12 @@ export default function MarketplacePage() {
                 <EmptyTableState />
               ) : (
                 listings.map((listing, idx) => (
-                  <ListingRow key={listing.id} listing={listing} index={idx + 1} />
+                  <ListingRow
+                    key={listing.id}
+                    listing={listing}
+                    index={idx + 1}
+                    walletConnected={wallet.connected}
+                  />
                 ))
               )}
             </div>
@@ -490,17 +494,66 @@ function StatusPill({ status }: { status: Status }) {
   )
 }
 
+function ConfidenceBar({
+  pct,
+  tone,
+  label,
+}: {
+  pct: number | null
+  tone: 'high' | 'med' | 'low' | 'pending'
+  label: string
+}) {
+  const color =
+    tone === 'high'
+      ? 'var(--hc-verify-high)'
+      : tone === 'med'
+        ? 'var(--hc-verify-med)'
+        : tone === 'low'
+          ? 'var(--hc-verify-low)'
+          : 'var(--hc-text-muted)'
+  return (
+    <div className="flex w-full flex-col gap-1">
+      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.06em]" style={{ color: 'var(--hc-text-muted)' }}>
+        <span>{label}</span>
+        <span className="tabular-nums" style={{ color, fontSize: 11 }}>
+          {pct !== null ? `${pct.toFixed(1)}%` : '— %'}
+        </span>
+      </div>
+      <div aria-hidden className="relative h-[3px]" style={{ background: 'var(--hc-hairline)' }}>
+        <span
+          className="absolute inset-y-0 left-0"
+          style={{
+            background: color,
+            width: pct !== null ? `${Math.max(0, Math.min(100, pct))}%` : '0%',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function ListingRow({
   listing,
   index,
+  walletConnected,
 }: {
   listing: NFTListing
   index: number
+  walletConnected: boolean
 }) {
   const status = deriveStatus(listing)
+  const isPending = status === 'pending'
+  const confidence = placeholderConfidence(status, listing.id)
   const seller = shortAddr(listing.userWallet)
   const priceValue = `${Number(listing.listing_price_sol || 0).toLocaleString()} USDC`
-  const mintValue = listing.nft_mint_address ? shortAddr(listing.nft_mint_address) : '—'
+  // Mint is redacted while either: the listing has no mint address yet
+  // (still under examination), OR the wallet isn't connected (chain-of-
+  // custody not yet established for this viewer). Mirrors /listings
+  // page.tsx DossierCard convention so the typewriter unredact fires on
+  // the same trigger across both surfaces.
+  const mintAddress = listing.nft_mint_address
+  const mintPending = !mintAddress || !walletConnected
+  const mintValue = mintAddress ? shortAddr(mintAddress) : '—'
 
   return (
     <Link
@@ -554,7 +607,17 @@ function ListingRow({
               {caseNumber(listing.id)} <span className="opacity-40 px-1">·</span>{' '}
               <span style={{ color: 'var(--hc-info)' }}>{seller}</span>{' '}
               <span className="opacity-40 px-1">·</span>{' '}
-              Mint: {mintValue}
+              Mint:{' '}
+              {mintAddress ? (
+                <RedactedField
+                  pending={mintPending}
+                  value={mintValue}
+                  widthCh={Math.max(7, mintValue.length)}
+                  className="text-[10px]"
+                />
+              ) : (
+                <RedactedField pending value="" widthCh={7} className="text-[10px]" />
+              )}
             </div>
           </div>
         </div>
@@ -564,20 +627,32 @@ function ListingRow({
         <div className="flex flex-col items-end gap-0.5">
           <span
             className="font-mono tabular-nums"
-            style={{ color: 'var(--hc-text)', fontSize: 13, fontWeight: 500 }}
+            style={{
+              color: isPending ? 'var(--hc-text-muted)' : 'var(--hc-text)',
+              fontSize: 13,
+              fontWeight: 500,
+            }}
           >
-            {priceValue}
+            {isPending ? (
+              <RedactedField pending value="" widthCh={7} className="text-[12px]" />
+            ) : (
+              priceValue
+            )}
           </span>
-          <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--hc-text-muted)' }}>
-            ≈ {(Number(listing.listing_price_sol) / 182).toFixed(3)} ◎
-          </span>
+          {!isPending && (
+            <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--hc-text-muted)' }}>
+              ≈ {(Number(listing.listing_price_sol) / 182).toFixed(3)} ◎
+            </span>
+          )}
         </div>
       </div>
 
       <div className="td col-ai">
-        <span className="font-mono text-[10px] uppercase tracking-[0.06em]" style={{ color: 'var(--hc-text-muted)' }}>
-          {status === 'verified' ? 'VERIFIED' : 'EXAMINING…'}
-        </span>
+        <ConfidenceBar
+          pct={confidence}
+          tone={isPending ? 'pending' : 'high'}
+          label={isPending ? 'EXAMINING…' : 'VISION-4O'}
+        />
       </div>
 
       <div className="td col-seller">
