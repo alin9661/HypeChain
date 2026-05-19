@@ -1,8 +1,10 @@
 'use client'
 
+import { useMemo } from 'react'
 import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { CaseFileRibbon } from '@/components/case-file-ribbon'
+import { useListings } from '@/contexts/AppContext'
 
 const marketplaceNavItems = [
   { name: 'Marketplace', href: '/marketplace' },
@@ -12,6 +14,20 @@ const marketplaceNavItems = [
 ]
 
 export default function MarketplacePage() {
+  const { listings } = useListings()
+
+  // Verified ↔ pending is the only derivation we need at the page header
+  // level. Mirrors the /listings convention: a mint address means the
+  // examination cleared (page.tsx:22–24).
+  const counts = useMemo(() => {
+    const verified = listings.filter((l) => Boolean(l.nft_mint_address)).length
+    return {
+      all: listings.length,
+      verified,
+      pending: listings.length - verified,
+    }
+  }, [listings])
+
   return (
     <>
       <Navigation items={marketplaceNavItems} showConnectWallet={true} />
@@ -21,9 +37,6 @@ export default function MarketplacePage() {
 
         <main className="mx-auto w-full max-w-[1536px] px-4 pb-24 pt-6 md:px-8 md:pt-8">
 
-          {/* EDITORIAL HERO
-              Per DESIGN.md, Instrument Serif italic is reserved for editorial
-              moments only. The marketplace title is one of those moments. */}
           <header
             className="border-b pb-8"
             style={{ borderColor: 'var(--hc-hairline)' }}
@@ -61,7 +74,8 @@ export default function MarketplacePage() {
               className="mt-4 max-w-[60ch] font-mono text-[11px] uppercase tracking-[0.12em]"
               style={{ color: 'var(--hc-text-muted)' }}
             >
-              Every listing carries a Certificate of Authenticity issued by VISION-4O.
+              <span style={{ color: 'var(--hc-verify-high)' }}>● {counts.verified}</span>{' '}
+              cleared · {counts.pending} pending intake · 0 disputed mints
             </p>
           </header>
 
