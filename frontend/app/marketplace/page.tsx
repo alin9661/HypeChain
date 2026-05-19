@@ -58,15 +58,9 @@ function placeholderConfidence(status: Status, id: string): number | null {
   return 92 + (seed % 80) / 10
 }
 
-// Some helpers are landed but not yet consumed by the table in this
-// commit (consumed in commits 7+). Suppress noUnusedLocals.
-void caseNumber
-void shortAddr
-void timeAgo
+// placeholderConfidence is consumed in commit 8 (ConfidenceBar wiring).
 void placeholderConfidence
 
-// Sort key → label for the toolbar "Sorted by …" cell. Stays at the
-// top-level so the filter rail commit can reuse it.
 function sortLabel(key: SortKey): string {
   switch (key) {
     case 'price-asc': return 'Price ▲'
@@ -115,11 +109,6 @@ export default function MarketplacePage() {
     <>
       <Navigation items={marketplaceNavItems} showConnectWallet={true} />
 
-      {/* Page-scoped column tracks. Tailwind cannot set a CSS variable
-          inside a media query, so an inline style block is the cleanest
-          path for per-breakpoint grid templates. Each breakpoint also
-          hides cells via class so column count stays in sync with cell
-          count (grid auto-flow would otherwise wrap rows). */}
       <style>{`
         .mkt-table { display: grid; }
         .mkt-table .row { display: contents; }
@@ -221,11 +210,6 @@ export default function MarketplacePage() {
             />
           </header>
 
-          {/* LISTINGS PANEL
-              Polygon clip-path corners are the signature forensic
-              "evidence drawer" treatment. Toolbar shows count + sort
-              label even when the table is empty so the chrome reads
-              the same whether or not data is loaded. */}
           <section
             className="mt-6"
             style={{
@@ -300,8 +284,12 @@ export default function MarketplacePage() {
                   />
                   Examining custody log…
                 </div>
-              ) : (
+              ) : listings.length === 0 ? (
                 <EmptyTableState />
+              ) : (
+                listings.map((listing, idx) => (
+                  <ListingRow key={listing.id} listing={listing} index={idx + 1} />
+                ))
               )}
             </div>
           </section>
@@ -337,9 +325,6 @@ export default function MarketplacePage() {
         </main>
       </div>
 
-      {/* Per-breakpoint cell visibility. Each media query must hide the
-          cells in the same column track the --mkt-cols change drops,
-          otherwise grid auto-flow wraps the row to a second visual row. */}
       <style>{`
         .mkt-table .th,
         .mkt-table .td {
@@ -460,6 +445,157 @@ function KpiCell({
         />
       </span>
     </div>
+  )
+}
+
+function StatusPill({ status }: { status: Status }) {
+  const config =
+    status === 'verified'
+      ? {
+          label: 'Verified',
+          color: 'var(--hc-verify-high)',
+          bg: 'rgba(0, 229, 160, 0.08)',
+          border: 'rgba(0, 229, 160, 0.3)',
+          dotShadow: '0 0 6px rgba(0, 229, 160, 0.6)',
+          pulse: false,
+        }
+      : {
+          label: 'Pending',
+          color: 'var(--hc-verify-med)',
+          bg: 'rgba(255, 149, 0, 0.08)',
+          border: 'rgba(255, 149, 0, 0.3)',
+          dotShadow: 'none',
+          pulse: true,
+        }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em]"
+      style={{
+        color: config.color,
+        background: config.bg,
+        border: `1px solid ${config.border}`,
+      }}
+    >
+      <span
+        aria-hidden
+        className="inline-block h-1 w-1 rounded-full"
+        style={{
+          background: config.color,
+          boxShadow: config.dotShadow,
+          animation: config.pulse ? 'hc-live-pulse 1.2s ease-in-out infinite' : undefined,
+        }}
+      />
+      {config.label}
+    </span>
+  )
+}
+
+function ListingRow({
+  listing,
+  index,
+}: {
+  listing: NFTListing
+  index: number
+}) {
+  const status = deriveStatus(listing)
+  const seller = shortAddr(listing.userWallet)
+  const priceValue = `${Number(listing.listing_price_sol || 0).toLocaleString()} USDC`
+  const mintValue = listing.nft_mint_address ? shortAddr(listing.nft_mint_address) : '—'
+
+  return (
+    <Link
+      href={`/listings/${listing.id}`}
+      className="row group cursor-pointer"
+      aria-label={`Open dossier for ${listing.product_name || 'asset'}`}
+    >
+      <div className="td col-num">
+        <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--hc-text-muted)' }}>
+          {String(index).padStart(2, '0')}
+        </span>
+      </div>
+
+      <div className="td asset">
+        <div className="flex w-full min-w-0 items-center gap-3">
+          <div
+            className="thumb h-10 w-10 flex-shrink-0 overflow-hidden"
+            style={{
+              background: 'var(--hc-surface-2)',
+              border: '1px solid var(--hc-border)',
+            }}
+          >
+            {listing.nft_image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={listing.nft_image_url}
+                alt=""
+                className="h-full w-full object-cover"
+                style={{ filter: 'contrast(1.05) saturate(0.95)' }}
+              />
+            ) : (
+              <div
+                className="flex h-full w-full items-center justify-center font-mono text-[8px] uppercase tracking-[0.12em]"
+                style={{ color: 'var(--hc-text-muted)' }}
+              >
+                EVID
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div
+              className="truncate font-sans text-[13px] leading-tight transition-colors group-hover:text-[var(--hc-text)]"
+              style={{ color: 'var(--hc-text-body)' }}
+            >
+              {listing.product_name || 'Unnamed Asset'}
+            </div>
+            <div
+              className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.08em]"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              {caseNumber(listing.id)} <span className="opacity-40 px-1">·</span>{' '}
+              <span style={{ color: 'var(--hc-info)' }}>{seller}</span>{' '}
+              <span className="opacity-40 px-1">·</span>{' '}
+              Mint: {mintValue}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="td td-num">
+        <div className="flex flex-col items-end gap-0.5">
+          <span
+            className="font-mono tabular-nums"
+            style={{ color: 'var(--hc-text)', fontSize: 13, fontWeight: 500 }}
+          >
+            {priceValue}
+          </span>
+          <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--hc-text-muted)' }}>
+            ≈ {(Number(listing.listing_price_sol) / 182).toFixed(3)} ◎
+          </span>
+        </div>
+      </div>
+
+      <div className="td col-ai">
+        <span className="font-mono text-[10px] uppercase tracking-[0.06em]" style={{ color: 'var(--hc-text-muted)' }}>
+          {status === 'verified' ? 'VERIFIED' : 'EXAMINING…'}
+        </span>
+      </div>
+
+      <div className="td col-seller">
+        <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--hc-info)' }}>
+          {seller}
+        </span>
+      </div>
+
+      <div className="td col-listed">
+        <span className="font-mono text-[10px] uppercase tracking-[0.06em]" style={{ color: 'var(--hc-text-muted)' }}>
+          {timeAgo(listing.createdAt)}
+        </span>
+      </div>
+
+      <div className="td">
+        <StatusPill status={status} />
+      </div>
+    </Link>
   )
 }
 
