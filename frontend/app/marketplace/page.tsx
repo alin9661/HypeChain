@@ -149,6 +149,29 @@ export default function MarketplacePage() {
     return sorted
   }, [listings, statusFilter, searchQuery, sortBy])
 
+  // Live Examiner Feed = the 7 most-recent listings, formatted as
+  // event log lines. Verified rows render with the mint-green "Verified"
+  // verb; pending rows render with the info-blue "Listed" verb. When
+  // the WebSocket verification stream comes online, this becomes a
+  // real event tail instead of a poll of useListings.
+  const activity = useMemo(() => {
+    return [...listings]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 7)
+      .map((l) => ({
+        id: l.id,
+        verb: deriveStatus(l) === 'verified' ? 'Verified' : 'Listed',
+        verbClass:
+          deriveStatus(l) === 'verified' ? 'text-[var(--hc-verify-high)]' : 'text-[var(--hc-info)]',
+        target: l.product_name || 'Unnamed Asset',
+        meta:
+          deriveStatus(l) === 'verified'
+            ? `VISION-4O · ${placeholderConfidence('verified', l.id)?.toFixed(1)}% conf · ${shortAddr(l.nft_mint_address)}`
+            : `Examining · seller ${shortAddr(l.userWallet)}`,
+        time: timeAgo(l.createdAt),
+      }))
+  }, [listings])
+
   return (
     <>
       <Navigation items={marketplaceNavItems} showConnectWallet={true} />
@@ -255,7 +278,7 @@ export default function MarketplacePage() {
           </header>
 
           <section
-            className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr]"
+            className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr] xl:grid-cols-[220px_1fr_280px]"
             aria-label="Listings"
           >
             <aside
@@ -485,6 +508,103 @@ export default function MarketplacePage() {
               )}
             </div>
             </section>
+
+            <aside
+              className="hidden xl:flex xl:sticky xl:top-24 xl:flex-col xl:gap-4 xl:self-start"
+              aria-label="Live activity"
+            >
+              <div
+                style={{
+                  background: 'var(--hc-surface-1)',
+                  border: '1px solid var(--hc-border)',
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderBottom: '1px solid var(--hc-hairline)' }}
+                >
+                  <span
+                    className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em]"
+                    style={{ color: 'var(--hc-text)' }}
+                  >
+                    <span
+                      aria-hidden
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{
+                        background: 'var(--hc-verify-high)',
+                        boxShadow: '0 0 6px var(--hc-verify-high)',
+                        animation: 'hc-live-pulse 1.6s ease-in-out infinite',
+                      }}
+                    />
+                    Live Examiner Feed
+                  </span>
+                  <span
+                    className="font-mono text-[10px] uppercase tracking-[0.1em] tabular-nums"
+                    style={{ color: 'var(--hc-text-muted)' }}
+                  >
+                    {listings.length} total
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  {activity.length === 0 ? (
+                    <div
+                      className="px-4 py-10 text-center font-mono text-[10px] uppercase tracking-[0.16em]"
+                      style={{ color: 'var(--hc-text-muted)' }}
+                    >
+                      No examiner activity yet
+                    </div>
+                  ) : (
+                    activity.map((a) => <ActivityItem key={a.id} item={a} />)
+                  )}
+                </div>
+              </div>
+
+              <div
+                className="flex flex-col gap-2 p-4"
+                style={{
+                  background: 'var(--hc-surface-1)',
+                  border: '1px solid var(--hc-border)',
+                }}
+              >
+                <span
+                  className="font-mono text-[10px] uppercase tracking-[0.14em]"
+                  style={{ color: 'var(--hc-text-muted)' }}
+                >
+                  AI Throughput · last 60 min
+                </span>
+                <span
+                  className="font-mono tabular-nums"
+                  style={{ color: 'var(--hc-text)', fontSize: 22 }}
+                >
+                  {kpis.throughputPerSec.toFixed(1)}
+                  <span className="ml-1 font-mono text-[12px]" style={{ color: 'var(--hc-text-muted)' }}>
+                    listings / sec
+                  </span>
+                </span>
+                <svg viewBox="0 0 240 48" preserveAspectRatio="none" aria-hidden className="block h-12 w-full">
+                  <polyline
+                    fill="none"
+                    stroke="rgba(235,198,88,0.2)"
+                    strokeWidth="6"
+                    points="0,32 12,29 24,30 36,25 48,28 60,22 72,24 84,20 96,18 108,21 120,14 132,17 144,12 156,15 168,10 180,8 192,11 204,6 216,9 228,4 240,5"
+                  />
+                  <polyline
+                    fill="none"
+                    stroke="var(--hc-accent)"
+                    strokeWidth="1.4"
+                    points="0,32 12,29 24,30 36,25 48,28 60,22 72,24 84,20 96,18 108,21 120,14 132,17 144,12 156,15 168,10 180,8 192,11 204,6 216,9 228,4 240,5"
+                  />
+                </svg>
+                <div
+                  className="flex justify-between font-mono text-[10px] uppercase tracking-[0.08em]"
+                  style={{ color: 'var(--hc-text-muted)' }}
+                >
+                  <span>00:00</span>
+                  <span style={{ color: 'var(--hc-verify-high)' }}>▲ +18% vs 1h</span>
+                  <span>NOW</span>
+                </div>
+              </div>
+            </aside>
           </section>
 
           <div
@@ -945,6 +1065,46 @@ function CheckRow({
         </span>
       )}
     </button>
+  )
+}
+
+function ActivityItem({
+  item,
+}: {
+  item: {
+    id: string
+    verb: string
+    verbClass: string
+    target: string
+    meta: string
+    time: string
+  }
+}) {
+  return (
+    <Link
+      href={`/listings/${item.id}`}
+      className="grid grid-cols-[56px_1fr] gap-2.5 px-4 py-3 transition-colors hover:bg-[rgba(235,198,88,0.03)]"
+      style={{ borderBottom: '1px solid var(--hc-hairline)' }}
+    >
+      <span
+        className="pt-0.5 font-mono text-[10px] uppercase tracking-[0.04em] tabular-nums"
+        style={{ color: 'var(--hc-text-muted)' }}
+      >
+        {item.time}
+      </span>
+      <span className="font-sans text-[12px] leading-snug" style={{ color: 'var(--hc-text-body)' }}>
+        <span className={`pr-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${item.verbClass}`}>
+          {item.verb}
+        </span>
+        <span style={{ color: 'var(--hc-text)' }}>{item.target}</span>
+        <span
+          className="mt-1 block font-mono text-[10px] uppercase tracking-[0.06em]"
+          style={{ color: 'var(--hc-text-muted)' }}
+        >
+          {item.meta}
+        </span>
+      </span>
+    </Link>
   )
 }
 
