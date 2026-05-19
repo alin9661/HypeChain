@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { CaseFileRibbon } from '@/components/case-file-ribbon'
-import { useListings } from '@/contexts/AppContext'
+import { useListings, type NFTListing } from '@/contexts/AppContext'
 
 const marketplaceNavItems = [
   { name: 'Marketplace', href: '/marketplace' },
@@ -13,11 +13,85 @@ const marketplaceNavItems = [
   { name: 'My Listings', href: '/listings' },
 ]
 
+// ─────────────────────────────────────────────────────────────
+// Marketplace data derivations.
+// Lifted out of the page component so they can be unit-tested
+// independently and shared with future components (extracted
+// subcomponents, virtualized rows, e2e fixtures).
+// ─────────────────────────────────────────────────────────────
+
+type Status = 'verified' | 'pending'
+type StatusFilter = 'all' | 'verified' | 'pending'
+type SortKey = 'price-asc' | 'price-desc' | 'recent' | 'confidence'
+
+// A listing is verified the instant it has a mint address. Mirrors
+// /listings page.tsx:22–24 so both surfaces classify the same row
+// identically.
+function deriveStatus(listing: NFTListing): Status {
+  return listing.nft_mint_address ? 'verified' : 'pending'
+}
+
+// HC-YYYY-NNNNNN forensic case number. Mirrors /listings page.tsx:26–30.
+// Pads the numeric portion of the id to 6 digits; if the id has no
+// digits, takes the first 6 chars uppercased so every case gets a label.
+function caseNumber(id: string): string {
+  const numeric = id.replace(/[^0-9]/g, '')
+  const padded =
+    numeric.length > 0
+      ? numeric.padStart(6, '0').slice(-6)
+      : id.slice(0, 6).toUpperCase()
+  return `HC-${new Date().getFullYear()}-${padded}`
+}
+
+// 4...4 char ellipsis for wallet/mint addresses. Returns the original
+// when the input is null/short. Mirrors /listings page.tsx:32–35.
+function shortAddr(addr: string | null | undefined): string {
+  if (!addr) return '—'
+  if (addr.length <= 10) return addr
+  return `${addr.slice(0, 4)}…${addr.slice(-4)}`
+}
+
+// UPPERCASE relative time, e.g. "12M AGO" / "3H AGO" / "YESTERDAY".
+// Mirrors /listings page.tsx:37–47 so the marketplace and intake bay
+// timestamps render identically.
+function timeAgo(iso: string): string {
+  const d = new Date(iso)
+  const diffMs = Date.now() - d.getTime()
+  const m = Math.floor(diffMs / 60_000)
+  if (m < 1) return 'JUST NOW'
+  if (m < 60) return `${m}M AGO`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}H AGO`
+  const days = Math.floor(h / 24)
+  return days === 1 ? 'YESTERDAY' : `${days}D AGO`
+}
+
+// Deterministic placeholder confidence per id. Backend doesn't yet
+// expose ai_confidence_score on the list endpoint; once it does, both
+// /marketplace and /listings can read the real value and this helper
+// goes away. Deterministic-per-id so the value doesn't shuffle on every
+// rerender, which would flicker confidence bars during virtual-scroll.
+function placeholderConfidence(status: Status, id: string): number | null {
+  if (status !== 'verified') return null
+  const seed = id.split('').reduce((s, c) => s + c.charCodeAt(0), 0)
+  return 92 + (seed % 80) / 10
+}
+
+// Suppress unused-symbol warnings — these helpers + types are landed
+// in this commit so the next commit (table chrome) can consume them
+// without dragging in unrelated logic. Bisect-friendly seam.
+void caseNumber
+void shortAddr
+void timeAgo
+void placeholderConfidence
+const _unusedTypeReexport: SortKey | undefined = undefined
+void _unusedTypeReexport
+
 export default function MarketplacePage() {
   const { listings } = useListings()
 
   const counts = useMemo(() => {
-    const verified = listings.filter((l) => Boolean(l.nft_mint_address)).length
+    const verified = listings.filter((l) => deriveStatus(l) === 'verified').length
     return {
       all: listings.length,
       verified,
@@ -25,13 +99,8 @@ export default function MarketplacePage() {
     }
   }, [listings])
 
-  // KPIs are derived from useListings(). volume24h is a SUM not an
-  // average — it's the total USDC value of listings created in the
-  // last 24h. floor is the minimum verified-listing price. throughput
-  // is a placeholder until backend ships a real metric on the list
-  // endpoint (same trick as /listings page.tsx:624).
   const kpis = useMemo(() => {
-    const verifiedListings = listings.filter((l) => Boolean(l.nft_mint_address))
+    const verifiedListings = listings.filter((l) => deriveStatus(l) === 'verified')
     const prices = verifiedListings
       .map((l) => Number(l.listing_price_sol))
       .filter((n) => Number.isFinite(n) && n > 0)
@@ -62,8 +131,6 @@ export default function MarketplacePage() {
 
         <main className="mx-auto w-full max-w-[1536px] px-4 pb-24 pt-6 md:px-8 md:pt-8">
 
-          {/* Header now uses a 5-col grid: 1.4fr for the editorial hero
-              + 4 equal columns for KPI cells. Stacks to 1 col on <lg. */}
           <header
             className="grid grid-cols-1 gap-6 border-b pb-8 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:items-end lg:gap-6"
             style={{ borderColor: 'var(--hc-hairline)' }}
@@ -178,8 +245,6 @@ export default function MarketplacePage() {
 
 // ─────────────────────────────────────────────────────────────
 // KpiCell — single market-summary stat in the header strip.
-// Value uses tabular-nums so the digits don't shift width when the
-// underlying numbers change.
 // ─────────────────────────────────────────────────────────────
 
 function KpiCell({
