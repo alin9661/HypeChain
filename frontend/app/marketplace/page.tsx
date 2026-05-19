@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { CaseFileRibbon } from '@/components/case-file-ribbon'
@@ -71,6 +71,9 @@ function sortLabel(key: SortKey): string {
 export default function MarketplacePage() {
   const { listings, isLoading } = useListings()
   const { wallet } = useWallet()
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [sortBy, setSortBy] = useState<SortKey>('price-asc')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const counts = useMemo(() => {
     const verified = listings.filter((l) => deriveStatus(l) === 'verified').length
@@ -103,6 +106,48 @@ export default function MarketplacePage() {
       throughputPerSec: 3.4,
     }
   }, [listings])
+
+  // Filter + sort pipeline for the listings table. Search matches
+  // product name, mint address, or seller wallet (substring, case-
+  // insensitive). Sort is stable per-array but resets every render
+  // when the underlying listings change.
+  const visible = useMemo(() => {
+    let rows = listings
+    if (statusFilter !== 'all') {
+      rows = rows.filter((l) => deriveStatus(l) === statusFilter)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      rows = rows.filter(
+        (l) =>
+          (l.product_name || '').toLowerCase().includes(q) ||
+          (l.nft_mint_address || '').toLowerCase().includes(q) ||
+          (l.userWallet || '').toLowerCase().includes(q),
+      )
+    }
+    const sorted = [...rows]
+    switch (sortBy) {
+      case 'price-asc':
+        sorted.sort((a, b) => Number(a.listing_price_sol) - Number(b.listing_price_sol))
+        break
+      case 'price-desc':
+        sorted.sort((a, b) => Number(b.listing_price_sol) - Number(a.listing_price_sol))
+        break
+      case 'recent':
+        sorted.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
+        break
+      case 'confidence':
+        sorted.sort((a, b) => {
+          const ca = placeholderConfidence(deriveStatus(a), a.id) ?? 0
+          const cb = placeholderConfidence(deriveStatus(b), b.id) ?? 0
+          return cb - ca
+        })
+        break
+    }
+    return sorted
+  }, [listings, statusFilter, searchQuery, sortBy])
 
   return (
     <>
@@ -210,15 +255,154 @@ export default function MarketplacePage() {
           </header>
 
           <section
-            className="mt-6"
-            style={{
-              background: 'var(--hc-surface-1)',
-              border: '1px solid var(--hc-border)',
-              clipPath:
-                'polygon(var(--hc-poly-16) 0, calc(100% - var(--hc-poly-16)) 0, 100% var(--hc-poly-16), 100% calc(100% - var(--hc-poly-16)), calc(100% - var(--hc-poly-16)) 100%, var(--hc-poly-16) 100%, 0 calc(100% - var(--hc-poly-16)), 0 var(--hc-poly-16))',
-            }}
+            className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr]"
             aria-label="Listings"
           >
+            <aside
+              className="flex flex-col gap-6 self-start p-4 lg:sticky lg:top-24"
+              style={{
+                background: 'var(--hc-surface-1)',
+                border: '1px solid var(--hc-border)',
+              }}
+              aria-label="Filters"
+            >
+              <RailSection title="Search">
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5"
+                  style={{
+                    background: 'var(--hc-bg)',
+                    border: '1px solid var(--hc-border)',
+                  }}
+                >
+                  <SearchIcon />
+                  <input
+                    type="text"
+                    placeholder="MINT / PRODUCT / SELLER"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] outline-none placeholder:text-[color:var(--hc-text-muted)]"
+                    style={{ color: 'var(--hc-text-body)' }}
+                    aria-label="Search listings"
+                  />
+                  <span
+                    className="px-1.5 py-px font-mono text-[10px]"
+                    style={{
+                      color: 'var(--hc-text-muted)',
+                      border: '1px solid var(--hc-hairline)',
+                    }}
+                  >
+                    ⌘K
+                  </span>
+                </div>
+              </RailSection>
+
+              <RailSection title="Verification">
+                <CheckRow
+                  active={statusFilter === 'all'}
+                  swatch={null}
+                  label="All"
+                  count={counts.all}
+                  onClick={() => setStatusFilter('all')}
+                />
+                <CheckRow
+                  active={statusFilter === 'verified'}
+                  swatch="var(--hc-verify-high)"
+                  label="Verified"
+                  count={counts.verified}
+                  onClick={() => setStatusFilter('verified')}
+                />
+                <CheckRow
+                  active={statusFilter === 'pending'}
+                  swatch="var(--hc-verify-med)"
+                  label="Pending"
+                  count={counts.pending}
+                  onClick={() => setStatusFilter('pending')}
+                />
+              </RailSection>
+
+              {/* Category is visual scaffolding until backend exposes
+                  category on the list endpoint. Buttons are wired to
+                  no-op handlers so the click feedback works but the
+                  filter doesn't apply. */}
+              <RailSection title="Category">
+                <CheckRow active={false} swatch={null} label="Footwear" count={null} onClick={() => {}} />
+                <CheckRow active={false} swatch={null} label="Apparel" count={null} onClick={() => {}} />
+                <CheckRow active={false} swatch={null} label="Watches" count={null} onClick={() => {}} />
+                <CheckRow active={false} swatch={null} label="Trading Cards" count={null} onClick={() => {}} />
+              </RailSection>
+
+              <RailSection title="Sort">
+                <CheckRow
+                  active={sortBy === 'price-asc'}
+                  swatch={null}
+                  label="Price · Low → High"
+                  count={null}
+                  onClick={() => setSortBy('price-asc')}
+                />
+                <CheckRow
+                  active={sortBy === 'price-desc'}
+                  swatch={null}
+                  label="Price · High → Low"
+                  count={null}
+                  onClick={() => setSortBy('price-desc')}
+                />
+                <CheckRow
+                  active={sortBy === 'recent'}
+                  swatch={null}
+                  label="Recently Listed"
+                  count={null}
+                  onClick={() => setSortBy('recent')}
+                />
+                <CheckRow
+                  active={sortBy === 'confidence'}
+                  swatch={null}
+                  label="AI Confidence"
+                  count={null}
+                  onClick={() => setSortBy('confidence')}
+                />
+              </RailSection>
+
+              <div
+                className="flex items-center justify-between p-3"
+                style={{
+                  background: 'var(--hc-bg)',
+                  border: '1px solid var(--hc-border)',
+                }}
+              >
+                <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: 'var(--hc-text)' }}>
+                  <span
+                    aria-hidden
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: 'var(--hc-verify-high)',
+                      boxShadow: '0 0 6px var(--hc-verify-high)',
+                      animation: 'hc-live-pulse 1.6s ease-in-out infinite',
+                    }}
+                  />
+                  Live Updates
+                </span>
+                <span
+                  aria-hidden
+                  className="relative inline-block h-3.5 w-7"
+                  style={{ background: 'var(--hc-accent)' }}
+                >
+                  <span
+                    className="absolute right-px top-px h-3 w-3"
+                    style={{ background: 'var(--hc-bg)' }}
+                  />
+                </span>
+              </div>
+            </aside>
+
+            <section
+              style={{
+                background: 'var(--hc-surface-1)',
+                border: '1px solid var(--hc-border)',
+                clipPath:
+                  'polygon(var(--hc-poly-16) 0, calc(100% - var(--hc-poly-16)) 0, 100% var(--hc-poly-16), 100% calc(100% - var(--hc-poly-16)), calc(100% - var(--hc-poly-16)) 100%, var(--hc-poly-16) 100%, 0 calc(100% - var(--hc-poly-16)), 0 var(--hc-poly-16))',
+              }}
+              aria-label="Listings table"
+            >
             <div
               className="flex flex-wrap items-center gap-3 px-4 py-3"
               style={{ borderBottom: '1px solid var(--hc-hairline)' }}
@@ -229,7 +413,7 @@ export default function MarketplacePage() {
               >
                 Showing{' '}
                 <span style={{ color: 'var(--hc-accent)' }} className="tabular-nums">
-                  {listings.length}
+                  {visible.length}
                 </span>{' '}
                 of{' '}
                 <span style={{ color: 'var(--hc-accent)' }} className="tabular-nums">
@@ -241,7 +425,7 @@ export default function MarketplacePage() {
                 className="font-mono text-[11px] uppercase tracking-[0.12em]"
                 style={{ color: 'var(--hc-text-muted)' }}
               >
-                Sorted by <span style={{ color: 'var(--hc-text)' }}>{sortLabel('price-asc')}</span>
+                Sorted by <span style={{ color: 'var(--hc-text)' }}>{sortLabel(sortBy)}</span>
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <span
@@ -283,10 +467,14 @@ export default function MarketplacePage() {
                   />
                   Examining custody log…
                 </div>
-              ) : listings.length === 0 ? (
-                <EmptyTableState />
+              ) : visible.length === 0 ? (
+                <EmptyTableState
+                  hasAny={listings.length > 0}
+                  statusFilter={statusFilter}
+                  searchActive={Boolean(searchQuery.trim())}
+                />
               ) : (
-                listings.map((listing, idx) => (
+                visible.map((listing, idx) => (
                   <ListingRow
                     key={listing.id}
                     listing={listing}
@@ -296,6 +484,7 @@ export default function MarketplacePage() {
                 ))
               )}
             </div>
+            </section>
           </section>
 
           <div
@@ -674,7 +863,105 @@ function ListingRow({
   )
 }
 
-function EmptyTableState() {
+function SearchIcon() {
+  return (
+    <svg
+      width="12" height="12" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square"
+      style={{ color: 'var(--hc-text-muted)' }}
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.5" y2="16.5" />
+    </svg>
+  )
+}
+
+function RailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3
+        className="mb-2 border-b pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+        style={{ color: 'var(--hc-text-muted)', borderColor: 'var(--hc-hairline)' }}
+      >
+        {title}
+      </h3>
+      <div className="flex flex-col">{children}</div>
+    </div>
+  )
+}
+
+function CheckRow({
+  active,
+  swatch,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean
+  swatch: string | null
+  label: string
+  count: number | null
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      role="checkbox"
+      aria-checked={active}
+      className="flex items-center justify-between py-1.5 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors hover:text-[var(--hc-text)]"
+      style={{ color: 'var(--hc-text-body)' }}
+    >
+      <span className="inline-flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className="relative inline-block h-3 w-3"
+          style={{
+            background: active ? 'var(--hc-accent)' : 'var(--hc-bg)',
+            border: `1px solid ${active ? 'var(--hc-accent)' : 'var(--hc-border)'}`,
+          }}
+        >
+          {active && (
+            <span
+              className="absolute"
+              style={{
+                left: 3, top: 0, width: 4, height: 8,
+                border: 'solid #000',
+                borderWidth: '0 1.5px 1.5px 0',
+                transform: 'rotate(45deg)',
+              }}
+            />
+          )}
+        </span>
+        {swatch && (
+          <span aria-hidden className="inline-block h-2 w-2" style={{ background: swatch }} />
+        )}
+        {label}
+      </span>
+      {count !== null && (
+        <span className="tabular-nums" style={{ color: 'var(--hc-text-muted)' }}>
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+
+function EmptyTableState({
+  hasAny,
+  statusFilter,
+  searchActive,
+}: {
+  hasAny: boolean
+  statusFilter: StatusFilter
+  searchActive: boolean
+}) {
+  const reason = searchActive
+    ? 'No dossier matches that search.'
+    : hasAny
+      ? `No dossier in the ${statusFilter} state.`
+      : 'No cleared dossier on the public floor yet.'
   return (
     <div
       className="col-span-full flex flex-col items-center gap-4 px-6 py-20 text-center"
@@ -699,7 +986,7 @@ function EmptyTableState() {
         className="max-w-[44ch] font-sans text-[13px] leading-[1.55]"
         style={{ color: 'var(--hc-text-muted)' }}
       >
-        No cleared dossier on the public floor yet.
+        {reason}
       </p>
       <Link
         href="/listings"
