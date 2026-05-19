@@ -63,9 +63,9 @@ text-8xl  120px  — display marketing desktop (Sentient italic moments)
 --color-text-muted: #6B6B6B;  /* labels, metadata */
 
 /* Brand */
---color-accent:      #EBC658;  /* "evidence-locker brass" — antique gold, financial-terminal vocabulary */
---color-accent-deep: #C9A436;  /* inset glow, hover */
---color-accent-tint: rgba(235, 198, 88, 0.10);  /* active-state tints, ambient washes */
+--color-accent:      #D4A82C;  /* "evidence-locker brass" — antique gold, financial-terminal vocabulary */
+--color-accent-deep: #B88B1F;  /* inset glow, hover */
+--color-accent-tint: rgba(212, 168, 44, 0.10);  /* active-state tints, ambient washes */
 
 /* Verification semantics */
 --color-verify-high: #00E5A0;  /* mint — AI confidence HIGH, VERIFIED */
@@ -169,4 +169,3 @@ grep -rn "rounded-full" frontend/components/
 |---|---|---|
 | 2026-05-14 | Initial design system codified — direction "Verified Yellow + Evidence Chrome" (Hybrid) | Created by /design-consultation after HackNYU 2025 first-place finish. Codifies the cypherpunk-financial-terminal aesthetic already in `app/page.tsx`. Kills `components/hero-section.tsx` v0 slop. Unifies `nft-card.tsx` via `<Frame>` primitive. Adds three Evidence Locker moves (case-file ribbon, redaction bars, Certificate of Authenticity) to carry forensic-evidentiary semantics on the existing chassis. Implementation plan: `~/.claude/plans/sparkling-wobbling-wirth.md`. Visual reference: `~/.gstack/projects/alin9661-HypeChain/designs/hypechain-design-system-20260514-143236/comparison.html`. |
 | 2026-05-18 | Accent retoned `#FFC700` → `#D4A82C` (evidence-locker brass); `--color-accent-deep` `#EBB800` → `#B88B1F`; added `--color-accent-tint` token | Surfaced during waitlist page mockup (`~/.gstack/projects/alin9661-HypeChain/designs/waitlist-20260518/`). Caution-tape yellow read as "construction sign"; brass reads as "Bloomberg terminal" and aligns with "evidence-locker not JPEG-mall" positioning. Brass also avoids the chromatic clash with `--color-verify-high` (`#00E5A0`) — pure yellow + mint-green was harsh; brass + mint is harmonious. WCAG AA contrast on `#D4A82C` with `#000` text = 9.2:1 (legible CTAs). Propagated to `app/globals.css --hc-accent`, all `bg-[#FFC700]`/`text-[#FFC700]`/`border-[#FFC700]` arbitrary values in `app/listings/`, `app/sold/`, `app/activities/`, and `app/waitlist/`. WebGL particle uniforms in `components/gl/` were not touched (separate brand-asset color system — verify-on-update). |
-| 2026-05-19 | Accent re-tuned brighter `#D4A82C` → `#EBC658` (`--hc-accent-deep` `#B88B1F` → `#C9A436`; tint updated to `rgba(235, 198, 88, 0.10)`) | Surfaced during /listings Evidence Intake Bay design pass. The 2026-05-18 antique brass read as muted/dusty in product context, especially on small CTAs and mono-uppercase labels where ink density already suppresses chroma. `#EBC658` is HSL(46°, 80%, 64%) vs the prior HSL(45°, 67%, 50%) — same hue family, +13% saturation, +14% lightness. Trade-off: closer to yellow-gold, slightly less "Bloomberg terminal" mood the prior decision argued for. Mitigation: still hue-distinct from `--hc-verify-high` (`#00E5A0`, HSL 161°) so mint/brass adjacency stays harmonious. WCAG AA contrast on `#EBC658` over `#000` = 10.5:1. Applied as a token-only swap in `app/globals.css`; no per-page arbitrary values needed updates since prior retone propagated everything through the token. |
