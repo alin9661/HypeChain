@@ -40,6 +40,9 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
       uniform float uNoiseIntensity;
       uniform float uTimeScale;
       uniform float uLoopPeriod;
+      uniform float uRippleProgress;
+      uniform float uRippleAmplitude;
+      uniform float uPlaneExtent;
       varying vec2 vUv;
 
       ${periodicNoiseGLSL}
@@ -47,23 +50,36 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
       void main() {
         // Get the original particle position
         vec3 originalPos = texture2D(positions, vUv).rgb;
-        
+
         // Use continuous time that naturally loops through sine/cosine periodicity
         float continuousTime = uTime * uTimeScale * (6.28318530718 / uLoopPeriod);
         // float continuousTime = 0.0;
-        
+
         // Scale position for noise input
         vec3 noiseInput = originalPos * uNoiseScale;
-        
+
         // Generate periodic displacement for each axis using different phase offsets
         float displacementX = periodicNoise(noiseInput + vec3(0.0, 0.0, 0.0), continuousTime);
         float displacementY = periodicNoise(noiseInput + vec3(50.0, 0.0, 0.0), continuousTime + 2.094); // +120°
         float displacementZ = periodicNoise(noiseInput + vec3(0.0, 50.0, 0.0), continuousTime + 4.188); // +240°
-        
+
         // Apply distortion to original position
         vec3 distortion = vec3(displacementX, displacementY, displacementZ) * uNoiseIntensity;
         vec3 finalPos = originalPos + distortion;
-        
+
+        // Directional wave packet — a few oscillation cycles under a gaussian
+        // envelope sweeping monotonically +x; never reverts. Fired by the
+        // Connect Wallet click (uRippleProgress ramps 0→1 over rippleDuration).
+        if (uRippleProgress > 0.0 && uRippleProgress < 1.0) {
+          float frontX = mix(-uPlaneExtent, uPlaneExtent + 3.0, uRippleProgress);
+          float d = originalPos.x - frontX;
+          float width = 3.4;
+          float env = exp(-(d * d) / (width * width * 0.5));
+          float carrier = sin(d * 2.4);
+          float decay = 1.0 - 0.35 * uRippleProgress;
+          finalPos.y += env * carrier * decay * uRippleAmplitude;
+        }
+
         gl_FragColor = vec4(finalPos, 1.0);
       }`,
       uniforms: {
@@ -72,7 +88,10 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
         uNoiseScale: { value: 1.0 },
         uNoiseIntensity: { value: 0.5 },
         uTimeScale: { value: 1 },
-        uLoopPeriod: { value: 24.0 }
+        uLoopPeriod: { value: 24.0 },
+        uRippleProgress: { value: 0 },
+        uRippleAmplitude: { value: 0.9 },
+        uPlaneExtent: { value: scale }
       }
     })
   }

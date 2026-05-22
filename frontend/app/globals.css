@@ -26,7 +26,7 @@
   --card-foreground: 255 255 255;
   --popover: 15 15 15;
   --popover-foreground: 255 255 255;
-  --primary: 255 199 0;
+  --primary: 235 198 88;
   --primary-foreground: 0 0 0;
   --secondary: 38 38 38;
   --secondary-foreground: 255 255 255;
@@ -38,7 +38,7 @@
   --destructive-foreground: 255 255 255;
   --border: 66 66 66;
   --input: 38 38 38;
-  --ring: 255 199 0;
+  --ring: 235 198 88;
   --radius: 0.5rem;
 
   /* DESIGN.md canonical tokens — Verified Yellow + Evidence Chrome.
@@ -78,7 +78,7 @@
   --card-foreground: 255 255 255;
   --popover: 15 15 15;
   --popover-foreground: 255 255 255;
-  --primary: 255 199 0;
+  --primary: 235 198 88;
   --primary-foreground: 0 0 0;
   --secondary: 38 38 38;
   --secondary-foreground: 255 255 255;
@@ -90,7 +90,7 @@
   --destructive-foreground: 255 255 255;
   --border: 66 66 66;
   --input: 38 38 38;
-  --ring: 255 199 0;
+  --ring: 235 198 88;
 }
 
 @theme inline {
@@ -124,6 +124,22 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   --shadow-glow: 0 0 8px 2px var(--tw-shadow-color);
+
+  /* Bullion CTA — flat brass fill + layered inset/outer shadow for the
+     lit-from-above metallic read. Inset glow only (DESIGN.md-allowed); no
+     gradient. Brass #EBC658 fill / #C9A436 deep. */
+  --shadow-bullion:
+    inset 0 1px 0 rgba(255, 245, 210, 0.42),
+    inset 0 -14px 18px -8px #C9A436,
+    inset 0 0 38px 0 rgba(201, 164, 54, 0.40),
+    0 8px 28px 0 rgba(235, 198, 88, 0.22),
+    0 1px 0 0 rgba(0, 0, 0, 0.55);
+  --shadow-bullion-hover:
+    inset 0 1px 0 rgba(255, 245, 210, 0.55),
+    inset 0 -14px 18px -8px #C9A436,
+    inset 0 0 42px 0 rgba(201, 164, 54, 0.46),
+    0 12px 36px 0 rgba(235, 198, 88, 0.34),
+    0 1px 0 0 rgba(0, 0, 0, 0.55);
 }
 
 @layer base {
