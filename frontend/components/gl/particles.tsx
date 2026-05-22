@@ -21,6 +21,7 @@ export function Particles({
   useManualTime = false,
   manualTime = 0,
   introspect = false,
+  rippleNonce = 0,
   ...props
 }: {
   speed: number;
@@ -37,11 +38,25 @@ export function Particles({
   useManualTime?: boolean;
   manualTime?: number;
   introspect?: boolean;
+  /** Increment to fire a one-shot directional wave-packet ripple. */
+  rippleNonce?: number;
 }) {
   // Reveal animation state
   const revealStartTime = useRef<number | null>(null);
   const [isRevealing, setIsRevealing] = useState(true);
   const revealDuration = 3.5; // seconds
+
+  // Wallet-connect ripple (directional wave packet) + ambient engagement effects
+  const rippleStartTime = useRef<number | null>(null);
+  const pendingRipple = useRef(false);
+  const rippleDuration = 3.0; // seconds for the wavefront to cross
+  const idleNudge = useRef(0);     // E2 — idle-pulse contribution to uTransition
+  const clockNudge = useRef(0);    // E6 — intake-clock heartbeat contribution
+  const lastActivity = useRef(0);  // wall-clock ms of last pointer/key activity
+  const reducedMotion = useRef(false);
+  // E4 — captured once from the live scene camera so parallax offsets from
+  // whatever <Canvas camera> set, not a hardcoded duplicate of index.tsx.
+  const cameraBase = useRef<{ x: number; y: number; z: number } | null>(null);
   // Create simulation material with scale parameter
   const simulationMaterial = useMemo(() => {
     return new SimulationMaterial(planeScale);
@@ -87,6 +102,55 @@ export function Particles({
     return particles;
   }, [size]);
 
+  // Fire the directional ripple when rippleNonce increments (Connect Wallet click).
+  useEffect(() => {
+    if (rippleNonce > 0 && !reducedMotion.current) pendingRipple.current = true;
+  }, [rippleNonce]);
+
+  // E2 idle pulse + E6 intake-clock heartbeat — both feed uTransition nudges.
+  // Wall-clock driven; the scalar nudges are read in useFrame (no clock mixing).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Track prefers-reduced-motion live so an OS toggle mid-session is honored.
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    reducedMotion.current = mq.matches;
+    const onMQ = (e: MediaQueryListEvent) => {
+      reducedMotion.current = e.matches;
+    };
+    mq.addEventListener("change", onMQ);
+
+    const markActivity = () => {
+      lastActivity.current = performance.now();
+    };
+    window.addEventListener("pointermove", markActivity, { passive: true });
+    window.addEventListener("keydown", markActivity);
+    lastActivity.current = performance.now();
+
+    const interval = window.setInterval(() => {
+      if (reducedMotion.current) return; // respect a live reduced-motion toggle
+      // E6 — 1Hz heartbeat, brighter on the top-of-minute
+      clockNudge.current = new Date().getSeconds() === 0 ? 0.18 : 0.06;
+      window.setTimeout(() => {
+        clockNudge.current = 0;
+      }, 150);
+      // E2 — idle pulse after 8s of no pointer / key activity
+      if (performance.now() - lastActivity.current > 8000) {
+        idleNudge.current = 0.3;
+        window.setTimeout(() => {
+          idleNudge.current = 0;
+        }, 900);
+      }
+    }, 1000);
+
+    return () => {
+      mq.removeEventListener("change", onMQ);
+      window.removeEventListener("pointermove", markActivity);
+      window.removeEventListener("keydown", markActivity);
+      window.clearInterval(interval);
+    };
+  }, []);
+
   useFrame((state, delta) => {
     if (!dofPointsMaterial || !simulationMaterial) return;
 
@@ -103,6 +167,22 @@ export function Particles({
     if (revealStartTime.current === null) {
       revealStartTime.current = currentTime;
     }
+
+    // Directional ripple — start on the next frame after a Connect Wallet click,
+    // then advance progress 0→1 over rippleDuration and feed the sim shader.
+    if (pendingRipple.current) {
+      rippleStartTime.current = currentTime;
+      pendingRipple.current = false;
+    }
+    let rippleProgress = 0;
+    if (rippleStartTime.current !== null) {
+      rippleProgress = (currentTime - rippleStartTime.current) / rippleDuration;
+      if (rippleProgress >= 1.0) {
+        rippleProgress = 0;
+        rippleStartTime.current = null;
+      }
+    }
+    simulationMaterial.uniforms.uRippleProgress.value = rippleProgress;
 
     // Calculate reveal progress
     const revealElapsed = currentTime - revealStartTime.current;
@@ -124,11 +204,19 @@ export function Particles({
     dofPointsMaterial.uniforms.uFocus.value = focus;
     dofPointsMaterial.uniforms.uBlur.value = aperture;
 
+    // Hover introspect (production) generalized: when not hovering, the idle
+    // pulse + intake-clock heartbeat nudge uTransition too. Asymmetric smooth
+    // time — slower easing in (0.35s), faster out (0.2s).
+    const transitionTarget = introspect
+      ? 1.0
+      : Math.max(idleNudge.current, clockNudge.current);
+    const transitionRising =
+      transitionTarget > dofPointsMaterial.uniforms.uTransition.value;
     easing.damp(
       dofPointsMaterial.uniforms.uTransition,
       "value",
-      introspect ? 1.0 : 0.0,
-      introspect ? 0.35 : 0.2,
+      transitionTarget,
+      transitionRising ? 0.35 : 0.2,
       delta
     );
 
@@ -142,6 +230,27 @@ export function Particles({
     dofPointsMaterial.uniforms.uOpacity.value = opacity;
     dofPointsMaterial.uniforms.uRevealFactor.value = revealFactor;
     dofPointsMaterial.uniforms.uRevealProgress.value = easedProgress;
+
+    // E4 — cursor parallax: offset the scene camera toward the pointer
+    // (state.pointer is normalized -1..1) while keeping it aimed at the origin.
+    // Base position is captured once from the live camera, so this stays
+    // correct if <Canvas camera> is ever retuned.
+    if (!reducedMotion.current) {
+      if (cameraBase.current === null) {
+        cameraBase.current = {
+          x: state.camera.position.x,
+          y: state.camera.position.y,
+          z: state.camera.position.z,
+        };
+      }
+      const base = cameraBase.current;
+      state.camera.position.set(
+        base.x + state.pointer.x * 0.12,
+        base.y + state.pointer.y * 0.08,
+        base.z
+      );
+      state.camera.lookAt(0, 0, 0);
+    }
   });
 
   return (
