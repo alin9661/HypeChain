@@ -12,14 +12,20 @@ const landingNavItems = []
 
 export default function LandingPage() {
   const [hovering, setHovering] = useState(false)
+  // Bumped on each Connect Wallet click to fire the directional ripple.
+  const [rippleNonce, setRippleNonce] = useState(0)
 
   return (
     <>
-      <Navigation items={landingNavItems} showConnectWallet={true} />
+      <Navigation
+        items={landingNavItems}
+        showConnectWallet={true}
+        onConnectWalletClick={() => setRippleNonce((n) => n + 1)}
+      />
 
       {/* Hero Section with WebGL Background */}
       <div className="flex flex-col h-svh justify-between bg-black">
-        <GL hovering={hovering} />
+        <GL hovering={hovering} rippleNonce={rippleNonce} />
 
         <div className="pb-16 mt-auto text-center relative z-10 px-4">
           <Pill className="mb-6">BETA RELEASE</Pill>
@@ -37,6 +43,8 @@ export default function LandingPage() {
               <Button
                 onMouseEnter={() => setHovering(true)}
                 onMouseLeave={() => setHovering(false)}
+                onFocus={() => setHovering(true)}
+                onBlur={() => setHovering(false)}
               >
                 [Join Waitlist]
               </Button>
@@ -46,6 +54,8 @@ export default function LandingPage() {
                 variant="outline"
                 onMouseEnter={() => setHovering(true)}
                 onMouseLeave={() => setHovering(false)}
+                onFocus={() => setHovering(true)}
+                onBlur={() => setHovering(false)}
               >
                 [Marketplace]
               </Button>
@@ -59,6 +69,8 @@ export default function LandingPage() {
                 size="sm"
                 onMouseEnter={() => setHovering(true)}
                 onMouseLeave={() => setHovering(false)}
+                onFocus={() => setHovering(true)}
+                onBlur={() => setHovering(false)}
               >
                 [Join Waitlist]
               </Button>
@@ -69,6 +81,8 @@ export default function LandingPage() {
                 variant="outline"
                 onMouseEnter={() => setHovering(true)}
                 onMouseLeave={() => setHovering(false)}
+                onFocus={() => setHovering(true)}
+                onBlur={() => setHovering(false)}
               >
                 [Marketplace]
               </Button>

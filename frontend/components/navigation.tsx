@@ -18,9 +18,11 @@ interface NavItem {
 interface NavigationProps {
   items: NavItem[]
   showConnectWallet?: boolean
+  /** Fired when the Connect Wallet button is clicked (opens the modal). */
+  onConnectWalletClick?: () => void
 }
 
-export function Navigation({ items, showConnectWallet = true }: NavigationProps) {
+export function Navigation({ items, showConnectWallet = true, onConnectWalletClick }: NavigationProps) {
   const pathname = usePathname()
   const { wallet } = useWallet()
   const { authenticated } = usePrivy()
@@ -66,7 +68,7 @@ export function Navigation({ items, showConnectWallet = true }: NavigationProps)
                 key={item.name}
                 className={`uppercase inline-block font-mono text-sm transition-colors ease-out duration-150 ${
                   isActive
-                    ? 'text-[#D4A82C]'
+                    ? 'text-[#EBC658]'
                     : 'text-white/60 hover:text-white/100'
                 }`}
                 href={item.href}
@@ -83,7 +85,12 @@ export function Navigation({ items, showConnectWallet = true }: NavigationProps)
             isConnected && displayAddress ? (
               <WalletDropdown address={displayAddress} />
             ) : (
-              <WalletConnectButton onClick={() => setIsWalletModalOpen(true)} />
+              <WalletConnectButton
+                onClick={() => {
+                  setIsWalletModalOpen(true)
+                  onConnectWalletClick?.()
+                }}
+              />
             )
           )}
           <button
