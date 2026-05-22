@@ -10,7 +10,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-background border-primary text-primary-foreground [&>[data-border]]:bg-primary [box-shadow:inset_0_0_54px_0px_var(--tw-shadow-color)] shadow-[#B88B1F] hover:shadow-[#B88B1F]/80",
+        // Brass bullion CTA — flat #EBC658 fill + layered inset/outer shadow
+        // (--shadow-bullion in globals.css). Black text, deep-brass corner ticks.
+        default:
+          "bg-[#EBC658] text-black border-[#EBC658] [&>[data-border]]:bg-[#C9A436] " +
+          "[box-shadow:var(--shadow-bullion)] hover:[box-shadow:var(--shadow-bullion-hover)]",
+        // Outline — transparent fill, brass border + text + ticks; on hover a
+        // soft accent-tint wash + a light inset brass glow.
+        outline:
+          "bg-transparent text-[#EBC658] border-[#EBC658] [&>[data-border]]:bg-[#EBC658] " +
+          "hover:bg-[var(--hc-accent-tint)] hover:[box-shadow:inset_0_0_32px_0_rgba(201,164,54,0.20)]",
       },
       size: {
         default: "h-16 px-6 text-base",

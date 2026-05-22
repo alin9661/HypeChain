@@ -61,7 +61,6 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="flex h-16 items-center justify-between border-b border-slate-700 px-6">
             {!collapsed && (
               <Link href="/" className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500" />
                 <span className="text-xl font-bold text-white">HypeChain</span>
               </Link>
             )}

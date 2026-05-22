@@ -17,7 +17,7 @@ export function PrivyProviderWrapper({ children }: { children: ReactNode }) {
           walletChainType: 'ethereum-and-solana',
           walletList: ['metamask', 'phantom'],
           theme: 'dark',
-          accentColor: '#D4A82C',
+          accentColor: '#EBC658',
           logo: '/icon.svg',
         },
         externalWallets: {
