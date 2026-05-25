@@ -72,7 +72,7 @@ function MoveCard({
         background: 'var(--hc-surface-1)',
         // Force the consistent polychromatic corner radius — set the local
         // CSS variable that components/pill.tsx and others read.
-        ['--poly-roundness' as string]: 'var(--hc-poly-16, 16px)',
+        ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
       }}
     >
       <header className="flex items-center justify-between">
@@ -194,7 +194,7 @@ function CertificateDemo() {
       style={{
         borderColor: 'var(--hc-accent)',
         background: 'var(--hc-surface-2)',
-        ['--poly-roundness' as string]: 'var(--hc-poly-6, 6px)',
+        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
       }}
     >
       <div className="flex items-center justify-between">

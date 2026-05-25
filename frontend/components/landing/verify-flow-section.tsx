@@ -75,7 +75,7 @@ function StaticFlow() {
 
 function CinematicFlow() {
   const trackRef = useRef<HTMLElement | null>(null);
-  const { progress, stepIndex } = useScrollProgress(trackRef, {
+  const { stepIndex, sub } = useScrollProgress(trackRef, {
     steps: VERIFY_STEPS.length,
   });
 
@@ -95,7 +95,7 @@ function CinematicFlow() {
       <div className="sticky top-0 flex h-svh w-full flex-col justify-between px-6 pt-24 pb-16">
         <div className="mx-auto w-full max-w-[1280px]">
           <Header />
-          <StepRail stepIndex={stepIndex} progress={progress} />
+          <StepRail stepIndex={stepIndex} sub={sub} />
         </div>
 
         <div className="mx-auto w-full max-w-[1280px] flex-1 relative mt-12">
@@ -153,8 +153,11 @@ function Header() {
   );
 }
 
-function StepRail({ stepIndex, progress }: { stepIndex: number; progress: number }) {
-  const fillPct = Math.max(0, Math.min(100, progress * 100));
+function StepRail({ stepIndex, sub }: { stepIndex: number; sub: number }) {
+  // `sub` is 0..1 within the active step. Past steps fill 100%, future 0%.
+  // Using global `progress` here would make each segment jump backward at
+  // step boundaries (segment N fills to N/(steps-1)% then resets to 0).
+  const activeFillPct = Math.max(0, Math.min(100, Math.round(sub * 100)));
   return (
     <div className="mx-auto mt-10 flex max-w-[640px] items-center gap-3">
       {VERIFY_STEPS.map((step, i) => {
@@ -169,7 +172,7 @@ function StepRail({ stepIndex, progress }: { stepIndex: number; progress: number
                 borderColor: color,
                 color,
                 background: isActive ? 'var(--hc-accent-tint)' : 'transparent',
-                ['--poly-roundness' as string]: 'var(--hc-poly-4, 4px)',
+                ['--hc-poly-r' as string]: 'var(--hc-poly-4, 4px)',
               }}
             >
               {i + 1}
@@ -188,9 +191,13 @@ function StepRail({ stepIndex, progress }: { stepIndex: number; progress: number
                       i < stepIndex
                         ? '100%'
                         : i === stepIndex
-                          ? `${fillPct}%`
+                          ? `${activeFillPct}%`
                           : '0%',
-                    transition: 'width 280ms ease-out',
+                    // No transition on the active segment — width is already
+                    // quantized + the user is driving it via scroll, so any
+                    // CSS transition trails the scroll position visibly.
+                    transition:
+                      i < stepIndex ? 'width 280ms ease-out' : 'none',
                   }}
                 />
               </span>
@@ -219,7 +226,7 @@ function StepCard({
       style={{
         borderColor: 'var(--hc-border)',
         background: 'var(--hc-surface-1)',
-        ['--poly-roundness' as string]: 'var(--hc-poly-16, 16px)',
+        ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
       }}
     >
       <div className="flex flex-col gap-6 md:grid md:grid-cols-[2fr_1fr] md:gap-12">
@@ -285,7 +292,7 @@ function IntakeArtifact() {
       style={{
         borderColor: 'var(--hc-border)',
         background: 'var(--hc-surface-2)',
-        ['--poly-roundness' as string]: 'var(--hc-poly-6, 6px)',
+        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
       }}
     >
       <div
@@ -319,7 +326,7 @@ function ExamineArtifact({ active }: { active: boolean }) {
       style={{
         borderColor: 'var(--hc-accent)',
         background: 'var(--hc-surface-2)',
-        ['--poly-roundness' as string]: 'var(--hc-poly-6, 6px)',
+        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
       }}
     >
       <div
@@ -353,7 +360,7 @@ function MintArtifact() {
       style={{
         borderColor: 'var(--hc-accent)',
         background: 'var(--hc-surface-2)',
-        ['--poly-roundness' as string]: 'var(--hc-poly-6, 6px)',
+        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
       }}
     >
       <div
