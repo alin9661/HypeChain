@@ -32,11 +32,14 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 
 ### Pages
 
-#### 1. Dashboard (`/`)
-- Platform statistics overview
-- Recent activity feed
-- Quick action buttons
-- Solana DevNet network status
+#### 1. Landing (`/`)
+- WebGL particle-field hero with wallet-connect ripple + keyboard-focus hover
+- Scroll-told product story below the hero in four sections:
+  - **Verify Flow** — sticky-pinned cinematic scrub through Intake → AI Examination → Mint (static-stacked fallback for mobile and reduced-motion)
+  - **Evidence Locker** — the three signature design moves (Case-File Ribbon, Redaction Bars with typewriter unredact, Mint Certificate)
+  - **Marketplace Proof** — live KPI strip + recent verified rows via `useListings()`, with an empty-state fallback
+  - **Final CTA** — brass bullion + outline buttons mirroring the hero
+- Reduced-motion + small-viewport users get the same story without scroll choreography
 
 #### 2. **Marketplace (`/marketplace`)** NEW
 - **NFT grid with real backend listings**
@@ -167,14 +170,24 @@ frontend/
 │   ├── nft-grid.tsx              # NFT grid layout
 │   ├── wallet-connect.tsx         # Wallet connection
 │   ├── toast.tsx                  # Toast notifications
-│   └── error-boundary.tsx         # Error handling
+│   ├── error-boundary.tsx         # Error handling
+│   └── landing/                   # Landing-page scroll-story sections
+│       ├── verify-flow-section.tsx       # Sticky-pinned Intake → AI → Mint scrub + static fallback
+│       ├── evidence-moves-section.tsx    # Three signature design moves
+│       ├── marketplace-proof-section.tsx # Live KPIs + verified rows / empty-state
+│       ├── final-cta-section.tsx         # Closing CTA band
+│       ├── landing-section-data.ts       # Copy + pure scrub-math helpers
+│       └── reveal.tsx                    # SSR-safe tri-state one-shot scroll reveal
 │
 ├── contexts/
 │   └── AppContext.tsx             # Global state management
 │
 ├── hooks/
 │   ├── useApi.ts                  # API integration hooks
-│   └── useWebSocket.ts            # WebSocket hooks
+│   ├── useWebSocket.ts            # WebSocket hooks
+│   ├── useReducedMotion.ts        # Respect prefers-reduced-motion
+│   ├── useInView.ts               # IntersectionObserver wrapper for one-shot reveals
+│   └── useScrollProgress.ts       # 0..1 progress for sticky-pinned scrub sections
 │
 ├── lib/
 │   ├── api-client.ts              # HTTP API client
@@ -185,7 +198,8 @@ frontend/
 ├── __tests__/
 │   ├── setup.ts                   # Jest configuration
 │   ├── api-client.test.ts         # API client tests
-│   └── nft-card.test.tsx          # Component tests
+│   ├── nft-card.test.tsx          # Component tests
+│   └── landing-section-data.test.ts # Pure scrub-math helpers (clamp01, progressToStep, subProgress)
 │
 ├── jest.config.js                 # Jest setup
 └── package.json
@@ -345,12 +359,11 @@ ws.send({ type: 'custom_event', payload: { message: 'Hello!' } });
 ## Scripts
 
 ```bash
-npm dev       # Start development server
-npm build     # Build for production
-npm start     # Start production server
-npm lint      # Run ESLint
-npm test      # Run Jest unit tests
-npm test:watch # Run tests in watch mode
+pnpm dev       # Start development server
+pnpm build     # Build for production
+pnpm start     # Start production server
+pnpm lint      # Run ESLint
+pnpm test      # Run Jest unit tests
 ```
 
 ## Testing
