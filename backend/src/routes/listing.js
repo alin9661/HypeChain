@@ -13,6 +13,7 @@ import { isValidVisionModel, isValidImageGenModel } from '../config/ai-models.js
 import { createAndUploadNFTMetadata } from '../services/ipfs.js';
 import { mintNFT, listItemOnMarketplace } from '../services/solana.js';
 import { mintCompressedNFT } from '../services/compressed-nft.js';
+import { submitVerification, confidenceToBps } from '../services/verification.js';
 
 dotenv.config();
 
@@ -354,25 +355,62 @@ router.post('/create-listing', async (req, res) => {
     console.log('✅ Listing saved to database with ID:', listing.id);
 
     // ========================================
-    // STEP 5: List on Marketplace (Optional)
+    // STEP 4.5: Anchor AI verification on-chain
     // ========================================
-    if (!isPendingWallet) {
-      console.log('🏪 Step 5: Listing on marketplace...');
-
+    // The off-chain AI verdict already passed — now anchor it as a
+    // `VerificationProof` PDA so the redacted-field reveal can prove the
+    // confidence score wasn't tampered with.  Skipping a standard NFT is
+    // currently not supported (cNFT mints don't surface a regular mint
+    // pubkey the program can key off of); compressed listings stay in the
+    // Supabase-only path until cNFT support lands on-chain.
+    let verificationResult2 = null;
+    if (!isCompressed && process.env.HACKNYU_MARKETPLACE_PROGRAM_ID) {
       try {
-        const listingSignature = await listItemOnMarketplace(
+        const confidenceBps = confidenceToBps(
+          verificationResult.product_identification.confidence
+        );
+        const livenessPassed =
+          verificationResult.liveness_check.liveness_score >= 50;
+        verificationResult2 = await submitVerification({
+          nftMint: nftMintAddress,
+          confidenceBps,
+          modelName:
+            verificationResult._metadata?.model?.split('/').pop() || 'VISION',
+          livenessPassed,
+        });
+        console.log('✅ VerificationProof PDA:', verificationResult2.verificationPda);
+      } catch (verifyError) {
+        console.warn(
+          '⚠️ submit_verification failed (on-chain proof not written):',
+          verifyError.message
+        );
+      }
+    }
+
+    // ========================================
+    // STEP 5: List on Marketplace
+    // ========================================
+    // Two modes — fully-signed if the seller is the custodial server wallet
+    // (guest flow); prepared-but-unsigned if the seller is a user wallet
+    // (the frontend signs `list_evidence` itself using anchor-client.ts).
+    let marketplaceResult = null;
+    if (verificationResult2 && !isCompressed) {
+      console.log('🏪 Step 5: Listing on marketplace...');
+      const sellerForChain = isPendingWallet ? targetWallet : userWallet;
+      try {
+        marketplaceResult = await listItemOnMarketplace(
           nftMintAddress,
           listingPrice,
-          userWallet
+          sellerForChain
         );
-
-        console.log('Listing signature:', listingSignature);
-        console.log('✅ Item listed on marketplace');
+        console.log('Marketplace result:', marketplaceResult);
       } catch (listingError) {
-        console.warn('Marketplace listing failed (contract may not be deployed):', listingError);
+        console.warn('Marketplace listing failed:', listingError.message);
       }
     } else {
-      console.log('⏸️  Step 5: Skipping marketplace listing (wallet pending)');
+      console.log(
+        '⏸️  Step 5: Skipping on-chain listing (no proof or compressed NFT)'
+      );
     }
 
     // ========================================
