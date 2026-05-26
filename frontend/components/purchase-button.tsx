@@ -2,9 +2,26 @@
 
 import { useState } from 'react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { usePrivy } from '@privy-io/react-auth';
 import { apiClient } from '@/lib/api-client';
+import { buildPurchaseEvidenceIx } from '@/lib/anchor-client';
 import { toast } from 'sonner';
+
+/**
+ * Feature flag for the Anchor-based purchase flow.
+ *
+ * Off (default): `SystemProgram.transfer` SOL-only flow. The legacy path
+ * that ships in production today — no on-chain listing state mutation.
+ *
+ * On: builds an Anchor `purchase_evidence` instruction. This flips the
+ * `EvidenceListing.status` to `Sold` on-chain. Requires the seller to
+ * co-sign (custodial listings: backend co-signs; user-wallet listings:
+ * out-of-band coordination). See plan §"Files to create / modify" for
+ * the full architectural intent.
+ */
+const USE_ANCHOR_PURCHASE =
+  process.env.NEXT_PUBLIC_USE_ANCHOR_PURCHASE === '1';
 
 interface PurchaseButtonProps {
   listingId: string;
@@ -85,13 +102,35 @@ export function PurchaseButton({
       const recipientPublicKey = new PublicKey(paymentRequest.recipient);
       const amountLamports = Math.floor(paymentRequest.amount * LAMPORTS_PER_SOL);
 
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: buyerPublicKey,
-          toPubkey: recipientPublicKey,
-          lamports: amountLamports,
-        })
-      );
+      // Anchor path is feature-flagged — requires the backend to have
+      // submitted a `VerificationProof` and opened an `EvidenceListing`
+      // PDA. The seller must also co-sign (custodial: backend does;
+      // user-wallet: out-of-band). When the flag is off, we fall back to
+      // the SOL-only `SystemProgram.transfer` that has shipped to date.
+      const transaction = new Transaction();
+      if (USE_ANCHOR_PURCHASE && paymentRequest.nftMintAddress) {
+        const nftMint = new PublicKey(paymentRequest.nftMintAddress);
+        const sellerPublicKey = new PublicKey(sellerWallet);
+        const sellerAta = getAssociatedTokenAddressSync(nftMint, sellerPublicKey);
+        const buyerAta = getAssociatedTokenAddressSync(nftMint, buyerPublicKey);
+        transaction.add(
+          buildPurchaseEvidenceIx({
+            buyer: buyerPublicKey,
+            seller: sellerPublicKey,
+            nftMint,
+            sellerTokenAccount: sellerAta,
+            buyerTokenAccount: buyerAta,
+          })
+        );
+      } else {
+        transaction.add(
+          SystemProgram.transfer({
+            fromPubkey: buyerPublicKey,
+            toPubkey: recipientPublicKey,
+            lamports: amountLamports,
+          })
+        );
+      }
 
       // Get recent blockhash
       const { blockhash } = await connection.getLatestBlockhash();
