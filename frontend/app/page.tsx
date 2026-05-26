@@ -7,8 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Navigation } from '@/components/navigation'
 import { useState } from 'react'
 import { Leva } from 'leva'
+import { VerifyFlowSection } from '@/components/landing/verify-flow-section'
+import { EvidenceMovesSection } from '@/components/landing/evidence-moves-section'
+import { MarketplaceProofSection } from '@/components/landing/marketplace-proof-section'
+import { FinalCtaSection } from '@/components/landing/final-cta-section'
 
-const landingNavItems = []
+// Annotated to satisfy Navigation's `items: NavItem[]` prop — `[]` alone
+// infers `never[]`. Empty by design: the landing nav surface is Connect Wallet only.
+const landingNavItems: { name: string; href: string }[] = []
 
 export default function LandingPage() {
   const [hovering, setHovering] = useState(false)
@@ -23,6 +29,7 @@ export default function LandingPage() {
         onConnectWalletClick={() => setRippleNonce((n) => n + 1)}
       />
 
+      <main>
       {/* Hero Section with WebGL Background */}
       <div className="flex flex-col h-svh justify-between bg-black">
         <GL hovering={hovering} rippleNonce={rippleNonce} />
@@ -90,6 +97,13 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* Scroll-told product story below the hero */}
+      <VerifyFlowSection />
+      <EvidenceMovesSection />
+      <MarketplaceProofSection />
+      <FinalCtaSection />
+      </main>
 
       <Leva hidden />
     </>
