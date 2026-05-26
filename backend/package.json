@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
+    "dev": "nodemon src/dev.js",
+    "start": "node src/dev.js",
     "build": "tsc",
     "lint": "eslint src/**/*.{js,ts}",
     "test": "jest",
@@ -39,7 +39,8 @@
     "ioredis": "^5.4.1",
     "morgan": "^1.10.0",
     "nft.storage": "^7.2.0",
-    "openai": "^4.72.0"
+    "openai": "^4.72.0",
+    "serverless-http": "^4.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

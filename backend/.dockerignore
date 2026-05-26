@@ -1,0 +1,34 @@
+# OS / editor noise
+.DS_Store
+*.log
+*.swp
+
+# Secrets — NEVER ship inside the image. Lambda env vars hold these at runtime.
+.env
+.env.local
+.env.development
+.env.example
+
+# Source control
+.git
+.gitignore
+
+# Host node_modules — reinstalled fresh in the container for the Linux target.
+node_modules
+
+# Other-host deploy configs (Railway / Render). Not used by the Lambda image
+# but kept in the repo as alternative-deploy references.
+railway.json
+render.yaml
+
+# Dev-only files
+nodemon.json
+src/dev.js
+
+# One-off setup scripts (run locally, not at Lambda runtime)
+scripts/
+
+# Tests (none yet, but defensive)
+*.test.js
+*.spec.js
+__tests__/

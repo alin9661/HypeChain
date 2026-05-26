@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  HypeChain backend — Express app deployed as a single AWS Lambda container
+  image with a direct Function URL. No API Gateway (its 29s integration
+  timeout cannot serve our 30–90s create-listing flow).
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+# `sam deploy --guided` will prompt for these on the first deploy and persist
+# the answers to samconfig.toml. NoEcho:true hides secret values from the
+# CloudFormation console / API and from `aws cloudformation describe-stacks`.
+Parameters:
+
+  # --- Required secrets (NoEcho) ---
+  OpenRouterApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenRouter API key — HACKNYU_OPENROUTER_API_KEY. Required (openrouter.js throws on import if missing).
+  NftStorageApiKey:
+    Type: String
+    NoEcho: true
+    Description: nft.storage API key — HACKNYU_NFT_STORAGE_API_KEY. Required (ipfs.js throws on import if missing).
+  ServerWalletPrivateKey:
+    Type: String
+    NoEcho: true
+    Description: Server wallet private key, base58-encoded — HACKNYU_SERVER_WALLET_PRIVATE_KEY. Required for minting.
+  SupabaseUrl:
+    Type: String
+    Description: Supabase project URL — HACKNYU_SUPABASE_URL. Required for the Supabase client.
+  SupabaseServiceRoleKey:
+    Type: String
+    NoEcho: true
+    Description: Supabase service role key — HACKNYU_SUPABASE_SERVICE_ROLE_KEY. Required for backend writes.
+
+  # --- Required config ---
+  FrontendUrl:
+    Type: String
+    Default: https://hypechain.vercel.app
+    Description: Production frontend origin — HACKNYU_FRONTEND_URL. Used by both Function URL CORS and Express CORS.
+
+  # --- Optional config (sensible defaults) ---
+  SolanaRpcUrl:
+    Type: String
+    Default: https://api.devnet.solana.com
+    Description: Solana RPC endpoint — HACKNYU_SOLANA_RPC_URL. Defaults to public devnet; upgrade to Helius/QuickNode for production load.
+  DasRpcUrl:
+    Type: String
+    Default: https://api.devnet.solana.com
+    Description: DAS-compatible RPC for compressed-NFT reads — HACKNYU_DAS_RPC_URL. Public devnet does NOT speak DAS; Helius/QuickNode required to read cNFTs.
+  MarketplaceProgramId:
+    Type: String
+    Default: ''
+    Description: Anchor marketplace program ID — HACKNYU_MARKETPLACE_PROGRAM_ID. Empty = listItemOnMarketplace stays stubbed (deferred to its own plan).
+  MerkleTreeAddress:
+    Type: String
+    Default: ''
+    Description: Bubblegum merkle tree address — HACKNYU_MERKLE_TREE_ADDRESS. Empty = code falls back to standard NFT minting (compressed mint disabled).
+  PlatformCustodialWallet:
+    Type: String
+    Default: ''
+    Description: Custodial wallet that holds NFTs for guest users — PLATFORM_CUSTODIAL_WALLET. Empty = wallet-only listings.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  HypeChainBackend:
+    Type: AWS::Serverless::Function
+    Properties:
+      # Container image deployment — our deps exceed the 250 MB zip ceiling.
+      # The image is built from ./Dockerfile (see Metadata block below) and
+      # pushed to an ECR repo that SAM creates on first --guided deploy.
+      PackageType: Image
+
+      # Memory and timeout for the long-running create-listing flow:
+      #   AI verify ~5–15s + image gen ~10–30s + IPFS ~5–15s + mint ~5–10s.
+      # 1024 MB gives enough headroom for Metaplex Umi + Solana web3 deps to
+      # warm up without OOM. 900s is Lambda's max timeout — we won't actually
+      # hit it, but headroom protects us if the AI provider is slow.
+      MemorySize: 1024
+      Timeout: 900
+
+      # arm64 (Lambda Graviton2) — native arch for Apple Silicon dev machines
+      # (zero emulation overhead during `sam build`) and ~20% cheaper than
+      # x86_64 at runtime. All native deps in this app (secp256k1, keccak,
+      # bufferutil, bigint-buffer, utf-8-validate) ship arm64 Linux prebuilts
+      # via prebuild-install / node-gyp-build, so there's no JIT-compile risk.
+      Architectures:
+        - arm64
+
+      # Direct HTTPS endpoint, no API Gateway. AuthType NONE because we rely
+      # on application-level wallet-signature verification, not AWS IAM auth.
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
+        Cors:
+          AllowOrigins:
+            - !Ref FrontendUrl
+          AllowMethods:
+            - GET
+            - POST
+            - OPTIONS
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+          AllowCredentials: true
+          MaxAge: 3600
+
+      Environment:
+        Variables:
+          NODE_ENV: production
+          # CORS allowlist — must match the Function URL CORS config above so
+          # the two layers agree on which origin the browser sees.
+          HACKNYU_FRONTEND_URL: !Ref FrontendUrl
+          # Secrets — sourced from Parameters above; baked into the Lambda
+          # config at deploy time (not the container image).
+          HACKNYU_OPENROUTER_API_KEY: !Ref OpenRouterApiKey
+          HACKNYU_NFT_STORAGE_API_KEY: !Ref NftStorageApiKey
+          HACKNYU_SERVER_WALLET_PRIVATE_KEY: !Ref ServerWalletPrivateKey
+          HACKNYU_SUPABASE_URL: !Ref SupabaseUrl
+          HACKNYU_SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+          # Chain / IPFS config — devnet defaults are fine for v1.
+          HACKNYU_SOLANA_RPC_URL: !Ref SolanaRpcUrl
+          HACKNYU_DAS_RPC_URL: !Ref DasRpcUrl
+          HACKNYU_MARKETPLACE_PROGRAM_ID: !Ref MarketplaceProgramId
+          HACKNYU_MERKLE_TREE_ADDRESS: !Ref MerkleTreeAddress
+          PLATFORM_CUSTODIAL_WALLET: !Ref PlatformCustodialWallet
+          # CRITICAL: disable the Redis cache. cache.js gates its module-top
+          # init on this flag (lines 11–16). With it set to "true", ioredis
+          # would try to connect on every cold start and leak connections
+          # across warm invocations — neither of which we want in Lambda.
+          HACKNYU_REDIS_ENABLED: 'false'
+
+    # SAM uses these to build the container locally and push it to ECR.
+    # `DockerContext: .` means the build context is backend/ (where this
+    # file lives). DockerTag is just a label for ECR's image history.
+    Metadata:
+      DockerTag: nodejs20-v1
+      DockerContext: .
+      Dockerfile: Dockerfile
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+# After `sam deploy`, these print to the terminal. Copy FunctionUrl into the
+# Vercel project's NEXT_PUBLIC_API_URL env var (BOTH Production and Preview
+# scopes — see plan Risks section).
+Outputs:
+  FunctionUrl:
+    Description: >
+      Public HTTPS URL for the Lambda. Set this as NEXT_PUBLIC_API_URL on
+      Vercel (Production + Preview scopes), then redeploy the frontend.
+    # SAM auto-creates an AWS::Lambda::Url resource named "<FnLogicalId>Url"
+    # when FunctionUrlConfig is set. Reference its FunctionUrl attribute.
+    Value: !GetAtt HypeChainBackendUrl.FunctionUrl
+  FunctionArn:
+    Description: Lambda function ARN (useful for CloudWatch log queries).
+    Value: !GetAtt HypeChainBackend.Arn
+  EcrRepository:
+    Description: ECR repo SAM created for this Lambda's container image.
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/ecr/repositories
