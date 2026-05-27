@@ -121,7 +121,7 @@ Route (app)
 
 ### Build Test
 ```bash
-cd frontend && npm run build
+cd frontend && bun run build
 ✓ Compiled successfully in 3.0s
 ✓ Generating static pages using 10 workers (10/10)
 
@@ -289,7 +289,7 @@ All navigation items include:
 1. **Start the development server:**
    ```bash
    cd frontend
-   npm run dev
+   bun dev
    # Open http://localhost:3000
    ```
 

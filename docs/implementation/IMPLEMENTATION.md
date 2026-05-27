@@ -226,7 +226,7 @@ MARKETPLACE_PROGRAM_ID=Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS
 ```bash
 # Frontend
 cd frontend
-pnpm install
+bun install
 
 # Contracts (if building locally)
 cd ../contracts
@@ -262,7 +262,7 @@ anchor deploy --provider.cluster devnet
 
 ```bash
 cd frontend
-pnpm dev
+bun dev
 ```
 
 The API will be available at `http://localhost:3000/api/create-listing`

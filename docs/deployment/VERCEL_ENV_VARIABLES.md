@@ -224,7 +224,7 @@ NEXT_PUBLIC_SOLANA_NETWORK=devnet
 
 ```bash
 cd frontend
-pnpm dev
+bun dev
 ```
 
 3. Verify all features work before deploying to Vercel

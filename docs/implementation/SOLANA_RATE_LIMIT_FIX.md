@@ -170,7 +170,7 @@ Auto-refresh after 60 seconds
 ### 3. Start with New Configuration
 ```bash
 cd frontend
-pnpm dev
+bun dev
 ```
 
 ### 4. Monitor Console Logs
@@ -248,7 +248,7 @@ NEXT_PUBLIC_SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=YOUR_ACTUAL_AP
 ### 3. Restart Server
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 ### 4. Verify

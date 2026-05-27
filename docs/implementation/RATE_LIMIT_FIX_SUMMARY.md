@@ -53,7 +53,7 @@
 ```bash
 # No changes needed - works with default settings
 cd frontend
-pnpm dev
+bun dev
 ```
 
 The fixes are already applied and will work with the free Solana DevNet endpoint.
@@ -74,7 +74,7 @@ cp .env.local.example .env.local
 echo "NEXT_PUBLIC_SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=YOUR_KEY" >> .env.local
 
 # 4. Start server
-pnpm dev
+bun dev
 ```
 
 ## 🎯 Key Features
@@ -201,7 +201,7 @@ git diff frontend/app/activities/page.tsx
 
 # Test the fix
 cd frontend
-pnpm dev
+bun dev
 # Visit http://localhost:3000/activities
 
 # Check logs for success messages

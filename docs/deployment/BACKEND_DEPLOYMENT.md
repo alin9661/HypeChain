@@ -58,7 +58,7 @@ app.get('/health', (req, res) => {
 Service Name: hypechain-backend
 Root Directory: backend
 Builder: Nixpacks (auto-detected)
-Start Command: npm start
+Start Command: bun start
 Health Check Path: /health
 ```
 
@@ -109,8 +109,8 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 2. Railway will:
    - Clone your repo
    - Detect Node.js
-   - Run `npm install`
-   - Start with `npm start`
+   - Run `bun install`
+   - Start with `bun start`
 3. Your API will be live at: `https://your-service.up.railway.app`
 
 ### Step 6: Update Frontend
@@ -154,10 +154,10 @@ We've created `backend/railway.json` for advanced config:
 {
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install"
+    "buildCommand": "bun install"
   },
   "deploy": {
-    "startCommand": "npm start",
+    "startCommand": "bun start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
@@ -195,8 +195,8 @@ Name: hypechain-backend
 Region: Oregon (or closest to users)
 Root Directory: backend
 Runtime: Node
-Build Command: npm install
-Start Command: npm start
+Build Command: bun install
+Start Command: bun start
 Plan: Free
 ```
 
@@ -226,8 +226,8 @@ services:
   - type: web
     name: hypechain-backend
     runtime: node
-    buildCommand: npm install
-    startCommand: npm start
+    buildCommand: bun install
+    startCommand: bun start
     envVars:
       - key: NODE_ENV
         value: production
@@ -490,7 +490,7 @@ logger.error('Failed to mint NFT', { error: error.message });
 
 ```bash
 cd backend
-npm install @sentry/node
+bun add @sentry/node
 ```
 
 ```javascript
@@ -643,10 +643,10 @@ jobs:
 ```bash
 # Ensure all dependencies in package.json
 cd backend
-npm install
+bun install
 
 # Test locally
-npm start
+bun start
 ```
 
 #### 2. Environment variable not working
@@ -717,8 +717,8 @@ Switch to premium RPC provider:
 - [ ] Platform account created
 - [ ] Repository connected
 - [ ] Root directory set to `backend`
-- [ ] Build command: `npm install`
-- [ ] Start command: `npm start`
+- [ ] Build command: `bun install`
+- [ ] Start command: `bun start`
 - [ ] All environment variables added
 
 ### Post-Deployment
