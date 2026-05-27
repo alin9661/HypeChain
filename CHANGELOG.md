@@ -3,6 +3,49 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0.0] - 2026-05-27
+
+### Added
+
+- Solana Evidence Locker on-chain program — sellers now have a real
+  case file backed by Anchor PDAs (`Dossier` per seller, `VerificationProof`
+  per mint, `EvidenceListing` per mint). Listings can no longer be created
+  without an AI verdict anchored on-chain at or above the confidence
+  threshold (default 50 %). Six instructions: `init_dossier`,
+  `submit_verification`, `list_evidence`, `delist_evidence`,
+  `purchase_evidence`, `flag_dispute`.
+- Anchor Mocha test suite covers every instruction (happy path + at
+  least one failure case per instruction).
+- Frontend Anchor client (`frontend/lib/anchor-client.ts`) — pure
+  `@solana/web3.js` (no `@coral-xyz/anchor` dependency) with PDA helpers,
+  six typed instruction builders, and Borsh decoders for all three
+  account types.
+- Backend examiner service (`backend/src/services/verification.js`)
+  anchors the AI verdict on-chain right after the OpenRouter call
+  passes, so the redacted-field reveal can prove the confidence score
+  wasn't tampered with.
+- Supabase mirror columns: `dossier_pubkey`, `verification_proof_pubkey`,
+  `listing_pubkey`, `case_number`, `examiner_pubkey`, `custodian_pubkey`,
+  `confidence_bps`, `liveness_passed`, `model_name`, `verified_at`.
+  `status` CHECK constraint extended to mirror the on-chain `ListingStatus`
+  enum.
+- `contracts/DEPLOY.md` — devnet deploy walkthrough with pre-deploy
+  checklist, post-deploy wiring, and deliberately-deferred scope.
+- AWS SAM / Lambda deployment scaffold for the backend
+  (`backend/template.yaml`, `Dockerfile`, `lambda.js`,
+  `scripts/smoke-lambda.sh`).
+- Jest test dependencies installed for the frontend so the existing
+  `__tests__/` suites can actually run.
+
+### Changed
+
+- `backend/src/services/solana.js` `listItemOnMarketplace` — replaced
+  the TODO stub with a two-mode flow (custodial server-signed vs
+  user-wallet pending-signature).
+- `frontend/components/purchase-button.tsx` — added a feature-flagged
+  Anchor `purchase_evidence` path behind `NEXT_PUBLIC_USE_ANCHOR_PURCHASE`.
+  Default off until devnet deploy + co-sign endpoint land.
+
 ## [0.2.0.0] - 2026-05-25
 
 ### Added
