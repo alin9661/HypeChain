@@ -82,7 +82,7 @@ The HypeChain platform now features an **enhanced OpenRouter integration** with 
 
 ```bash
 cd backend
-pnpm install
+bun install
 # This will install: ioredis@^5.4.1
 ```
 
@@ -139,7 +139,7 @@ HACKNYU_REDIS_URL=redis://localhost:6379
 
 ```bash
 cd backend
-pnpm dev
+bun dev
 ```
 
 You should see:

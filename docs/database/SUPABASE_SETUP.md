@@ -124,7 +124,7 @@ COMMENT ON TABLE users IS 'User profiles linked to wallet addresses';
 1. Start your Next.js development server:
    ```bash
    cd frontend
-   pnpm dev
+   bun dev
    ```
 
 2. Open your browser's DevTools Console

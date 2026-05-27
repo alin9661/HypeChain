@@ -5,9 +5,9 @@ Get up and running in 5 minutes!
 ## Prerequisites
 
 ```bash
-# Install Node.js 18+, pnpm, Rust, Solana CLI, Anchor CLI
+# Install Node.js 18+, bun, Rust, Solana CLI, Anchor CLI
 node --version  # 18+
-pnpm --version
+bun --version
 solana --version
 anchor --version  # 0.30.1
 ```
@@ -16,7 +16,7 @@ anchor --version  # 0.30.1
 
 ```bash
 cd frontend
-pnpm install
+bun install
 ```
 
 ## Step 2: Get API Keys (3 min)
@@ -101,7 +101,7 @@ anchor deploy --provider.cluster devnet
 
 ```bash
 cd frontend
-pnpm dev
+bun dev
 ```
 
 Visit: http://localhost:3000

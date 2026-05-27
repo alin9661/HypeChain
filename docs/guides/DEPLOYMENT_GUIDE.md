@@ -19,7 +19,7 @@ Complete guide for deploying the HypeChain AI-Powered NFT Marketplace on Solana.
 ### Required Software
 
 - **Node.js**: v18 or higher ([Download](https://nodejs.org/))
-- **npm**: v9 or higher (comes with Node.js)
+- **bun**: v1.0 or higher ([Install](https://bun.sh/))
 - **Git**: Latest version
 - **Solana CLI**: For wallet management (optional)
 
@@ -98,7 +98,7 @@ NEXT_PUBLIC_SOLANA_NETWORK=devnet
 
 ```bash
 cd backend
-npm install
+bun install
 ```
 
 ### 2. Verify Configuration
@@ -115,12 +115,12 @@ node -e "const { Connection } = require('@solana/web3.js'); const conn = new Con
 
 **Development Mode:**
 ```bash
-npm run dev
+bun dev
 ```
 
 **Production Mode:**
 ```bash
-npm start
+bun start
 ```
 
 ### 4. Verify Backend Health
@@ -154,20 +154,20 @@ Expected response:
 
 ```bash
 cd frontend
-npm install
+bun install
 ```
 
 ### 2. Build and Start
 
 **Development Mode:**
 ```bash
-npm run dev
+bun dev
 ```
 
 **Production Build:**
 ```bash
-npm run build
-npm start
+bun run build
+bun start
 ```
 
 ### 3. Access the Application
@@ -210,7 +210,7 @@ Visit the API Docs page at http://localhost:3000/api-docs to verify:
 
 ```bash
 cd frontend
-npm test
+bun test
 ```
 
 Expected output:
@@ -268,13 +268,13 @@ railway up
 
 1. Create `Dockerfile` in backend:
 ```dockerfile
-FROM node:18-alpine
+FROM oven/bun:1
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
+COPY package.json bun.lock ./
+RUN bun install --production --frozen-lockfile
 COPY . .
 EXPOSE 3001
-CMD ["npm", "start"]
+CMD ["bun", "start"]
 ```
 
 2. Build and run:
@@ -355,7 +355,7 @@ Monitor transactions and NFT mints:
 **Issue: Backend won't start**
 ```bash
 # Check logs
-npm run dev 2>&1 | tee backend.log
+bun dev 2>&1 | tee backend.log
 
 # Verify environment variables
 node -e "console.log(process.env.OPENROUTER_API_KEY ? 'OK' : 'MISSING')"
@@ -407,11 +407,11 @@ wscat -c ws://localhost:3001/ws
 rm -rf .next
 
 # Reinstall dependencies
-rm -rf node_modules package-lock.json
-npm install
+rm -rf node_modules bun.lock
+bun install
 
 # Rebuild
-npm run build
+bun run build
 ```
 
 ### NFT Creation Issues

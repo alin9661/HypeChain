@@ -8,8 +8,8 @@ Quick guide to demonstrate the HypeChain AI-Powered NFT Marketplace.
 
 ```bash
 cd backend
-npm install
-npm run dev
+bun install
+bun dev
 ```
 
 Wait for: `🚀 Server running on port 3001`
@@ -18,8 +18,8 @@ Wait for: `🚀 Server running on port 3001`
 
 ```bash
 cd frontend
-npm install
-npm run dev
+bun install
+bun dev
 ```
 
 Open browser: http://localhost:3000
@@ -342,7 +342,7 @@ A: Demo version on DevNet. For production, switch to MainNet and add more securi
 
 1. Explore code on GitHub
 2. Read API documentation
-3. Run unit tests (`npm test`)
+3. Run unit tests (`bun test`)
 4. Try marketplace integration
 5. Deploy to production (see DEPLOYMENT_GUIDE.md)
 

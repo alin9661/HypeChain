@@ -30,7 +30,7 @@ HypeChain now supports **Compressed NFTs (cNFTs)** using Metaplex Bubblegum, pro
    - [x] Smart tree validation and error handling
 
 3. **Developer Tools**
-   - [x] Setup script: `pnpm setup-tree`
+   - [x] Setup script: `bun setup-tree`
    - [x] Multiple tree size presets (small/medium/large)
    - [x] Cost estimation utilities
 
@@ -47,7 +47,7 @@ HypeChain now supports **Compressed NFTs (cNFTs)** using Metaplex Bubblegum, pro
 
 ```bash
 cd backend
-pnpm install
+bun install
 ```
 
 **New packages added:**
@@ -77,15 +77,15 @@ Run the setup script to create your Merkle tree:
 
 ```bash
 # Create default tree (16,384 NFTs, ~0.22 SOL)
-pnpm setup-tree
+bun setup-tree
 
 # Or choose a specific size:
-pnpm setup-tree -- --size small   # 16,384 NFTs
-pnpm setup-tree -- --size medium  # 1,048,576 NFTs
-pnpm setup-tree -- --size large   # 16,777,216 NFTs
+bun setup-tree --size small   # 16,384 NFTs
+bun setup-tree --size medium  # 1,048,576 NFTs
+bun setup-tree --size large   # 16,777,216 NFTs
 
 # Or create custom tree:
-pnpm setup-tree -- --custom 17 128  # 131,072 NFTs
+bun setup-tree --custom 17 128  # 131,072 NFTs
 ```
 
 **Output will include:**
@@ -112,7 +112,7 @@ cat migrations/001_add_compressed_nft_support.sql
 ### 5. Start the Server
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 The server will automatically:
@@ -303,7 +303,7 @@ When your tree approaches capacity (>80%), create a new one:
 
 ```bash
 # Create a new tree
-pnpm setup-tree -- --size medium
+bun setup-tree --size medium
 
 # Update .env with new tree address
 # Old tree remains valid for its existing NFTs
@@ -418,13 +418,13 @@ If you don't configure DAS API:
 **Solution:**
 ```bash
 # Run setup script
-pnpm setup-tree
+bun setup-tree
 
 # Copy the tree address to .env
 HACKNYU_MERKLE_TREE_ADDRESS=actual_address_here
 
 # Restart server
-pnpm dev
+bun dev
 ```
 
 ### Issue: "Tree is full"
@@ -432,7 +432,7 @@ pnpm dev
 **Solution:**
 ```bash
 # Create a new tree
-pnpm setup-tree -- --size medium
+bun setup-tree --size medium
 
 # Update .env with new address
 # Old tree remains accessible
@@ -476,7 +476,7 @@ HACKNYU_DAS_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
 
 ```bash
 # Start server
-pnpm dev
+bun dev
 
 # Send test request
 curl -X POST http://localhost:3001/api/create-listing \
@@ -630,7 +630,7 @@ You now have:
 
 **Next Steps:**
 1. Get NFT.Storage API key
-2. Run `pnpm setup-tree`
+2. Run `bun setup-tree`
 3. Update `.env` with tree address
 4. Run database migration
 5. Start minting compressed NFTs!
