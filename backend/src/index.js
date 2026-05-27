@@ -1,4 +1,10 @@
-// Load environment variables first, before any other imports
+// Express app factory — builds and exports the configured app.
+// Runtime entry points:
+//   • src/dev.js     — local dev (calls app.listen on PORT 3001)
+//   • src/lambda.js  — AWS Lambda (wraps app with serverless-http)
+// This file is import-side-effect-safe: no listen, no signal handlers.
+
+// Load environment variables first, before any service module reads process.env.
 import './config/env.js';
 
 import express from 'express';
@@ -9,7 +15,6 @@ import listingRoutes from './routes/listing.js';
 import paymentRoutes from './routes/payment.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // ========================================
 // Middleware
@@ -18,15 +23,17 @@ const PORT = process.env.PORT || 3001;
 // Security headers
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration — production frontend on Vercel, local dev on :3000.
 app.use(cors({
   origin: process.env.HACKNYU_FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
 
-// Body parsing
-app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing — 5 MB cap to fit AWS Lambda's 6 MB sync invocation payload
+// limit (base64-encoded product images expand raw bytes by ~33%). Larger
+// uploads need the pre-signed S3 pattern (deferred to FastAPI follow-up).
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // Request logging
 app.use(morgan('dev'));
@@ -35,7 +42,7 @@ app.use(morgan('dev'));
 // Routes
 // ========================================
 
-// Health check
+// Health check — used by Lambda Function URL probes and local dev.
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -49,7 +56,7 @@ app.get('/health', (req, res) => {
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Root endpoint
+// Root endpoint — kept for API discoverability.
 app.get('/', (req, res) => {
   res.json({
     name: 'HypeChain Backend API',
@@ -90,58 +97,6 @@ app.use((err, req, res, next) => {
     success: false,
     error: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
-});
-
-// ========================================
-// Server Start
-// ========================================
-
-const server = app.listen(PORT, () => {
-  console.log('🚀 HypeChain Backend Server Started');
-  console.log(`📍 Server running on http://localhost:${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Frontend URL: ${process.env.HACKNYU_FRONTEND_URL || 'http://localhost:3000'}`);
-  console.log('\n✨ Available endpoints:');
-  console.log(`   GET  /                              - API information`);
-  console.log(`   GET  /health                        - Health check`);
-  console.log('\n📦 Listing Endpoints:');
-  console.log(`   POST /api/create-listing            - Create NFT listing`);
-  console.log(`   GET  /api/create-listing            - Listing endpoint info`);
-  console.log('\n💰 Payment Endpoints (Solana Pay):');
-  console.log(`   POST /api/payments/create           - Create payment request`);
-  console.log(`   POST /api/payments/verify           - Verify payment`);
-  console.log(`   GET  /api/payments/history/:wallet  - Transaction history`);
-  console.log(`   GET  /api/payments/balance/:wallet  - Wallet balance`);
-  console.log(`   GET  /api/payments/listing/:id      - Get listing details`);
-  console.log('\n🎯 Ready to mint NFTs and process payments!\n');
-});
-
-// Graceful shutdown handler
-const gracefulShutdown = (signal) => {
-  console.log(`\n${signal} signal received: closing HTTP server gracefully`);
-
-  server.close(() => {
-    console.log('✅ HTTP server closed');
-    process.exit(0);
-  });
-
-  // Force close after 10 seconds
-  setTimeout(() => {
-    console.error('⚠️  Forced shutdown after timeout');
-    process.exit(1);
-  }, 10000);
-};
-
-// Handle different shutdown signals
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-// Handle nodemon restart
-process.once('SIGUSR2', () => {
-  console.log('\n🔄 Nodemon restart detected: closing server');
-  server.close(() => {
-    process.kill(process.pid, 'SIGUSR2');
   });
 });
 
