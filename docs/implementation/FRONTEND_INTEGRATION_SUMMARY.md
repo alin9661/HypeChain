@@ -512,16 +512,16 @@ Interactive API documentation.
 
 ```bash
 # Run all tests
-npm test
+bun test
 
 # Run with coverage
-npm test -- --coverage
+bun test --coverage
 
 # Run specific test file
-npm test api-client.test.ts
+bun test api-client.test.ts
 
 # Watch mode
-npm test -- --watch
+bun test --watch
 ```
 
 ---
@@ -749,13 +749,13 @@ const { data, loading, execute } = useNewEndpoint();
 
 - [ ] Read DEPLOYMENT_GUIDE.md
 - [ ] Set up environment variables
-- [ ] Install dependencies (`npm install`)
-- [ ] Run backend (`cd backend && npm run dev`)
-- [ ] Run frontend (`cd frontend && npm run dev`)
+- [ ] Install dependencies (`bun install`)
+- [ ] Run backend (`cd backend && bun dev`)
+- [ ] Run frontend (`cd frontend && bun dev`)
 - [ ] Create test NFT listing
 - [ ] Explore API documentation page
 - [ ] Read component documentation in this file
-- [ ] Run unit tests (`npm test`)
+- [ ] Run unit tests (`bun test`)
 - [ ] Review code structure
 - [ ] Check WebSocket connection in browser console
 

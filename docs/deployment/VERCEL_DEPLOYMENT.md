@@ -38,9 +38,9 @@ HackNYU 2025/
    ```
    Framework Preset: Next.js
    Root Directory: frontend
-   Build Command: pnpm install && pnpm build
+   Build Command: bun install && bun run build
    Output Directory: .next
-   Install Command: pnpm install
+   Install Command: bun install
    ```
 
 3. **Set Environment Variables**
@@ -115,7 +115,7 @@ Once connected, Vercel automatically deploys:
    ```
    Service Name: hypechain-backend
    Root Directory: backend
-   Start Command: npm start (or node src/index.js)
+   Start Command: bun start (or node src/index.js)
    ```
 
 4. **Add Environment Variables**
@@ -169,8 +169,8 @@ Once connected, Vercel automatically deploys:
 4. Configure:
    ```
    Root Directory: backend
-   Build Command: npm install
-   Start Command: npm start
+   Build Command: bun install
+   Start Command: bun start
    ```
 5. Add environment variables
 6. Deploy
@@ -182,8 +182,8 @@ Once connected, Vercel automatically deploys:
 ```json
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm install && pnpm build",
-  "installCommand": "pnpm install",
+  "buildCommand": "bun install && bun run build",
+  "installCommand": "bun install",
   "outputDirectory": ".next"
 }
 ```
@@ -313,8 +313,8 @@ app.use(cors({
 ```bash
 # Check build locally first
 cd frontend
-pnpm install
-pnpm build
+bun install
+bun run build
 
 # Fix TypeScript errors or ignore in vercel.json
 {
@@ -352,8 +352,8 @@ export default {
 
 ### Pre-Deployment
 
-- [ ] Test build locally: `cd frontend && pnpm build`
-- [ ] Test backend locally: `cd backend && npm start`
+- [ ] Test build locally: `cd frontend && bun run build`
+- [ ] Test backend locally: `cd backend && bun start`
 - [ ] Update environment variables in `.env.example` files
 - [ ] Commit all changes to Git
 - [ ] Push to GitHub
@@ -421,10 +421,10 @@ View logs in Railway Dashboard:
 Install Sentry:
 ```bash
 cd frontend
-pnpm add @sentry/nextjs
+bun add @sentry/nextjs
 
 cd ../backend
-npm install @sentry/node
+bun add @sentry/node
 ```
 
 ## 🔐 Security Best Practices

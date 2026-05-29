@@ -100,18 +100,18 @@ This guide documents the complete integration of **Solana Pay** payment processi
 2. **Privy Account**: https://privy.io
 3. **Solana Wallet**: Phantom, Solflare, or Backpack
 4. **Node.js**: v18 or higher
-5. **pnpm**: Package manager
+5. **bun**: Package manager
 
 ### Step 1: Install Dependencies
 
 ```bash
 # Backend
 cd backend
-pnpm install
+bun install
 
 # Frontend
 cd ../frontend
-pnpm install
+bun install
 ```
 
 ### Step 2: Configure Supabase
@@ -185,11 +185,11 @@ NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
 ```bash
 # Terminal 1 - Backend
 cd backend
-pnpm dev
+bun dev
 
 # Terminal 2 - Frontend
 cd frontend
-pnpm dev
+bun dev
 ```
 
 Navigate to http://localhost:3000
@@ -319,8 +319,8 @@ Navigate to http://localhost:3000
 
 ```bash
 # 1. Start both servers
-cd backend && pnpm dev
-cd frontend && pnpm dev
+cd backend && bun dev
+cd frontend && bun dev
 
 # 2. Get test SOL (devnet)
 # Visit: https://faucet.solana.com
@@ -530,7 +530,7 @@ SERVER_WALLET_PRIVATE_KEY=mainnet_private_key
 If you encounter issues:
 
 1. Check browser console for errors
-2. Check backend logs (`pnpm dev` output)
+2. Check backend logs (`bun dev` output)
 3. Verify environment variables
 4. Check Supabase logs in dashboard
 5. Test on Solana devnet first

@@ -156,7 +156,7 @@ All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it be
 ### 1. Install Dependencies
 
 ```bash
-pnpm install
+bun install
 ```
 
 ### 2. Environment Setup
@@ -179,7 +179,7 @@ NEXT_PUBLIC_SOLANA_NETWORK=devnet
 ### 3. Run Development Server
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
@@ -187,8 +187,8 @@ Open [http://localhost:3000](http://localhost:3000)
 ### 4. Build for Production
 
 ```bash
-pnpm build
-pnpm start
+bun run build
+bun start
 ```
 
 ## Project Structure
@@ -399,11 +399,11 @@ ws.send({ type: 'custom_event', payload: { message: 'Hello!' } });
 ## Scripts
 
 ```bash
-pnpm dev       # Start development server
-pnpm build     # Build for production
-pnpm start     # Start production server
-pnpm lint      # Run ESLint
-pnpm test      # Run Jest unit tests
+bun dev          # Start development server
+bun run build    # Build for production
+bun start        # Start production server
+bun run lint     # Run ESLint
+bun test         # Run Jest unit tests
 ```
 
 ## Testing
@@ -412,16 +412,16 @@ Run the test suite:
 
 ```bash
 # Run all tests
-npm test
+bun test
 
 # Run with coverage
-npm test -- --coverage
+bun test --coverage
 
 # Watch mode
-npm test -- --watch
+bun test --watch
 
 # Run specific test
-npm test api-client.test.ts
+bun test api-client.test.ts
 ```
 
 ### Test Coverage
@@ -456,8 +456,8 @@ If you encounter build errors, try:
 
 ```bash
 rm -rf .next node_modules
-pnpm install
-pnpm build
+bun install
+bun run build
 ```
 
 ### TypeScript Errors
@@ -465,7 +465,7 @@ pnpm build
 Make sure you're using TypeScript 5.1.0 or higher:
 
 ```bash
-pnpm add -D typescript@latest
+bun add -d typescript@latest
 ```
 
 ### Styling Issues
@@ -474,7 +474,7 @@ Clear the cache and rebuild:
 
 ```bash
 rm -rf .next
-pnpm dev
+bun dev
 ```
 
 ## Documentation
@@ -526,8 +526,8 @@ Global state managed via Context API:
 
 To demo the application:
 
-1. Start backend: `cd backend && npm run dev`
-2. Start frontend: `cd frontend && npm run dev`
+1. Start backend: `cd backend && bun dev`
+2. Start frontend: `cd frontend && bun dev`
 3. Visit http://localhost:3000/marketplace
 4. Click "Create Listing"
 5. Upload a product image

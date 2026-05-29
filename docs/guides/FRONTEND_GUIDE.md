@@ -114,7 +114,7 @@ frontend/
 
 ```bash
 cd frontend
-pnpm install
+bun install
 ```
 
 ### 2. Environment Variables
@@ -128,7 +128,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ### 3. Run Development Server
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 The app runs on `http://localhost:3000`
@@ -350,8 +350,8 @@ const handleClick = useCallback(() => {
 ### Build for Production
 
 ```bash
-pnpm build
-pnpm start
+bun run build
+bun start
 ```
 
 ### Environment Variables

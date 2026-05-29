@@ -33,7 +33,7 @@ Run from the `contracts/` directory.
 
 ```bash
 # 1. (One-time) Install JS deps for the Mocha test runner.
-npm install                       # or pnpm/yarn — your call
+bun install
 
 # 2. Build the program for the BPF target. Emits target/deploy/*.so and
 #    target/idl/hypechain_marketplace.json (the IDL the client decodes
@@ -101,10 +101,10 @@ Evidence Locker loop and confirms each PDA exists on chain.
 
 ```bash
 # Backend
-cd backend && pnpm dev    # or npm run dev
+cd backend && bun dev
 
 # Frontend (new terminal)
-cd frontend && pnpm dev
+cd frontend && bun dev
 ```
 
 In the browser:

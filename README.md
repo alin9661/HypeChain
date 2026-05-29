@@ -25,7 +25,7 @@ HypeChain is a next-generation NFT marketplace that uses AI to verify product au
 
 ## Prerequisites
 
-- Node.js 18+ and pnpm
+- Node.js 18+ and bun
 - Rust 1.75+ (for smart contract development)
 - Anchor CLI 0.30.1
 - Solana CLI 1.18+
@@ -39,13 +39,13 @@ HypeChain is a next-generation NFT marketplace that uses AI to verify product au
 **Backend:**
 ```bash
 cd backend
-npm install
+bun install
 ```
 
 **Frontend:**
 ```bash
 cd frontend
-pnpm install
+bun install
 ```
 
 ### 2. Environment Setup
@@ -98,14 +98,14 @@ anchor deploy --provider.cluster devnet
 **Backend** (Terminal 1):
 ```bash
 cd backend
-npm run dev
+bun dev
 ```
 Server runs on `http://localhost:3001`
 
 **Frontend** (Terminal 2):
 ```bash
 cd frontend
-pnpm dev
+bun dev
 ```
 App runs on `http://localhost:3000`
 

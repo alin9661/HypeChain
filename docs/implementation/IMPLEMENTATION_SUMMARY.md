@@ -157,8 +157,8 @@ I've successfully developed a modern, responsive blockchain platform frontend wi
 
 ```bash
 cd frontend
-pnpm install
-pnpm dev
+bun install
+bun dev
 ```
 
 Visit: http://localhost:3000

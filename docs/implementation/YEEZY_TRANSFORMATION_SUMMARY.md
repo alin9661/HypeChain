@@ -128,7 +128,7 @@ Transformed the homepage from a blockchain dashboard to a **Yeezy-inspired NFT m
 1. **Start Dev Server:**
    ```bash
    cd frontend
-   pnpm dev
+   bun dev
    ```
 
 2. **Open Browser:**

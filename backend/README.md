@@ -7,9 +7,7 @@ Express.js backend for the HypeChain NFT Marketplace with AI-powered product ver
 ### Install Dependencies
 
 ```bash
-npm install
-# or
-pnpm install
+bun install
 ```
 
 ### Configure Environment
@@ -33,10 +31,10 @@ MARKETPLACE_PROGRAM_ID=your_program_id
 
 ```bash
 # Development
-npm run dev
+bun dev
 
 # Production
-npm start
+bun start
 ```
 
 Server runs on `http://localhost:3001`
@@ -133,13 +131,13 @@ curl -X POST http://localhost:3001/api/create-listing \
 
 ```bash
 # Run with nodemon
-npm run dev
+bun dev
 
 # Lint code
-npm run lint
+bun run lint
 
 # Run tests
-npm test
+bun test
 ```
 
 ## License

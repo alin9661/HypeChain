@@ -16,16 +16,26 @@
 
 FROM public.ecr.aws/lambda/nodejs:20
 
-# Enable pnpm via corepack (bundled with Node 16+). Pinning to the lockfile's
-# pnpm version keeps the container build deterministic with local installs.
-RUN corepack enable && corepack prepare pnpm@10.12.3 --activate
+# Install bun into the AWS Lambda Node.js base. We keep the AWS-managed base
+# (not oven/bun) so the Lambda Runtime Interface Client and ENTRYPOINT stay
+# intact — bun is only used to install dependencies; Node runs the handler.
+# Pinning bun's version keeps the container build deterministic with local
+# installs that read backend/bun.lock.
+ARG BUN_VERSION=1.1.38
+RUN microdnf install -y unzip tar gzip \
+    && curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" -o /tmp/bun.zip \
+    && unzip -q /tmp/bun.zip -d /tmp \
+    && mv /tmp/bun-linux-x64/bun /usr/local/bin/bun \
+    && chmod +x /usr/local/bin/bun \
+    && rm -rf /tmp/bun.zip /tmp/bun-linux-x64 \
+    && microdnf clean all
 
 # Lambda's base image sets WORKDIR to /var/task automatically — that's where
 # the RIC looks for the handler file referenced by CMD.
-COPY package.json pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 
 # Production deps only; --frozen-lockfile rejects any drift from the lockfile.
-RUN pnpm install --prod --frozen-lockfile
+RUN bun install --production --frozen-lockfile
 
 # Copy application source. .dockerignore excludes secrets, host node_modules,
 # the dev entry, and the railway/render configs.
