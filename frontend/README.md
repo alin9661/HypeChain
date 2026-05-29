@@ -17,11 +17,28 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 - **Real-time WebSocket** integration for marketplace updates
 
 ### Reusable Components
-- **CreateListingForm**: Complete NFT creation with image upload, validation, and wallet integration
-- **NFTCard & NFTGrid**: Display NFTs with responsive grid layout and skeleton loaders
-- **WalletConnect**: Solana wallet connection with Phantom support and demo fallback
-- **ToastContainer**: Global notification system with auto-dismiss
-- **ErrorBoundary**: Graceful error handling with fallback UI
+
+**Navigation & auth**
+- **Navigation** (`navigation.tsx`): Top nav with Privy-driven wallet state
+- **PrivyProviderWrapper** (`privy-provider-wrapper.tsx`): App-root auth provider
+- **WalletDropdown** (`wallet-dropdown.tsx`): Wallet ID display with redact/reveal cycle
+
+**Evidence Locker primitives** (per `DESIGN.md`)
+- **CaseFileRibbon** (`case-file-ribbon.tsx`): Top status bar on app pages (not marketing)
+- **RedactedField** (`redacted-field.tsx`): Typewriter-reveal redaction primitive
+- **Pill** (`pill.tsx`): Polygon clip-path chips, intent radio-pills
+
+**Listings & purchase**
+- **CreateListingForm** (`create-listing-form.tsx`): NFT creation with image upload, validation, wallet
+- **NFTCard & NFTGrid**: Responsive grid with skeleton loaders
+- **PurchaseButton** (`purchase-button.tsx`): Buy flow with on-chain transaction state
+
+**Global**
+- **ToastContainer** (`toast.tsx`): Notification system with auto-dismiss
+- **ErrorBoundary** (`error-boundary.tsx`): Graceful error handling
+- **FloatingChatButton** + **ChatOverlay**: Embedded chat affordance
+
+> The legacy `sidebar.tsx`, `top-header.tsx`, `app-layout.tsx`, and `hero-section.tsx` files predate the navigation rebuild and are no longer wired into `app/layout.tsx`. They will be removed in a follow-up cleanup.
 
 ### React Hooks
 - **useCreateListing**: Create NFT listings with progress tracking
@@ -74,6 +91,34 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 - Wallet connection
 - Notification preferences
 - Theme selection (Light/Dark/System)
+
+#### 7. Waitlist (`/waitlist`)
+- Sentient-italic hero ("built for verified records.")
+- Intent radio-pill row (Collect / Trade / Verify / Build) replacing SaaS select dropdown
+- Case-file-style receipt with `dl` rows, mono labels, dashed hairlines
+- Three intake states: idle form / submitting / receipt
+- Submission IDs in `HC-W-NNNNNN` format (mirrors listings detail `HC-YYYY-NNNNNN`)
+- Hairline-bordered queue rail with tabular-nums counters
+- Posts to `/api/waitlist` (stub) — form shape: `name / email / walletAddress / interest`
+
+#### 8. Listings detail (`/listings/[id]`)
+- Evidence Locker primitives (Case-File Ribbon, Redacted Field, Mint Certificate)
+- Renders for the wallet-connected reveal/redact cycle
+
+#### 9. Sold (`/sold`)
+- Marketing surface showcasing completed verifications (no Case-File Ribbon per `DESIGN.md`)
+
+#### 10. Collections (`/collections`)
+- Grouped listings by verified series
+
+### Design System
+
+All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it before changing any visual element.
+
+- **Aesthetic:** Verified Yellow + Evidence Chrome ("Notarized Cypherpunk"). The memorable thing: *"It looks like a financial terminal, not a JPEG mall."*
+- **Accent:** evidence-locker brass `#D4A82C` (retoned from caution-yellow `#FFC700` on 2026-05-18 — see Decisions Log in `DESIGN.md`).
+- **Typography:** Sentient italic display, Geist body, Geist Mono UPPERCASE for UI/labels/data with `tabular-nums`.
+- **Signature primitives:** Case-File Ribbon, Redacted Field (`<RedactedField>`), Mint Certificate. Marketing surfaces (`/`, `/waitlist`, `/sold`) intentionally omit the ribbon.
 
 ### Form Validation
 - **react-hook-form** with **Zod schemas**
@@ -152,32 +197,44 @@ pnpm start
 frontend/
 ├── app/
 │   ├── layout.tsx                  # Root layout with providers
-│   ├── page.tsx                    # Dashboard
+│   ├── page.tsx                    # Landing (WebGL particle hero)
 │   ├── marketplace/page.tsx        # NFT marketplace
-│   ├── api-docs/page.tsx          # API documentation
-│   ├── chat/page.tsx              # Chat interface
-│   ├── activities/page.tsx        # Transaction viewer
-│   ├── settings/page.tsx          # Settings page
-│   └── globals.css                # Global styles
+│   ├── api-docs/page.tsx           # API documentation
+│   ├── chat/page.tsx               # Chat interface
+│   ├── activities/page.tsx         # Transaction viewer
+│   ├── settings/page.tsx           # Settings page
+│   ├── waitlist/page.tsx           # Waitlist intake (case-file receipt)
+│   ├── listings/page.tsx           # Evidence Intake Bay
+│   ├── listings/[id]/page.tsx      # Listing detail (Evidence Locker primitives)
+│   ├── sold/page.tsx               # Completed verifications
+│   ├── collections/page.tsx        # Grouped listings
+│   └── globals.css                 # Global styles (design tokens)
 │
 ├── components/
-│   ├── sidebar.tsx                # Sidebar navigation
-│   ├── top-header.tsx             # Top header
-│   ├── app-layout.tsx             # Layout wrapper
-│   ├── theme-provider.tsx         # Theme context
-│   ├── create-listing-form.tsx    # NFT creation form
-│   ├── nft-card.tsx              # NFT card component
-│   ├── nft-grid.tsx              # NFT grid layout
-│   ├── wallet-connect.tsx         # Wallet connection
-│   ├── toast.tsx                  # Toast notifications
-│   ├── error-boundary.tsx         # Error handling
-│   └── landing/                   # Landing-page scroll-story sections
-│       ├── verify-flow-section.tsx       # Sticky-pinned Intake → AI → Mint scrub + static fallback
-│       ├── evidence-moves-section.tsx    # Three signature design moves
-│       ├── marketplace-proof-section.tsx # Live KPIs + verified rows / empty-state
-│       ├── final-cta-section.tsx         # Closing CTA band
-│       ├── landing-section-data.ts       # Copy + pure scrub-math helpers
-│       └── reveal.tsx                    # SSR-safe tri-state one-shot scroll reveal
+│   ├── navigation.tsx              # Top navigation (Privy-aware)
+│   ├── privy-provider-wrapper.tsx  # App-root auth provider
+│   ├── wallet-dropdown.tsx         # Wallet ID with redact/reveal
+│   ├── case-file-ribbon.tsx        # Evidence Locker: top status bar
+│   ├── redacted-field.tsx          # Evidence Locker: typewriter reveal
+│   ├── pill.tsx                    # Polygon-corner chips & radio-pills
+│   ├── purchase-button.tsx         # Buy flow with transaction state
+│   ├── create-listing-form.tsx     # NFT creation form
+│   ├── nft-card.tsx                # NFT card component
+│   ├── nft-grid.tsx                # NFT grid layout
+│   ├── floating-chat-button.tsx    # Embedded chat affordance
+│   ├── chat-overlay.tsx            # Chat overlay panel
+│   ├── theme-provider.tsx          # Theme context
+│   ├── toast.tsx                   # Toast notifications
+│   ├── error-boundary.tsx          # Error handling
+│   ├── landing/                    # Landing-page scroll-story sections
+│   │   ├── verify-flow-section.tsx       # Sticky-pinned Intake → AI → Mint scrub + static fallback
+│   │   ├── evidence-moves-section.tsx    # Three signature design moves
+│   │   ├── marketplace-proof-section.tsx # Live KPIs + verified rows / empty-state
+│   │   ├── final-cta-section.tsx         # Closing CTA band
+│   │   ├── landing-section-data.ts       # Copy + pure scrub-math helpers
+│   │   └── reveal.tsx                    # SSR-safe tri-state one-shot scroll reveal
+│   ├── ui/                         # Primitive UI atoms (button, etc.)
+│   └── gl/                         # WebGL particle pipeline (RTF)
 │
 ├── contexts/
 │   └── AppContext.tsx             # Global state management
@@ -206,23 +263,6 @@ frontend/
 
 * = Newly created/integrated files
 ```
-
-## Design System
-
-### Color Palette (Dark Mode)
-
-- **Background**: `rgb(2, 6, 23)` - Very dark blue
-- **Foreground**: `rgb(248, 250, 252)` - Light slate
-- **Primary**: `rgb(59, 130, 246)` - Blue
-- **Card**: `rgb(15, 23, 42)` - Dark slate
-- **Border**: `rgb(30, 41, 59)` - Slate gray
-
-### Typography
-
-- **Font**: Geist Sans & Geist Mono
-- **Headings**: Bold, white text
-- **Body**: Regular, slate-400
-- **Code**: Monospace, blue-400
 
 ## API Integration
 
