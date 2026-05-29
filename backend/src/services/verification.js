@@ -38,19 +38,25 @@ function getConnection() {
   return new Connection(SOLANA_RPC_URL, 'confirmed');
 }
 
+// Module-level keypair cache — decoded once per process to avoid redundant
+// bs58.decode + Keypair construction on every request (and to keep the
+// secret in heap for a shorter aggregate lifetime).
+let _cachedServerWallet = null;
 function getServerWallet() {
+  if (_cachedServerWallet) return _cachedServerWallet;
   const privateKeyString = process.env.HACKNYU_SERVER_WALLET_PRIVATE_KEY;
   if (!privateKeyString) {
     throw new Error('HACKNYU_SERVER_WALLET_PRIVATE_KEY not set');
   }
-  return Keypair.fromSecretKey(bs58.decode(privateKeyString));
+  _cachedServerWallet = Keypair.fromSecretKey(bs58.decode(privateKeyString));
+  return _cachedServerWallet;
 }
 
-/**
- * Ensure the server wallet has a Dossier PDA open on-chain. Cheap to call —
- * we check `getAccountInfo` first and only send the tx if missing.
- */
-export async function ensureServerDossier() {
+// Promise cache so two concurrent listing requests at cold start do not both
+// fire `init_dossier` and have one fail with "account already in use".
+let _dossierEnsuredPromise = null;
+
+async function _doEnsureServerDossier() {
   const connection = getConnection();
   const wallet = getServerWallet();
   const [dossierPda] = findDossierPda(wallet.publicKey);
@@ -71,6 +77,22 @@ export async function ensureServerDossier() {
   });
   console.log(`✅ Opened server dossier ${dossierPda.toBase58()} (${sig})`);
   return { dossierPda: dossierPda.toBase58(), created: true };
+}
+
+/**
+ * Ensure the server wallet has a Dossier PDA open on-chain. Cheap to call —
+ * we check `getAccountInfo` first and only send the tx if missing.
+ * Concurrent calls share a single in-flight promise (race-safe).
+ */
+export async function ensureServerDossier() {
+  if (!_dossierEnsuredPromise) {
+    _dossierEnsuredPromise = _doEnsureServerDossier().catch((err) => {
+      // Reset on failure so the next caller can retry.
+      _dossierEnsuredPromise = null;
+      throw err;
+    });
+  }
+  return _dossierEnsuredPromise;
 }
 
 /**
