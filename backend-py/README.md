@@ -6,6 +6,15 @@ the frontend cuts over by flipping `BACKEND_URL`.
 
 Design spec: [`../docs/superpowers/specs/2026-05-28-backend-fastapi-refactor-design.md`](../docs/superpowers/specs/2026-05-28-backend-fastapi-refactor-design.md)
 
+## Documentation
+
+Full [Diataxis](https://diataxis.fr/) docs live in [`docs/`](docs/README.md):
+
+- **Tutorial:** [Run the backend locally](docs/tutorial-getting-started.md)
+- **How-to:** [Local development](docs/howto-local-development.md) · [Deploy to AWS Lambda](docs/howto-deploy-lambda.md) · [Configure Aurora DSQL](docs/howto-configure-dsql.md)
+- **Reference:** [Configuration](docs/reference-configuration.md) · [Service & data layer](docs/reference-services.md) · [HTTP API](docs/reference-http-api.md)
+- **Explanation:** [Architecture](docs/explanation-architecture.md) · [Design decisions](docs/explanation-design-decisions.md)
+
 ## Stack
 
 - **FastAPI** + **uvicorn** (dev) / **mangum** (Lambda adapter)

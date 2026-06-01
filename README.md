@@ -184,6 +184,11 @@ Creates a new NFT listing with AI verification.
 
 ## Project Structure
 
+> **FastAPI backend (in progress):** a Python 3.13 / FastAPI port of the Express backend lives
+> in [`backend-py/`](backend-py/README.md), with full docs at
+> [`backend-py/docs/`](backend-py/docs/README.md). It is built side-by-side with `backend/`
+> (Express) until parity is proven.
+
 ```
 HackNYU 2025/
 ├── frontend/                             # Next.js frontend
