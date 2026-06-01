@@ -93,6 +93,21 @@ class SolanaRpc:
     def get_balance(self, pubkey: Pubkey) -> int:
         return self._client.get_balance(pubkey).value
 
+    def get_transaction(self, signature: str) -> object | None:
+        """Fetch a confirmed transaction by signature (for payment verification).
+
+        Returns the RPC ``value`` (EncodedConfirmedTransactionWithStatusMeta) or
+        None if the tx isn't found yet. ``maxSupportedTransactionVersion=0``
+        matches the Express call (payment.js:136-139).
+        """
+        from solders.signature import Signature
+
+        resp = self._client.get_transaction(
+            Signature.from_string(signature),
+            max_supported_transaction_version=0,
+        )
+        return resp.value
+
 
 _rpc: SolanaRpc | None = None
 _server_wallet: Keypair | None = None
