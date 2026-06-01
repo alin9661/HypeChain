@@ -28,7 +28,10 @@ class Settings(BaseSettings):
 
     # ---- Server ----
     port: int = 3001
-    node_env: str = "development"
+    # Fail-closed: default to production so an unset NODE_ENV never accidentally
+    # exposes dev-only behavior (stack traces in 500s, verbose error bodies).
+    # Local dev opts in explicitly via NODE_ENV=development (see .env.example).
+    node_env: str = "production"
     hacknyu_frontend_url: str = "http://localhost:3000"
 
     # ---- OpenRouter (AI vision + image gen) — PR4 ----

@@ -78,10 +78,17 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
+        # Always log the real error server-side; only expose it (and the stack)
+        # to the client in development. In production the generic catch-all
+        # returns a static message so unexpected exceptions don't leak internals.
+        # (Deliberate per-route error detail, e.g. the create-listing pipeline's
+        # failure_details, is produced by those handlers, not this catch-all.)
         log.error("server_error", error=str(exc), path=request.url.path)
-        body = {"success": False, "error": str(exc) or "Internal server error"}
         if settings.is_development:
-            body["stack"] = traceback.format_exc()
+            body = {"success": False, "error": str(exc) or "Internal server error",
+                    "stack": traceback.format_exc()}
+        else:
+            body = {"success": False, "error": "Internal server error"}
         return JSONResponse(status_code=500, content=body)
 
     return app
