@@ -73,10 +73,22 @@ async def _create_pool() -> asyncpg.Pool:
     # the DSQL IAM-token + TLS path — DSQL is "plain Postgres over asyncpg", so
     # the same queries run unchanged against a local container. We KEEP
     # statement_cache_size=0 so local behavior matches the DSQL prepared-statement
-    # constraint (no "works locally, breaks on DSQL" surprises). Production never
-    # sets this, so the DSQL path below is unaffected.
+    # constraint (no "works locally, breaks on DSQL" surprises).
+    #
+    # FAIL-CLOSED: this path drops TLS + IAM auth, so it must NEVER activate in
+    # production. It is gated on the same `is_development` signal the rest of the
+    # app uses (node_env defaults to "production" — see config/settings.py). If
+    # HACKNYU_DATABASE_URL is set while NODE_ENV is anything but "development",
+    # we refuse rather than silently downgrade to a plaintext, unauthenticated
+    # connection. Production reaches the DSQL path below.
     local_dsn = settings.hacknyu_database_url
     if local_dsn:
+        if not settings.is_development:
+            raise RuntimeError(
+                "HACKNYU_DATABASE_URL is only honored when NODE_ENV=development. "
+                "Refusing to open a plaintext, non-IAM Postgres connection outside "
+                "development — production must use the Aurora DSQL IAM-token + TLS path."
+            )
         return await asyncpg.create_pool(
             dsn=local_dsn,
             min_size=_POOL_MIN_SIZE,

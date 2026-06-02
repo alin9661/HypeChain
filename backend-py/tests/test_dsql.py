@@ -407,6 +407,8 @@ async def test_local_dsn_uses_plain_password_auth(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(pool_module.asyncpg, "create_pool", fake_create_pool)
     monkeypatch.setenv("HACKNYU_DATABASE_URL", "postgres://admin:pw@localhost:5432/hypechain")
+    # The escape hatch is fail-closed: only honored in development.
+    monkeypatch.setenv("NODE_ENV", "development")
     # Ensure NO DSQL endpoint is needed on the local path.
     monkeypatch.delenv("HACKNYU_DSQL_ENDPOINT", raising=False)
     get_settings.cache_clear()
@@ -422,6 +424,33 @@ async def test_local_dsn_uses_plain_password_auth(monkeypatch: Any) -> None:
     assert captured["statement_cache_size"] == 0
     assert "password" not in captured
     assert "ssl" not in captured
+
+
+async def test_local_dsn_rejected_outside_development(monkeypatch: Any) -> None:
+    """Fail-closed: HACKNYU_DATABASE_URL set but NODE_ENV defaulted to production
+    must RAISE, not silently downgrade to a plaintext/non-IAM connection."""
+    from app.config.settings import get_settings
+    from app.db import pool as pool_module
+
+    called = False
+
+    async def fake_create_pool(**_kwargs: Any) -> object:
+        nonlocal called
+        called = True
+        return object()
+
+    monkeypatch.setattr(pool_module.asyncpg, "create_pool", fake_create_pool)
+    monkeypatch.setenv("HACKNYU_DATABASE_URL", "postgres://admin:pw@evil:5432/db")
+    # NODE_ENV unset -> defaults to "production" (config/settings.py fail-closed).
+    monkeypatch.delenv("NODE_ENV", raising=False)
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="only honored when NODE_ENV=development"):
+            await pool_module._create_pool()
+    finally:
+        get_settings.cache_clear()
+    # The plaintext pool must never have been opened.
+    assert called is False
 
 
 async def test_no_local_dsn_requires_dsql_endpoint(monkeypatch: Any) -> None:
