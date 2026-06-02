@@ -427,8 +427,14 @@ async def test_local_dsn_uses_plain_password_auth(monkeypatch: Any) -> None:
 
 
 async def test_local_dsn_rejected_outside_development(monkeypatch: Any) -> None:
-    """Fail-closed: HACKNYU_DATABASE_URL set but NODE_ENV defaulted to production
-    must RAISE, not silently downgrade to a plaintext/non-IAM connection."""
+    """Fail-closed: HACKNYU_DATABASE_URL set while NOT in development must RAISE,
+    not silently downgrade to a plaintext/non-IAM connection.
+
+    NODE_ENV is set EXPLICITLY to "production" rather than unset: an env var
+    overrides any local `.env` (which a dev checkout has, with NODE_ENV=development),
+    so this asserts the security property regardless of the developer's `.env`.
+    Settings already default node_env to "production" when truly unset.
+    """
     from app.config.settings import get_settings
     from app.db import pool as pool_module
 
@@ -441,8 +447,7 @@ async def test_local_dsn_rejected_outside_development(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(pool_module.asyncpg, "create_pool", fake_create_pool)
     monkeypatch.setenv("HACKNYU_DATABASE_URL", "postgres://admin:pw@evil:5432/db")
-    # NODE_ENV unset -> defaults to "production" (config/settings.py fail-closed).
-    monkeypatch.delenv("NODE_ENV", raising=False)
+    monkeypatch.setenv("NODE_ENV", "production")
     get_settings.cache_clear()
     try:
         with pytest.raises(RuntimeError, match="only honored when NODE_ENV=development"):
