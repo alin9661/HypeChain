@@ -387,3 +387,52 @@ async def test_statement_cache_disabled_allows_second_query() -> None:
     async with p.acquire() as conn:
         await conn.fetch(queries.FETCH_LISTING_BY_ID_SQL, "00000000-0000-0000-0000-000000000000")
         await conn.fetch(queries.GET_USER_ID_BY_WALLET_SQL, "any-wallet")
+
+
+# ---------------------------------------------------------------------------
+# LOCAL/CI escape hatch — HACKNYU_DATABASE_URL uses plain DSN/password auth
+# instead of the DSQL IAM-token + TLS path (no network: asyncpg mocked).
+# ---------------------------------------------------------------------------
+
+
+async def test_local_dsn_uses_plain_password_auth(monkeypatch: Any) -> None:
+    from app.config.settings import get_settings
+    from app.db import pool as pool_module
+
+    captured: dict[str, Any] = {}
+
+    async def fake_create_pool(**kwargs: Any) -> object:
+        captured.update(kwargs)
+        return object()  # stand-in pool; never used
+
+    monkeypatch.setattr(pool_module.asyncpg, "create_pool", fake_create_pool)
+    monkeypatch.setenv("HACKNYU_DATABASE_URL", "postgres://admin:pw@localhost:5432/hypechain")
+    # Ensure NO DSQL endpoint is needed on the local path.
+    monkeypatch.delenv("HACKNYU_DSQL_ENDPOINT", raising=False)
+    get_settings.cache_clear()
+    try:
+        result = await pool_module._create_pool()
+    finally:
+        get_settings.cache_clear()
+
+    assert result is not None
+    # Local path: DSN passed through, cache still disabled (DSQL parity), and
+    # NONE of the DSQL-only machinery (IAM password callable, forced TLS).
+    assert captured["dsn"] == "postgres://admin:pw@localhost:5432/hypechain"
+    assert captured["statement_cache_size"] == 0
+    assert "password" not in captured
+    assert "ssl" not in captured
+
+
+async def test_no_local_dsn_requires_dsql_endpoint(monkeypatch: Any) -> None:
+    from app.config.settings import get_settings
+    from app.db import pool as pool_module
+
+    monkeypatch.delenv("HACKNYU_DATABASE_URL", raising=False)
+    monkeypatch.delenv("HACKNYU_DSQL_ENDPOINT", raising=False)
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="HACKNYU_DSQL_ENDPOINT is not set"):
+            await pool_module._create_pool()
+    finally:
+        get_settings.cache_clear()

@@ -67,6 +67,23 @@ def _build_ssl_context() -> ssl.SSLContext:
 
 async def _create_pool() -> asyncpg.Pool:
     settings = get_settings()
+
+    # LOCAL/CI escape hatch (spec local-dev parity). When HACKNYU_DATABASE_URL is
+    # set, connect to a plain Postgres with normal DSN/password auth instead of
+    # the DSQL IAM-token + TLS path — DSQL is "plain Postgres over asyncpg", so
+    # the same queries run unchanged against a local container. We KEEP
+    # statement_cache_size=0 so local behavior matches the DSQL prepared-statement
+    # constraint (no "works locally, breaks on DSQL" surprises). Production never
+    # sets this, so the DSQL path below is unaffected.
+    local_dsn = settings.hacknyu_database_url
+    if local_dsn:
+        return await asyncpg.create_pool(
+            dsn=local_dsn,
+            min_size=_POOL_MIN_SIZE,
+            max_size=_POOL_MAX_SIZE,
+            statement_cache_size=0,
+        )
+
     endpoint = settings.hacknyu_dsql_endpoint
     if not endpoint:
         raise RuntimeError(

@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     hacknyu_dsql_endpoint: str | None = None
     hacknyu_dsql_region: str = "us-east-1"
     hacknyu_dsql_database: str = "postgres"
+    # LOCAL/CI ONLY: a plain Postgres DSN (e.g. postgres://admin:pw@localhost:5432/db).
+    # When set, the pool connects with normal password auth instead of the DSQL
+    # IAM-token + TLS path, so end-to-end tests can run against a local Postgres.
+    # Production NEVER sets this — leave empty to use Aurora DSQL.
+    hacknyu_database_url: str | None = None
 
     # ---- Helius (activity feed: transfer indexing webhook) ----
     # Shared secret the Helius webhook sends in its Authorization header. The
