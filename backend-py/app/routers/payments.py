@@ -11,6 +11,7 @@ import structlog
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from app.config.settings import get_settings
 from app.schemas.payment import (
     PaymentCancelRequest,
     PaymentCreateRequest,
@@ -26,6 +27,13 @@ def _error(status: int, message: str, **extra: object) -> JSONResponse:
     return JSONResponse(status_code=status, content={"success": False, "error": message, **extra})
 
 
+def _server_error(context: str, error: Exception) -> JSONResponse:
+    """Log full detail server-side; expose it to clients only in development."""
+    log.error(context, error=str(error))
+    message = str(error) if get_settings().is_development else "Internal server error"
+    return _error(500, message)
+
+
 @router.post("/create")
 async def create_payment(body: PaymentCreateRequest):
     if not body.listing_id or not body.buyer_wallet:
@@ -34,8 +42,7 @@ async def create_payment(body: PaymentCreateRequest):
         payment_request = await payment.create_payment_request(body.listing_id, body.buyer_wallet)
         return {"success": True, "paymentRequest": payment_request}
     except Exception as error:  # noqa: BLE001
-        log.error("payment_create_error", error=str(error))
-        return _error(500, str(error))
+        return _server_error("payment_create_error", error)
 
 
 @router.post("/verify")
@@ -70,8 +77,7 @@ async def verify_payment(body: PaymentVerifyRequest):
             "purchase": purchase,
         }
     except Exception as error:  # noqa: BLE001
-        log.error("payment_verify_error", error=str(error))
-        return _error(500, str(error))
+        return _server_error("payment_verify_error", error)
 
 
 @router.get("/history/{wallet_address}")
@@ -82,8 +88,7 @@ async def history(wallet_address: str, type: str = "all"):
         transactions = await payment.get_transaction_history(wallet_address, type)
         return {"success": True, "transactions": transactions, "count": len(transactions)}
     except Exception as error:  # noqa: BLE001
-        log.error("payment_history_error", error=str(error))
-        return _error(500, str(error))
+        return _server_error("payment_history_error", error)
 
 
 @router.get("/balance/{wallet_address}")
@@ -95,8 +100,7 @@ def balance(wallet_address: str):
         bal = payment.get_wallet_balance(wallet_address)
         return {"success": True, "walletAddress": wallet_address, "balance": bal}
     except Exception as error:  # noqa: BLE001
-        log.error("payment_balance_error", error=str(error))
-        return _error(500, str(error))
+        return _server_error("payment_balance_error", error)
 
 
 @router.get("/listing/{listing_id}")
@@ -107,8 +111,7 @@ async def listing_details(listing_id: str):
         listing = await payment.fetch_listing(listing_id)
         return {"success": True, "listing": listing}
     except Exception as error:  # noqa: BLE001
-        log.error("payment_listing_error", error=str(error))
-        return _error(500, str(error))
+        return _server_error("payment_listing_error", error)
 
 
 @router.post("/cancel")
