@@ -4,9 +4,8 @@ Ports the Express app factory (`backend/src/index.js`): security headers, CORS,
 5 MB body cap, request logging, health/root routes, and the 404 + global error
 handlers — preserving the exact JSON error contract the frontend depends on.
 
-Domain routers (listings, payments) are wired in by the integration PR (PR5).
-Until then the scaffold serves health/root and a correct error contract so the
-parallel domain PRs have a runnable, testable foundation.
+Domain routers (listings, payments, activities, webhooks) are all wired in here.
+The error contract and security middleware are shared across every route.
 """
 
 import logging
@@ -20,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config.settings import get_settings
 from app.middleware.cors import add_cors
 from app.middleware.security import BodySizeLimitMiddleware, SecurityHeadersMiddleware
-from app.routers import health, listings, payments
+from app.routers import health, listings, payments, webhooks
 
 
 def _configure_logging(is_dev: bool) -> None:
@@ -58,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(listings.router, prefix="/api")
     app.include_router(payments.router, prefix="/api/payments")
+    app.include_router(webhooks.router, prefix="/api/webhooks")
 
     # ---- Error contract (ported from Express) ----
 
