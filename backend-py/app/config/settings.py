@@ -61,6 +61,15 @@ class Settings(BaseSettings):
     hacknyu_dsql_region: str = "us-east-1"
     hacknyu_dsql_database: str = "postgres"
 
+    # ---- Helius (activity feed: transfer indexing webhook) ----
+    # Shared secret the Helius webhook sends in its Authorization header. The
+    # ingest endpoint is fail-closed: if this is unset, every webhook POST is
+    # rejected 401 (an unauthenticated write path would let anyone forge
+    # transfer events into the provenance feed — the exact trust the product sells).
+    hacknyu_helius_webhook_secret: str | None = None
+    # API key for Helius DAS / RPC (historical backfill — deferred, see plan).
+    hacknyu_helius_api_key: str | None = None
+
     @property
     def is_development(self) -> bool:
         return self.node_env == "development"
