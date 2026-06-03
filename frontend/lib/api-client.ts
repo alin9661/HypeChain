@@ -205,6 +205,31 @@ export interface GetListingResponse {
   listing: Listing;
 }
 
+export type ActivityType = 'mint' | 'listing' | 'sale' | 'transfer';
+
+export interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  nftName: string | null;
+  nftImage: string | null;
+  from: string | null;
+  to: string | null;
+  price: number;
+  timestamp: number; // epoch milliseconds
+  txHash: string;
+}
+
+export interface ActivityFeedResponse {
+  activities: ActivityItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface NftHistoryResponse {
+  nftMintAddress: string;
+  activities: ActivityItem[];
+}
+
 class ApiClient {
   private baseURL: string;
   private defaultHeaders: HeadersInit;
@@ -288,6 +313,32 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * GET /api/activities - Global activity feed (keyset-paginated).
+   * @param type   optional filter: mint | listing | sale | transfer
+   * @param cursor opaque cursor from a previous response's nextCursor
+   * @param limit  page size (1-100)
+   */
+  async getActivities(params?: {
+    type?: ActivityType;
+    cursor?: string;
+    limit?: number;
+  }): Promise<ApiResponse<ActivityFeedResponse>> {
+    const qs = new URLSearchParams();
+    if (params?.type) qs.set('type', params.type);
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return this.request<ActivityFeedResponse>(`/api/activities${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * GET /api/nft/:mint/history - Full on-chain chain of custody for one NFT.
+   */
+  async getNftHistory(mint: string): Promise<ApiResponse<NftHistoryResponse>> {
+    return this.request<NftHistoryResponse>(`/api/nft/${encodeURIComponent(mint)}/history`);
   }
 
   /**

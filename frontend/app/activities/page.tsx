@@ -1,103 +1,61 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppLayout } from '@/components/app-layout'
 import { Search, ExternalLink, TrendingUp, ShoppingBag, RefreshCw, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-
-// Mock data for placeholder
-const MOCK_ACTIVITIES = [
-  {
-    id: '1',
-    type: 'sale',
-    nftName: 'Yeezy Foam Runner #3421',
-    nftImage: 'https://via.placeholder.com/80x80/1a1a1a/ffc700?text=NFT',
-    from: '0x742d35...a5f4',
-    to: '0x8f3e29...b7c2',
-    price: 2.5,
-    timestamp: Date.now() - 1000 * 60 * 15, // 15 min ago
-    txHash: '3J98t1...m2k9s',
-  },
-  {
-    id: '2',
-    type: 'listing',
-    nftName: 'Yeezy 350 Boost #1892',
-    nftImage: 'https://via.placeholder.com/80x80/1a1a1a/ffc700?text=NFT',
-    from: '0x5a7c31...d8e6',
-    to: null,
-    price: 3.8,
-    timestamp: Date.now() - 1000 * 60 * 45, // 45 min ago
-    txHash: '8K42n7...p5j3w',
-  },
-  {
-    id: '3',
-    type: 'transfer',
-    nftName: 'Yeezy Slide #7653',
-    nftImage: 'https://via.placeholder.com/80x80/1a1a1a/ffc700?text=NFT',
-    from: '0x1c8f92...e3a7',
-    to: '0x6d2b41...f9c8',
-    price: 0,
-    timestamp: Date.now() - 1000 * 60 * 60 * 2, // 2 hours ago
-    txHash: '5N67k2...r8t4m',
-  },
-  {
-    id: '4',
-    type: 'mint',
-    nftName: 'Yeezy 700 V3 #4321',
-    nftImage: 'https://via.placeholder.com/80x80/1a1a1a/ffc700?text=NFT',
-    from: '0x9e4a83...c1d5',
-    to: '0x9e4a83...c1d5',
-    price: 1.2,
-    timestamp: Date.now() - 1000 * 60 * 60 * 5, // 5 hours ago
-    txHash: '2M89p4...n6k1q',
-  },
-  {
-    id: '5',
-    type: 'sale',
-    nftName: 'Yeezy 500 Utility #2109',
-    nftImage: 'https://via.placeholder.com/80x80/1a1a1a/ffc700?text=NFT',
-    from: '0x3f7b62...a8e4',
-    to: '0x7c5d41...b2f9',
-    price: 4.2,
-    timestamp: Date.now() - 1000 * 60 * 60 * 12, // 12 hours ago
-    txHash: '7P53m8...k2n5t',
-  },
-  {
-    id: '6',
-    type: 'listing',
-    nftName: 'Yeezy Knit Runner #8901',
-    nftImage: 'https://via.placeholder.com/80x80/1a1a1a/ffc700?text=NFT',
-    from: '0x2d9c54...f7a3',
-    to: null,
-    price: 2.9,
-    timestamp: Date.now() - 1000 * 60 * 60 * 18, // 18 hours ago
-    txHash: '4L76j9...m3p8r',
-  },
-]
+import { apiClient, type ActivityItem } from '@/lib/api-client'
 
 type ActivityType = 'all' | 'sale' | 'listing' | 'transfer' | 'mint'
 
 export default function ActivitiesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<ActivityType>('all')
+  const [activities, setActivities] = useState<ActivityItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filteredActivities = MOCK_ACTIVITIES.filter(activity => {
-    const matchesSearch =
-      activity.nftName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      activity.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      activity.to?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      activity.txHash.toLowerCase().includes(searchQuery.toLowerCase())
+  // Fetch the live feed. The type chip filters server-side (one indexed query);
+  // the free-text search stays client-side over the fetched page. Empty result
+  // is the honest day-one state, not seeded data.
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    apiClient
+      .getActivities(filterType === 'all' ? undefined : { type: filterType })
+      .then((res) => {
+        if (cancelled) return
+        if (res.success && res.data) {
+          setActivities(res.data.activities)
+        } else {
+          setError(res.error || 'Failed to load activity feed')
+          setActivities([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [filterType])
 
-    const matchesFilter = filterType === 'all' || activity.type === filterType
-
-    return matchesSearch && matchesFilter
+  const filteredActivities = activities.filter((activity) => {
+    const q = searchQuery.toLowerCase()
+    return (
+      (activity.nftName?.toLowerCase().includes(q) ?? false) ||
+      (activity.from?.toLowerCase().includes(q) ?? false) ||
+      (activity.to?.toLowerCase().includes(q) ?? false) ||
+      activity.txHash.toLowerCase().includes(q)
+    )
   })
 
   const stats = {
-    totalActivities: MOCK_ACTIVITIES.length,
-    totalVolume: MOCK_ACTIVITIES.filter(a => a.type === 'sale').reduce((sum, a) => sum + a.price, 0),
-    activeListings: MOCK_ACTIVITIES.filter(a => a.type === 'listing').length,
-    recentSales: MOCK_ACTIVITIES.filter(a => a.type === 'sale' && a.timestamp > Date.now() - 86400000).length,
+    totalActivities: activities.length,
+    totalVolume: activities.filter((a) => a.type === 'sale').reduce((sum, a) => sum + a.price, 0),
+    activeListings: activities.filter((a) => a.type === 'listing').length,
+    recentSales: activities.filter((a) => a.type === 'sale' && a.timestamp > Date.now() - 86400000).length,
   }
 
   const getActivityIcon = (type: string) => {
@@ -220,11 +178,33 @@ export default function ActivitiesPage() {
 
         {/* Activity Feed */}
         <div className="space-y-3">
-          {filteredActivities.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-800/50 py-16">
+              <RefreshCw className="h-10 w-10 animate-spin text-slate-600" />
+              <p className="mt-4 text-sm text-slate-500">Loading activity…</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-red-500/30 bg-red-500/5 py-16">
+              <Package className="h-16 w-16 text-red-500/60" />
+              <p className="mt-4 text-lg font-medium text-red-400">Couldn’t load activity</p>
+              <p className="mt-1 text-sm text-slate-500">{error}</p>
+            </div>
+          ) : filteredActivities.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-800/50 py-16">
               <Package className="h-16 w-16 text-slate-600" />
-              <p className="mt-4 text-lg font-medium text-slate-400">No activities found</p>
-              <p className="mt-1 text-sm text-slate-500">Try adjusting your filters or search query</p>
+              {searchQuery || filterType !== 'all' ? (
+                <>
+                  <p className="mt-4 text-lg font-medium text-slate-400">No matching activity</p>
+                  <p className="mt-1 text-sm text-slate-500">Try adjusting your filters or search query</p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-4 text-lg font-medium text-slate-400">No activity yet</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    List a verified item to start the chain — every mint, listing, sale, and transfer shows up here.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             filteredActivities.map((activity) => (
@@ -236,12 +216,16 @@ export default function ActivitiesPage() {
                   {/* Left: NFT Info */}
                   <div className="flex items-center gap-4">
                     {/* NFT Thumbnail */}
-                    <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 sm:h-20 sm:w-20">
-                      <img
-                        src={activity.nftImage}
-                        alt={activity.nftName}
-                        className="h-full w-full object-cover"
-                      />
+                    <div className="relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-700 bg-slate-900 sm:h-20 sm:w-20">
+                      {activity.nftImage ? (
+                        <img
+                          src={activity.nftImage}
+                          alt={activity.nftName ?? 'NFT'}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Package className="h-7 w-7 text-slate-600" />
+                      )}
                     </div>
 
                     {/* Details */}
@@ -257,12 +241,12 @@ export default function ActivitiesPage() {
                         </span>
                       </div>
                       <h3 className="font-semibold text-white group-hover:text-[#D4A82C] transition-colors">
-                        {activity.nftName}
+                        {activity.nftName ?? `${activity.txHash.slice(0, 6)}…`}
                       </h3>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
                         <div className="flex items-center gap-1.5">
                           <ArrowUpRight className="h-3.5 w-3.5" />
-                          <span className="font-mono text-xs">{activity.from}</span>
+                          <span className="font-mono text-xs">{activity.from ?? '—'}</span>
                         </div>
                         {activity.to && (
                           <>
