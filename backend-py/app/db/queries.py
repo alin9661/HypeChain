@@ -91,6 +91,37 @@ TRANSACTION_COLUMNS: tuple[str, ...] = (
     "updated_at",
 )
 
+# Order mirrors the activities table in schema/001_dsql_schema.sql.
+ACTIVITY_COLUMNS: tuple[str, ...] = (
+    "id",
+    "event_type",
+    "nft_mint_address",
+    "product_name",
+    "image_url",
+    "from_wallet",
+    "to_wallet",
+    "price_sol",
+    "tx_signature",
+    "block_time",
+    "source",
+    "created_at",
+)
+
+# Columns the application supplies on INSERT. id + created_at take DB defaults
+# (gen_random_uuid() / NOW()). block_time is supplied explicitly (on-chain time).
+_ACTIVITY_INSERT_COLUMNS: tuple[str, ...] = (
+    "event_type",
+    "nft_mint_address",
+    "product_name",
+    "image_url",
+    "from_wallet",
+    "to_wallet",
+    "price_sol",
+    "tx_signature",
+    "block_time",
+    "source",
+)
+
 # Columns supplied by the application on INSERT into listings. The remaining
 # columns (id, created_at, updated_at, views, favorites, sold_at, buyer_*,
 # transaction_signature, price_usdc) take their DB defaults / NULL — matching
@@ -202,6 +233,28 @@ _HISTORY_BASE_SQL = (
     ") AS listing "
     "FROM transactions t "
     "JOIN listings l ON l.id = t.listing_id "
+)
+
+# --- activities (feed + provenance) ---
+
+_ACTIVITY_COLS = _select_list(ACTIVITY_COLUMNS)
+
+# Idempotent insert: ON CONFLICT DO NOTHING on the (tx_signature, event_type,
+# nft_mint_address) unique key. RETURNING yields the row on a real insert and
+# NOTHING on a duplicate — so a caller distinguishes "inserted" from "already
+# seen" by whether a row comes back (Helius at-least-once delivery, retried app writes).
+INSERT_ACTIVITY_SQL = (
+    f"INSERT INTO activities ({_select_list(_ACTIVITY_INSERT_COLUMNS)}) "
+    f"VALUES ({_placeholders(len(_ACTIVITY_INSERT_COLUMNS))}) "
+    "ON CONFLICT (tx_signature, event_type, nft_mint_address) DO NOTHING "
+    f"RETURNING {_ACTIVITY_COLS}"
+)
+
+# Provenance: full chain of custody for one NFT, newest first.
+FETCH_NFT_HISTORY_SQL = (
+    f"SELECT {_ACTIVITY_COLS} FROM activities "
+    "WHERE nft_mint_address = $1 "
+    "ORDER BY block_time DESC, id DESC LIMIT $2"
 )
 
 
@@ -368,4 +421,70 @@ async def get_transaction_history(
 
     sql = _HISTORY_BASE_SQL + where + "ORDER BY t.created_at DESC"
     rows = await conn.fetch(sql, wallet_address)
+    return [dict(r) for r in rows]
+
+
+async def insert_activity(conn: Any, activity: dict[str, Any]) -> dict[str, Any] | None:
+    """Idempotently INSERT an activity event, returning the row — or None on dup.
+
+    ``activity`` keys must cover ``_ACTIVITY_INSERT_COLUMNS``; missing optional
+    keys default to None. A duplicate (same tx_signature + event_type +
+    nft_mint_address) hits ``ON CONFLICT DO NOTHING`` and returns None, so the
+    caller can report "already ingested" without raising — the property that
+    makes Helius's at-least-once webhook delivery safe to replay.
+    """
+    args = [activity.get(col) for col in _ACTIVITY_INSERT_COLUMNS]
+    row = await conn.fetchrow(INSERT_ACTIVITY_SQL, *args)
+    return dict(row) if row is not None else None
+
+
+async def get_activities_feed(
+    conn: Any,
+    *,
+    event_type: str | None = None,
+    before_block_time: Any = None,
+    before_id: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Keyset-paginated global activity feed, newest first.
+
+    Pagination is keyset (NOT OFFSET): a cursor is the ``(block_time, id)`` of
+    the last row seen, and the next page is everything strictly "less than" it
+    in ``(block_time DESC, id DESC)`` order. This stays O(log n) as the feed
+    grows, where OFFSET would scan-and-discard an ever-larger prefix.
+
+    The row-value comparison ``(block_time, id) < ($ts, $id)`` is the standard
+    keyset predicate — ``id`` breaks ties when two events share a block_time.
+
+    Args mirror the optional query params: ``event_type`` filters the feed to
+    one type (the frontend's sale/listing/transfer/mint chips); ``before_*`` is
+    the decoded cursor; ``limit`` caps the page.
+    """
+    conds: list[str] = []
+    args: list[Any] = []
+    if event_type is not None:
+        args.append(event_type)
+        conds.append(f"event_type = ${len(args)}")
+    if before_block_time is not None and before_id is not None:
+        args.append(before_block_time)
+        ts_idx = len(args)
+        args.append(before_id)
+        id_idx = len(args)
+        conds.append(f"(block_time, id) < (${ts_idx}, ${id_idx})")
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+    args.append(limit)
+    limit_idx = len(args)
+    sql = (
+        f"SELECT {_ACTIVITY_COLS} FROM activities{where} "
+        f"ORDER BY block_time DESC, id DESC LIMIT ${limit_idx}"
+    )
+    rows = await conn.fetch(sql, *args)
+    return [dict(r) for r in rows]
+
+
+async def get_nft_history(
+    conn: Any, nft_mint_address: str, *, limit: int = 100
+) -> list[dict[str, Any]]:
+    """Full chain of custody for one NFT (the provenance endpoint), newest first."""
+    rows = await conn.fetch(FETCH_NFT_HISTORY_SQL, nft_mint_address, limit)
     return [dict(r) for r in rows]

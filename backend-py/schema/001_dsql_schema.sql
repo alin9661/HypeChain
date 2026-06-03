@@ -197,3 +197,59 @@ CREATE INDEX IF NOT EXISTS idx_transactions_seller_user_id ON transactions(selle
 CREATE INDEX IF NOT EXISTS idx_transactions_signature      ON transactions(signature);
 CREATE INDEX IF NOT EXISTS idx_transactions_status         ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_created_at     ON transactions(created_at DESC);
+
+
+-- =====================================================================
+-- ACTIVITIES TABLE  (NEW — activity feed + on-chain provenance)
+-- =====================================================================
+-- Append-only event log powering GET /api/activities (global feed) and
+-- GET /api/nft/{mint}/history (per-NFT chain of custody — the provenance
+-- differentiator: a verified physical item AND its full ownership chain,
+-- which neither StockX/GOAT nor a pure-NFT marketplace can show together).
+--
+-- WRITE SOURCES (all best-effort — a feed-log write must NEVER fail the
+-- parent listing/payment flow, mirroring the on-chain anchor steps):
+--   * 'app'    — create-listing writes a `mint` + a `listing` row;
+--                payment-verify writes a `sale` row (wired in PR5).
+--   * 'helius' — the Helius enhanced webhook writes `transfer` rows for
+--                off-platform NFT transfers (POST /api/webhooks/helius).
+--
+-- IDEMPOTENCY: Helius delivers at-least-once, so the same transfer can be
+-- POSTed more than once. UNIQUE (tx_signature, event_type, nft_mint_address)
+-- + `INSERT ... ON CONFLICT DO NOTHING` makes ingestion idempotent — a
+-- replayed event inserts no duplicate row. App-side events share the same
+-- guard (a retried create-listing won't double-log its mint).
+--
+-- The composite key (not tx_signature alone) is deliberate: one transaction
+-- can legitimately carry multiple event types / mints (e.g. a mint+listing
+-- in the same tx), so uniqueness is per (signature, type, mint).
+--
+-- DSQL notes: no FK to listings/users (app-enforced); id + created_at use
+-- gen_random_uuid()/NOW() defaults (the insert helper also accepts explicit
+-- values — spec §3.5). block_time is the ON-CHAIN time (Helius timestamp /
+-- the row's created_at for app events), distinct from created_at (ingest time).
+CREATE TABLE IF NOT EXISTS activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type TEXT NOT NULL
+    CHECK (event_type IN ('mint', 'listing', 'sale', 'transfer')),
+  nft_mint_address TEXT NOT NULL,
+  product_name TEXT,                          -- NULL for chain-only transfers
+  image_url TEXT,                             -- NULL for chain-only transfers
+  from_wallet TEXT,                           -- NULL for mint origin
+  to_wallet TEXT,                             -- NULL for listing (no recipient)
+  price_sol NUMERIC,                          -- NULL/0 for transfer/mint
+  tx_signature TEXT NOT NULL,
+  block_time TIMESTAMPTZ NOT NULL,            -- on-chain time (sort key)
+  source TEXT NOT NULL
+    CHECK (source IN ('app', 'helius')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),  -- ingest time
+  -- Idempotency: at-least-once webhook delivery + retried app writes.
+  UNIQUE (tx_signature, event_type, nft_mint_address)
+);
+
+-- Feed paging: keyset on (block_time, id) DESC — never OFFSET (the feed only grows).
+CREATE INDEX IF NOT EXISTS idx_activities_feed     ON activities(block_time DESC, id DESC);
+-- Per-type filter chips (sale/listing/transfer/mint) paged by the same keyset.
+CREATE INDEX IF NOT EXISTS idx_activities_type     ON activities(event_type, block_time DESC, id DESC);
+-- Provenance: full chain of custody for one NFT.
+CREATE INDEX IF NOT EXISTS idx_activities_nft_mint ON activities(nft_mint_address, block_time DESC, id DESC);
