@@ -45,6 +45,9 @@ async def root() -> dict:
             "paymentHistory": "GET /api/payments/history/:walletAddress",
             "walletBalance": "GET /api/payments/balance/:walletAddress",
             "getListingDetails": "GET /api/payments/listing/:listingId",
+            "activities": "GET /api/activities",
+            "nftHistory": "GET /api/nft/:mint/history",
+            "heliusWebhook": "POST /api/webhooks/helius",
         },
         "documentation": "https://github.com/alin9661/HypeChain",
     }

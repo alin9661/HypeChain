@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config.settings import get_settings
 from app.middleware.cors import add_cors
 from app.middleware.security import BodySizeLimitMiddleware, SecurityHeadersMiddleware
-from app.routers import health, listings, payments, webhooks
+from app.routers import activities, health, listings, payments, webhooks
 
 
 def _configure_logging(is_dev: bool) -> None:
@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(listings.router, prefix="/api")
     app.include_router(payments.router, prefix="/api/payments")
+    app.include_router(activities.router, prefix="/api")
     app.include_router(webhooks.router, prefix="/api/webhooks")
 
     # ---- Error contract (ported from Express) ----
