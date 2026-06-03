@@ -159,6 +159,10 @@ GET_USER_ID_BY_WALLET_SQL = "SELECT id FROM users WHERE wallet_address = $1"
 
 FETCH_LISTING_BY_ID_SQL = f"SELECT {_RETURNING} FROM listings WHERE id = $1"
 
+# Signature dedup — payment verification rejects an already-used tx signature
+# (payment.js:210-222). Single indexed lookup.
+GET_TRANSACTION_ID_BY_SIGNATURE_SQL = "SELECT id FROM transactions WHERE signature = $1"
+
 # Explicit updated_at = NOW() (Supabase trigger replaced — spec §3.5 step 1).
 UPDATE_LISTING_STATUS_SQL = (
     "UPDATE listings "
@@ -241,6 +245,18 @@ async def fetch_listing_by_id(conn: Any, listing_id: str) -> dict[str, Any] | No
     if row is None:
         return None
     return dict(row)
+
+
+async def get_transaction_id_by_signature(conn: Any, signature: str) -> str | None:
+    """Return an existing transaction's id for this signature, or None.
+
+    Used by payment verification to reject a replayed/already-used signature
+    (payment.js:210-222).
+    """
+    row = await conn.fetchrow(GET_TRANSACTION_ID_BY_SIGNATURE_SQL, signature)
+    if row is None:
+        return None
+    return row["id"]
 
 
 async def update_listing_status(

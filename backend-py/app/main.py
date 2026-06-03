@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config.settings import get_settings
 from app.middleware.cors import add_cors
 from app.middleware.security import BodySizeLimitMiddleware, SecurityHeadersMiddleware
-from app.routers import health
+from app.routers import health, listings, payments
 
 
 def _configure_logging(is_dev: bool) -> None:
@@ -56,10 +56,8 @@ def create_app() -> FastAPI:
 
     # Routes
     app.include_router(health.router)
-    # PR5 (integration) wires the domain routers here:
-    #   from app.routers import listings, payments
-    #   app.include_router(listings.router, prefix="/api")
-    #   app.include_router(payments.router, prefix="/api/payments")
+    app.include_router(listings.router, prefix="/api")
+    app.include_router(payments.router, prefix="/api/payments")
 
     # ---- Error contract (ported from Express) ----
 
