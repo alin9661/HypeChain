@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 from fastapi.responses import JSONResponse
 
+from app.config.settings import get_settings
+
 
 class PipelineError(Exception):
     """Base for create-listing pipeline failures.
@@ -97,11 +99,20 @@ def pipeline_error_response(exc: Exception) -> JSONResponse:
         explanation = "An unexpected error occurred during the listing creation process."
         possible_causes = []
 
+    # Gate the raw exception string: in production it can leak RPC URLs, DSNs, or
+    # upstream API bodies. The curated failure_details block below is static and
+    # safe to keep. Routers already log the full exception server-side.
+    client_error = (
+        str(exc)
+        if get_settings().is_development
+        else f"Pipeline failed at {failed_at}. See server logs for details."
+    )
+
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
-            "error": str(exc),
+            "error": client_error,
             "failure_details": {
                 "failed_at": failed_at,
                 "explanation": explanation,
