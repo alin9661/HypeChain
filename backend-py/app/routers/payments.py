@@ -45,7 +45,11 @@ async def verify_payment(body: PaymentVerifyRequest):
     try:
         listing = await payment.fetch_listing(body.listing_id)
         verification = await payment.verify_payment(
-            body.signature, listing["seller_wallet"], listing["price_sol"], body.listing_id
+            body.signature,
+            listing["seller_wallet"],
+            listing["price_sol"],
+            body.listing_id,
+            body.buyer_wallet,
         )
         if not verification.get("valid"):
             return _error(
