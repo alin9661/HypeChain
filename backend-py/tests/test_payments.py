@@ -32,7 +32,7 @@ async def test_verify_invalid_returns_400_needs_retry(client, monkeypatch):
     async def fake_fetch(listing_id):
         return {"seller_wallet": "S", "price_sol": 0.5}
 
-    async def fake_verify(sig, recipient, amount, listing_id):
+    async def fake_verify(sig, recipient, amount, listing_id, buyer):
         return {"valid": False, "error": "Transaction not found on blockchain", "needsRetry": True}
 
     monkeypatch.setattr(payment, "fetch_listing", fake_fetch)
@@ -51,7 +51,7 @@ async def test_verify_valid_completes_purchase(client, monkeypatch):
     async def fake_fetch(listing_id):
         return {"seller_wallet": "S", "price_sol": 0.5}
 
-    async def fake_verify(sig, recipient, amount, listing_id):
+    async def fake_verify(sig, recipient, amount, listing_id, buyer):
         return {"valid": True, "amountTransferred": 0.5, "blockTime": 1, "slot": 99}
 
     async def fake_complete(listing_id, buyer, buyer_user_id, sig, amount):
@@ -113,7 +113,7 @@ async def test_verify_completePurchase_throws_500(client, monkeypatch):
     async def fake_fetch(listing_id):
         return {"seller_wallet": "S", "price_sol": 0.5}
 
-    async def fake_verify(sig, recipient, amount, listing_id):
+    async def fake_verify(sig, recipient, amount, listing_id, buyer):
         return {"valid": True, "amountTransferred": 0.5, "blockTime": 1, "slot": 99}
 
     async def boom(*a, **k):
