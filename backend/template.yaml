@@ -62,6 +62,18 @@ Parameters:
     Default: ''
     Description: Custodial wallet that holds NFTs for guest users — PLATFORM_CUSTODIAL_WALLET. Empty = wallet-only listings.
 
+  # --- Throttling ---
+  ReservedConcurrency:
+    Type: Number
+    Default: 20
+    Description: >
+      Reserved concurrency cap = the request throttle. App-level rate limiting
+      was removed and there is no API Gateway (Function URL only, since API
+      Gateway's 29s timeout cannot serve the 30–90s create-listing flow), so
+      this is the throttle layer. Caps simultaneous invocations; excess requests
+      are rejected with 429. Tune to your account's unreserved-concurrency budget.
+      See backend-py/deploy/THROTTLING.md.
+
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
@@ -90,6 +102,13 @@ Resources:
       # via prebuild-install / node-gyp-build, so there's no JIT-compile risk.
       Architectures:
         - arm64
+
+      # Request throttle. App-level rate limiting was removed and there is no
+      # API Gateway to host a usage plan, so a reserved-concurrency cap is the
+      # throttle layer: it bounds simultaneous invocations (excess -> 429),
+      # protecting OpenRouter/Solana-RPC/DSQL downstreams and capping cost.
+      # See backend-py/deploy/THROTTLING.md.
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
 
       # Direct HTTPS endpoint, no API Gateway. AuthType NONE because we rely
       # on application-level wallet-signature verification, not AWS IAM auth.

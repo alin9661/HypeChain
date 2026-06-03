@@ -61,6 +61,10 @@ yarn-error.log*
 **/test-ledger/
 **/.anchor/
 **/deploy/
+# Backend production deploy scripts/config are source-controlled (not a Solana
+# program deploy artifact dir) — re-include them despite the **/deploy/ rule above.
+!backend-py/deploy/
+!backend-py/deploy/**
 *.so
 Cargo.lock
 .gstack/
