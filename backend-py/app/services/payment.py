@@ -107,6 +107,7 @@ async def verify_payment(
     expected_recipient: str,
     expected_amount: float,
     listing_id: str,
+    buyer_wallet: str,
     *,
     acquire: Any = None,
     rpc: Any = None,
@@ -114,6 +115,17 @@ async def verify_payment(
     """Verify a SOL payment on-chain (payment.js:131-241).
 
     Returns ``{valid, ...}``. On a not-yet-found tx returns ``needsRetry: True``.
+
+    Binds the payment to ``buyer_wallet``: the claimed buyer must itself be a
+    funding source in the transaction (a negative balance delta covering the
+    amount). Without this, anyone observing a signature where a third party paid
+    ``expected_recipient`` could submit it and hijack the purchase.
+
+    SECURITY-TODO(reference-binding): for mainnet, additionally generate a real
+    Solana Pay *reference* pubkey in ``create_payment_request``, persist it
+    server-side keyed by ``(listing_id, buyer_wallet)``, and assert it appears in
+    the transaction's account keys here. The current ``_payment_reference`` is a
+    non-pubkey, non-persisted string and cannot be enforced as-is.
     """
     rpc_client = rpc if rpc is not None else solana.get_rpc()
     try:
@@ -154,6 +166,24 @@ async def verify_payment(
                     f"Received: {amount_transferred} SOL"
                 ),
             }
+
+        # Bind the payment to the claimed buyer: they must have funded it (a
+        # negative balance delta covering the amount). This defeats hijacking a
+        # signature where someone else paid the recipient.
+        buyer_found = False
+        buyer_spent = 0.0
+        for i, key in enumerate(keys):
+            if key == buyer_wallet:
+                buyer_found = True
+                pre = fields["pre_balances"][i] if i < len(fields["pre_balances"]) else 0
+                post = fields["post_balances"][i] if i < len(fields["post_balances"]) else 0
+                buyer_spent = (pre - post) / LAMPORTS_PER_SOL
+                break
+
+        if not buyer_found:
+            return {"valid": False, "error": "Buyer wallet not found in transaction"}
+        if buyer_spent + _AMOUNT_TOLERANCE_SOL < expected:
+            return {"valid": False, "error": "Buyer wallet did not fund this payment"}
 
         block_time = fields["block_time"]
         if block_time is not None and (int(time.time()) - block_time) > _STALE_TX_SECONDS:
