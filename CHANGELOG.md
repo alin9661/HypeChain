@@ -3,6 +3,47 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0.0] - 2026-06-04
+
+### Added
+
+- **FastAPI backend (`backend-py/`)** — a Python 3.13 / FastAPI port of the
+  Express API, deployed as an AWS Lambda container via the `mangum` adapter. Keeps
+  HTTP parity with the Express backend (parity harness in `tests/test_parity.py`)
+  and is the target the frontend cuts over to by flipping `BACKEND_URL`. Aurora
+  DSQL (asyncpg + IAM auth) replaces Supabase; OpenRouter, NFT.Storage, and
+  solders/solana-py back the AI, IPFS, and Solana service layers. uv manages deps.
+- **On-chain activities / provenance feed** — `GET /api/activities` and a
+  per-mint `GET /api/nft/{mint}/history`, backed by an idempotent activities
+  table (UNIQUE + `ON CONFLICT DO NOTHING`).
+- **Helius transfer-ingest webhook** — `POST /api/webhooks/helius`, fail-closed:
+  returns 401 when `HACKNYU_HELIUS_WEBHOOK_SECRET` is unset or the request header
+  doesn't match.
+- **Deploy prep** (`backend-py/deploy/`) — `deploy.sh` (build → ECR → Lambda,
+  guarded with a dry-run/confirmation so nothing runs without an explicit go),
+  `smoke-test.sh`, and `SECRETS.md` / `CUTOVER.md` / `THROTTLING.md` checklists.
+  All AWS-authenticated steps are operator-run.
+- Full [Diataxis](https://diataxis.fr/) docs for the FastAPI backend in
+  `backend-py/docs/` (tutorial / how-to / reference / explanation), plus a
+  pytest suite covering the service, data, and router layers.
+
+### Security
+
+- **Payment buyer-binding (HIGH)** — `verify_payment` now requires the claimed
+  buyer to be a funding source of the transaction (a negative balance delta
+  covering the amount). Defeats hijacking a payment signature where a different
+  account paid the recipient.
+- **Error-disclosure gating (MEDIUM)** — 500 responses from the payments router
+  and the pipeline error handler expose raw exception text only when
+  `is_development`; production returns a generic message and logs detail server-side.
+- **Fail-closed local-DB escape hatch** — `HACKNYU_DATABASE_URL` is honored only
+  when `NODE_ENV=development`; set in any other environment, the pool refuses to open.
+
+### Changed
+
+- Frontend activities page (`frontend/app/activities/page.tsx`) and API client
+  (`frontend/lib/api-client.ts`) wired to the new provenance feed.
+
 ## [0.3.0.0] - 2026-05-27
 
 ### Added
