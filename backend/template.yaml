@@ -74,6 +74,24 @@ Parameters:
       are rejected with 429. Tune to your account's unreserved-concurrency budget.
       See backend-py/deploy/THROTTLING.md.
 
+  # --- Activity feed (Helius) — optional; feature degrades gracefully if unset ---
+  HeliusWebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: >-
+      Shared secret the Helius webhook sends in its Authorization header —
+      HACKNYU_HELIUS_WEBHOOK_SECRET. Generate with `openssl rand -hex 32` and set
+      the SAME value on the Helius webhook config. Empty = POST /api/webhooks/helius
+      is fail-closed (rejects every request 401), so transfer events are not ingested.
+  HeliusApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: >-
+      Helius API key (dashboard.helius.dev) — HACKNYU_HELIUS_API_KEY. Used only by
+      the deferred DAS historical-backfill path; not required for live webhook ingest.
+
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
@@ -147,6 +165,9 @@ Resources:
           HACKNYU_MARKETPLACE_PROGRAM_ID: !Ref MarketplaceProgramId
           HACKNYU_MERKLE_TREE_ADDRESS: !Ref MerkleTreeAddress
           PLATFORM_CUSTODIAL_WALLET: !Ref PlatformCustodialWallet
+          # Activity feed — Helius transfer-indexing webhook (see Parameters).
+          HACKNYU_HELIUS_WEBHOOK_SECRET: !Ref HeliusWebhookSecret
+          HACKNYU_HELIUS_API_KEY: !Ref HeliusApiKey
           # CRITICAL: disable the Redis cache. cache.js gates its module-top
           # init on this flag (lines 11–16). With it set to "true", ioredis
           # would try to connect on every cold start and leak connections

@@ -60,6 +60,20 @@ class Settings(BaseSettings):
     hacknyu_dsql_endpoint: str | None = None
     hacknyu_dsql_region: str = "us-east-1"
     hacknyu_dsql_database: str = "postgres"
+    # LOCAL/CI ONLY: a plain Postgres DSN (e.g. postgres://admin:pw@localhost:5432/db).
+    # When set, the pool connects with normal password auth instead of the DSQL
+    # IAM-token + TLS path, so end-to-end tests can run against a local Postgres.
+    # Production NEVER sets this — leave empty to use Aurora DSQL.
+    hacknyu_database_url: str | None = None
+
+    # ---- Helius (activity feed: transfer indexing webhook) ----
+    # Shared secret the Helius webhook sends in its Authorization header. The
+    # ingest endpoint is fail-closed: if this is unset, every webhook POST is
+    # rejected 401 (an unauthenticated write path would let anyone forge
+    # transfer events into the provenance feed — the exact trust the product sells).
+    hacknyu_helius_webhook_secret: str | None = None
+    # API key for Helius DAS / RPC (historical backfill — deferred, see plan).
+    hacknyu_helius_api_key: str | None = None
 
     @property
     def is_development(self) -> bool:
