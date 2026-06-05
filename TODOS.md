@@ -84,6 +84,28 @@ PDA helpers, instruction builders, Borsh decoders. Highest-value test target: `d
 **Found:** v0.3.0.0 /ship test run
 Uses `screen.getByAlt` (doesn't exist; should be `getByAltText`). Pre-existing, unrelated to Solana work.
 
+## Backend (FastAPI / backend-py)
+
+### Payment verification not bound to a Solana Pay reference pubkey
+**Priority:** P1 (pre-mainnet)
+**File:** `backend-py/app/services/payment.py:124`
+**Found:** v0.4.0.0 (`SECURITY-TODO(reference-binding)`)
+`verify_payment` binds a payment to the buyer (must be a funding source) but the
+`_payment_reference` is a non-pubkey, non-persisted string
+(`hypechain-{listing_id}-{timestamp}`) that can't be enforced on-chain as-is. For
+mainnet, generate a real Solana Pay reference pubkey, persist it with the listing,
+have the client include it in the transfer, and assert it appears in the verified
+tx. Needs a DSQL migration + a frontend change.
+
+### Solana / Metaplex instruction encoding only golden-tested, not devnet-verified
+**Priority:** P1 (pre-mainnet)
+**Files:** `backend-py/app/services/metaplex.py:22,55`, `backend-py/app/services/solana.py:16`, `backend-py/app/services/payment.py:88`
+**Found:** v0.4.0.0 (`TODO(devnet-verify)`)
+The serialized Metaplex instruction bytes, program ID, and payment balance-delta
+attribute paths are covered by golden/unit tests, but a human must byte-compare the
+serialized instruction against a live devnet mint tx (and confirm the program ID +
+solders attribute paths) before relying on the end-to-end mint/verify on mainnet.
+
 ## Completed
 
 (none yet for v0.3.0.0)

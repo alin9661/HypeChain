@@ -184,10 +184,12 @@ Creates a new NFT listing with AI verification.
 
 ## Project Structure
 
-> **FastAPI backend (in progress):** a Python 3.13 / FastAPI port of the Express backend lives
+> **FastAPI backend (shipped):** a Python 3.13 / FastAPI port of the Express backend lives
 > in [`backend-py/`](backend-py/README.md), with full docs at
-> [`backend-py/docs/`](backend-py/docs/README.md). It is built side-by-side with `backend/`
-> (Express) until parity is proven.
+> [`backend-py/docs/`](backend-py/docs/README.md). It runs as an AWS Lambda container, keeps
+> HTTP parity with the Express API, and adds an on-chain activities / provenance feed plus a
+> Helius transfer-ingest webhook. Deploy scripts live in [`backend-py/deploy/`](backend-py/deploy).
+> The frontend cuts over by flipping `BACKEND_URL`; `backend/` (Express) stays until the cutover lands.
 
 ```
 HackNYU 2025/
@@ -211,6 +213,14 @@ HackNYU 2025/
 │   │       └── validation.js            # Input validation
 │   ├── package.json
 │   └── .env
+│
+├── backend-py/                           # FastAPI backend (Python 3.13, AWS Lambda)
+│   ├── app/                              # routers, services, db, config
+│   ├── deploy/                           # deploy.sh, smoke-test, SECRETS/CUTOVER/THROTTLING
+│   ├── docs/                             # Diataxis docs (tutorial/how-to/reference/explanation)
+│   ├── schema/                           # Aurora DSQL schema
+│   ├── tests/                            # pytest suite
+│   └── pyproject.toml
 │
 └── contracts/                            # Solana smart contracts
     ├── programs/
