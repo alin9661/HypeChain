@@ -228,11 +228,20 @@ the compressed-mint internals and tree provisioning are pinned to V2 here.
 - Create **one** MPL-Core collection (`createCollectionV2`) as a one-time ops step; every
   cNFT mints into it via `mintV2 { coreCollection }`. Groups all HypeChain assets for
   provenance + marketplace recognition.
-- Attach the **Royalties plugin** with a **ProgramDenyList** ruleSet for **on-chain**
-  royalty enforcement — a V2-only capability (V1 relied on marketplace goodwill).
-- **CONFIRM at spec review:** royalty `basisPoints` (default **500 = 5%**) and the
-  royalty **recipient** wallet (default: the server/creator wallet that single-homes in
-  this service). These two are config, not code.
+- Attach the **Royalties plugin** for **on-chain** royalty enforcement — a V2-only
+  capability (V1 relied on marketplace goodwill). **Ruleset choice matters** (per
+  Metaplex Core royalties-plugin docs):
+  - `ProgramAllowList` — **strict**: only whitelisted (royalty-honoring) programs may
+    transfer; everything else is blocked. Strongest enforcement; must maintain the list.
+  - `ProgramDenyList` — **lenient**: all programs may transfer *except* listed ones.
+    Only blocks known offenders.
+  - `None` (default) — royalties are **advisory only**; any program can transfer.
+- **CONFIRM at spec review (3 config values, not code):**
+  1. royalty `basisPoints` — default **500 (5%)**.
+  2. royalty **recipient** wallet — default: the server/creator wallet single-homed here.
+  3. **ruleset** — default **`ProgramAllowList`** (strict). Cheap to run strict early
+     since major marketplaces don't trade V2 cNFTs yet anyway (see risk 7); relax to
+     DenyList/None later if external liquidity matters more than enforcement.
 
 ## Tree provisioning params (DECISION: devnet-first, CLI-parameterized)
 
@@ -252,16 +261,46 @@ the compressed-mint internals and tree provisioning are pinned to V2 here.
 
 ## New / changed risks (V2-specific)
 
-7. **Marketplace V2-cNFT trading support may lag (UNVERIFIED).** Primary-source signals
-   (extracted, not yet adversarially verified — research re-running) suggest major
-   marketplaces (Magic Eden, Tensor) may not yet trade **V2** cNFTs, and that Magic Eden
-   may be narrowing/deprecating cNFT indexing. **Not blocking:** HypeChain's in-app
-   provenance UI is the primary surface and does not depend on external marketplaces.
-   External liquidity/visibility is a secondary concern to revisit when the re-run
-   research lands. **Action:** fold verified findings into this section on completion.
+7. **External marketplaces do NOT trade V2 cNFTs yet (corroborated; formally
+   unverified).** Verification was blocked by a persistent upstream rate limit, but
+   multiple primary sources agree (and one verifier vote landed, 1-0):
+   - Metaplex's own `bubblegum-v2` docs (Feb 2026): **Magic Eden and Tensor are "Not yet
+     supported"** for V2 cNFTs on *both* axes — display/read and transfer/trade. The docs
+     advise verifying platform compatibility before shipping user-facing features.
+   - Magic Eden help center: ME **"will no longer index new compressed NFT collections"**
+     — actively narrowing cNFT support; native in-app cNFT *transfer* requires external
+     tools.
+   - ME's NFT detail page surfaces owner + royalties but **not** ownership/transfer
+     history — i.e. external marketplaces don't surface provenance at all.
+   - Tensor docs mention cNFTs generically ("Legacy or Compressed") but have **no
+     V2-specific content** → V2 tradeability unconfirmed there.
+   **Implication — not blocking, but eyes-open:** HypeChain's in-app provenance UI is the
+   primary (and differentiated) surface; external marketplaces don't even show provenance.
+   But **secondary-market liquidity for V2 cNFTs on ME/Tensor is unavailable today** — a
+   real go-to-market constraint to weigh before the mainnet flip (Phase D), not before the
+   devnet build (Phases A–C). Re-verify when the rate limit clears; revisit V1-vs-V2 only
+   if external liquidity becomes a launch requirement.
 8. **Enforced royalties via ProgramDenyList is only as strong as the denylist.** On-chain
    enforcement blocks listed programs from transferring; marketplaces not on the list can
    still trade royalty-free. Document the chosen ruleSet posture at mainnet.
+9. **DAS-indexer dependence is liveness, not custody (DE-RISKED).** Findings extracted
+   from authoritative sources (`docs.rs/spl-account-compression`, Metaplex
+   `digital-asset-rpc-infrastructure`, Anza RPC-history docs, `solana-developers/
+   compressed-nfts`) — *not yet adversarially verified; verification phase blocked by a
+   persistent upstream rate limit*:
+   - **Trust-minimized provenance:** SPL Account Compression has an on-chain `VerifyLeaf`
+     instruction; a DAS proof (`getAssetProof`) can be recomputed to a root and checked
+     against the on-chain root. Clients can *verify* the indexer, not just trust it — a
+     good fit for a provenance product. (Design note: surface this verification in the
+     provenance UI later; out of scope for Phase A.)
+   - **Ledger-recoverable:** cNFT data is logged in ledger transactions; a fresh indexer
+     can be backfilled from the ledger (Geyser/`ledger-tool`/BigTable). A DAS outage
+     degrades reads, it does not lose provenance data.
+   - **Self-host fallback exists but is heavy:** Metaplex's open-source
+     `digital-asset-rpc-infrastructure` (Ingester + JSON-RPC) needs a no-vote validator +
+     Plerkle Geyser + Redis + Postgres. Viable disaster-recovery option, not a cheap
+     default. **Phase A uses a managed DAS provider (Helius)**; self-host is a documented
+     contingency, not built now.
 
 ## Test additions (extend the Test strategy above)
 
