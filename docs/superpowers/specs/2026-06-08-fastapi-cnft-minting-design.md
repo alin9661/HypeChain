@@ -190,5 +190,85 @@ stays canonical API. Sub-decisions D1-D3 defaulted (combined endpoint, separate
 Lambda, all-writes) — flag to change. Phase D (Express reduction) is BLOCKED on
 Phase C (devnet verify).
 
-UNRESOLVED: production tree params (maxDepth/maxBufferSize/canopyDepth → cost+size);
-exact mint-service deploy target (its own Lambda Function URL assumed).
+UNRESOLVED: exact mint-service deploy target (its own Lambda Function URL assumed);
+exact production tree params (devnet sizing resolved below in the V2 addendum; mainnet
+sizing decided at Phase C). Royalty basis-points + recipient to confirm (see addendum).
+
+---
+
+# V2 addendum (2026-06-09) — Bubblegum V2 + MPL-Core collection
+
+This addendum supersedes the generic "mpl-bubblegum compressed minting" language above.
+The decision is to mint **Bubblegum V2** cNFTs (not V1). The architecture, service
+boundary, API contract, auth, failure semantics, and phases above are UNCHANGED — only
+the compressed-mint internals and tree provisioning are pinned to V2 here.
+
+## Why V2 (and why now is the cheap time)
+
+- **Clean slate.** No V1 Merkle tree was ever configured (`HACKNYU_MERKLE_TREE_ADDRESS`
+  unset → the Express cNFT path never fired). There is therefore **no V1→V2 migration**:
+  we provision a V2 tree and mint V2 from day one. V1 and V2 trees are **not
+  interchangeable** (V2 uses `LeafSchemaV2` + V2 Merkle trees), so starting clean avoids
+  the only migration that would have been painful.
+- **No dependency bump.** The installed `@metaplex-foundation/mpl-bubblegum@5.0.2`
+  already ships both instruction sets. "Upgrade to V2" = call V2 instructions, not change
+  the package.
+
+## V2 instruction mapping (what the TS service calls)
+
+| Purpose | V1 (old Express code) | **V2 (this service)** |
+|---|---|---|
+| Provision tree | `createTreeConfig` | **`createTreeConfigV2`** |
+| Mint cNFT | `mintV1` | **`mintV2`** (with `coreCollection`) |
+| Collection | `verifyCollection` (Token-Metadata) | **MPL-Core `createCollectionV2`** (once, ops) |
+| Transfer / burn (future) | `transfer` / `burn` | `transferV2` / `burnV2` |
+
+## MPL-Core collection + enforced royalties (DECISION: enabled)
+
+- Create **one** MPL-Core collection (`createCollectionV2`) as a one-time ops step; every
+  cNFT mints into it via `mintV2 { coreCollection }`. Groups all HypeChain assets for
+  provenance + marketplace recognition.
+- Attach the **Royalties plugin** with a **ProgramDenyList** ruleSet for **on-chain**
+  royalty enforcement — a V2-only capability (V1 relied on marketplace goodwill).
+- **CONFIRM at spec review:** royalty `basisPoints` (default **500 = 5%**) and the
+  royalty **recipient** wallet (default: the server/creator wallet that single-homes in
+  this service). These two are config, not code.
+
+## Tree provisioning params (DECISION: devnet-first, CLI-parameterized)
+
+- Phase C devnet round-trip uses a small throwaway tree: **`maxDepth=14`,
+  `maxBufferSize=64`, `canopyDepth=11`** → capacity ≈ **16,384** cNFTs; proof size
+  small enough for composability; rent negligible on devnet.
+- The setup-tree ops CLI takes **`--depth / --buffer / --canopy`** (sane defaults above)
+  so mainnet sizing is a flag, not a code change. **Mainnet params decided at Phase C**
+  once the round-trip works (candidate: depth 20 / canopy 14 for ~1M capacity + small
+  proofs — confirm against rent budget then).
+
+## Decompression: permanently unavailable (ACCEPTED)
+
+- **V2 cNFTs cannot be decompressed** to regular on-chain NFTs — ever (decompression is
+  V1-only). Accepted: provenance assets are not meant to become standalone SPL NFTs.
+  Recorded so no future feature assumes a decompression escape hatch.
+
+## New / changed risks (V2-specific)
+
+7. **Marketplace V2-cNFT trading support may lag (UNVERIFIED).** Primary-source signals
+   (extracted, not yet adversarially verified — research re-running) suggest major
+   marketplaces (Magic Eden, Tensor) may not yet trade **V2** cNFTs, and that Magic Eden
+   may be narrowing/deprecating cNFT indexing. **Not blocking:** HypeChain's in-app
+   provenance UI is the primary surface and does not depend on external marketplaces.
+   External liquidity/visibility is a secondary concern to revisit when the re-run
+   research lands. **Action:** fold verified findings into this section on completion.
+8. **Enforced royalties via ProgramDenyList is only as strong as the denylist.** On-chain
+   enforcement blocks listed programs from transferring; marketplaces not on the list can
+   still trade royalty-free. Document the chosen ruleSet posture at mainnet.
+
+## Test additions (extend the Test strategy above)
+
+- V2 instruction building (`createTreeConfigV2`, `mintV2` with `coreCollection`) asserted
+  against umi's own builders — umi is the reference, so we test wiring not Borsh bytes.
+- MPL-Core `createCollectionV2` builds with the Royalties plugin + ProgramDenyList present
+  and the configured basisPoints.
+- Asset-id derivation for `LeafSchemaV2`.
+- Devnet integration test mints a V2 cNFT into the collection and reads it back via DAS
+  `getAsset` (confirming the indexer sees V2 leaves) — still skipped without RPC+wallet.
