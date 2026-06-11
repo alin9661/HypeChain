@@ -27,6 +27,12 @@ const customJestConfig = {
     '**/__tests__/**/*.[jt]s?(x)',
     '**/?(*.)+(spec|test).[jt]s?(x)',
   ],
+  // setup.ts is a setupFilesAfterEnv helper, not a suite — without this it
+  // matches the __tests__ glob above and fails with "must contain at least
+  // one test". Entries are regexes matched against absolute paths, so avoid
+  // <rootDir> (checkout paths with regex chars like '+' break the match).
+  // Keep /node_modules/ since overriding replaces the default.
+  testPathIgnorePatterns: ['/node_modules/', '/__tests__/setup\\.ts$'],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

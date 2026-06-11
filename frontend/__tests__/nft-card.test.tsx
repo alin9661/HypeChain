@@ -39,7 +39,7 @@ describe('NFTCard', () => {
     render(<NFTCard listing={mockListing} />);
 
     expect(screen.getByText('Nike Air Jordan 1')).toBeInTheDocument();
-    expect(screen.getByText('0.5 SOL')).toBeInTheDocument();
+    expect(screen.getByText('0.5 USDC')).toBeInTheDocument();
     expect(screen.getByText(/ABC123xyz789/)).toBeInTheDocument();
     expect(screen.getByText('Listed 2 hours ago')).toBeInTheDocument();
   });
@@ -77,7 +77,7 @@ describe('NFTCard', () => {
   it('should render image with correct src', () => {
     render(<NFTCard listing={mockListing} />);
 
-    const image = screen.getByAlt('Nike Air Jordan 1');
+    const image = screen.getByAltText('Nike Air Jordan 1');
     expect(image).toHaveAttribute('src', 'https://ipfs.io/ipfs/test');
   });
 
