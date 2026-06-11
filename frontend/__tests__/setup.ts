@@ -24,6 +24,9 @@ jest.mock('next/navigation', () => ({
   useSearchParams() {
     return new URLSearchParams();
   },
+  // No-op in jsdom: the real hook only emits during SSR streaming. Exposed as
+  // a jest.fn so suites can grab the inserted-HTML callback and test it.
+  useServerInsertedHTML: jest.fn(),
 }));
 
 // Mock window.matchMedia — guarded so suites that opt into the node
