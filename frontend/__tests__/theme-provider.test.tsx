@@ -51,10 +51,11 @@ function installMatchMedia(initialDark = false) {
 }
 
 function Probe() {
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   return (
     <div>
       <span data-testid="theme-value">{String(theme)}</span>
+      <span data-testid="resolved-value">{String(resolvedTheme)}</span>
       <button onClick={() => setTheme('light')}>to-light</button>
       <button onClick={() => setTheme('dark')}>to-dark</button>
       <button onClick={() => setTheme('system')}>to-system</button>
@@ -176,6 +177,24 @@ describe('ThemeProvider', () => {
 
       act(() => mm.fireChange(false));
       expect(htmlClasses().contains('light')).toBe(true);
+    });
+
+    it("resolvedTheme reports what's on screen for a 'system' preference", () => {
+      installMatchMedia(true);
+      window.localStorage.setItem('theme', 'system');
+      renderProvider();
+      expect(screen.getByTestId('theme-value')).toHaveTextContent('system');
+      expect(screen.getByTestId('resolved-value')).toHaveTextContent('dark');
+    });
+
+    it('resolvedTheme follows OS preference changes', () => {
+      const mm = installMatchMedia(false);
+      renderProvider();
+      fireEvent.click(screen.getByText('to-system'));
+      expect(screen.getByTestId('resolved-value')).toHaveTextContent('light');
+
+      act(() => mm.fireChange(true));
+      expect(screen.getByTestId('resolved-value')).toHaveTextContent('dark');
     });
 
     it("subscribes only while pref is 'system' and cleans up on unmount", () => {
@@ -302,6 +321,19 @@ describe('ThemeProvider', () => {
       fireEvent.click(toggle);
       expect(htmlClasses().contains('dark')).toBe(true);
       expect(window.localStorage.getItem('theme')).toBe('dark');
+    });
+
+    it("keys off resolvedTheme for a 'system' preference (no lying icon)", async () => {
+      // System pref on a dark OS: the page is dark, so the toggle must offer
+      // "switch to light" — one click, visible change.
+      installMatchMedia(true);
+      window.localStorage.setItem('theme', 'system');
+      renderProvider(<TopHeader />);
+      const toggle = await screen.findByLabelText('Toggle theme');
+
+      fireEvent.click(toggle);
+      expect(window.localStorage.getItem('theme')).toBe('light');
+      expect(htmlClasses().contains('light')).toBe(true);
     });
   });
 });

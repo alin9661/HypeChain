@@ -41,7 +41,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // Dark baked into the SSR HTML so the terminal aesthetic doesn't depend on
+    // JS executing (no-JS, blocked inline script). The pre-paint theme script
+    // only flips classes for users who chose light / system-light;
+    // suppressHydrationWarning covers that mismatch.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className="dark"
+      style={{ colorScheme: 'dark' }}
+    >
       <body className={`font-sans antialiased`}>
         <ThemeProvider>
           <PrivyProviderWrapper>

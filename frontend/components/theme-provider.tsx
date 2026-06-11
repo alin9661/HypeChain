@@ -18,6 +18,7 @@ import { useServerInsertedHTML } from 'next/navigation'
 // Same storage key and hook shape, so saved preferences and consumers carry over.
 
 type Theme = 'light' | 'dark' | 'system'
+type ResolvedTheme = 'light' | 'dark'
 
 // Both constants are interpolated into INIT_SCRIPT below — they MUST remain
 // static literals (never user- or runtime-derived), or the inline script
@@ -31,7 +32,7 @@ const DEFAULT_THEME: Theme = 'dark'
 // never flashes light. Must stay dependency-free and idempotent.
 const INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}')||'${DEFAULT_THEME}';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var c=document.documentElement.classList;c.toggle('dark',d);c.toggle('light',!d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}})()`
 
-function applyTheme(pref: Theme) {
+function applyTheme(pref: Theme): ResolvedTheme {
   const dark =
     pref === 'dark' ||
     (pref === 'system' &&
@@ -40,6 +41,7 @@ function applyTheme(pref: Theme) {
   classList.toggle('dark', dark)
   classList.toggle('light', !dark)
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+  return dark ? 'dark' : 'light'
 }
 
 function readStoredTheme(): Theme {
@@ -57,11 +59,18 @@ function readStoredTheme(): Theme {
 interface UseThemeProps {
   /** The saved preference. undefined until mounted (avoids hydration mismatch). */
   theme: Theme | undefined
+  /**
+   * The preference with 'system' resolved against the OS — what is actually
+   * on screen. Toggles and icons should key off this, not `theme`, or they
+   * lie for system-pref users.
+   */
+  resolvedTheme: ResolvedTheme | undefined
   setTheme: (theme: Theme) => void
 }
 
 const ThemeContext = createContext<UseThemeProps>({
   theme: undefined,
+  resolvedTheme: undefined,
   setTheme: () => {},
 })
 
@@ -69,6 +78,9 @@ export const useTheme = () => useContext(ThemeContext)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme | undefined>(undefined)
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme | undefined>(
+    undefined
+  )
 
   // Inject the pre-paint script into the SSR stream, OUTSIDE the React tree.
   // On the client this hook renders nothing, so React never creates a <script>
@@ -80,15 +92,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return <script dangerouslySetInnerHTML={{ __html: INIT_SCRIPT }} />
   })
 
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next)
-    try {
-      localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      // persistence unavailable — still apply for this session
-    }
-    applyTheme(next)
+  const applyAndTrack = useCallback((pref: Theme) => {
+    setResolvedTheme(applyTheme(pref))
   }, [])
+
+  const setTheme = useCallback(
+    (next: Theme) => {
+      setThemeState(next)
+      try {
+        localStorage.setItem(STORAGE_KEY, next)
+      } catch {
+        // persistence unavailable — still apply for this session
+      }
+      applyAndTrack(next)
+    },
+    [applyAndTrack]
+  )
 
   // Read the saved preference after mount. The init script normally applied it
   // pre-paint already; re-applying is idempotent and self-heals environments
@@ -96,35 +115,40 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = readStoredTheme()
     setThemeState(stored)
-    applyTheme(stored)
-  }, [])
+    applyAndTrack(stored)
+  }, [applyAndTrack])
 
   // Track OS appearance while preference is "system".
   useEffect(() => {
     if (theme !== 'system') return
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme('system')
+    const onChange = () => applyAndTrack('system')
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
-  }, [theme])
+  }, [theme, applyAndTrack])
 
   // Cross-tab sync: another tab changing the preference updates this one.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
+      // sessionStorage mutations fire here too — only localStorage matters.
+      if (e.storageArea && e.storageArea !== window.localStorage) return
       // key === null means another tab called localStorage.clear() — treat it
       // as a reset to the default rather than ignoring it.
       if (e.key !== null && e.key !== STORAGE_KEY) return
       const next = readStoredTheme()
       setThemeState(next)
-      applyTheme(next)
+      applyAndTrack(next)
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  }, [applyAndTrack])
 
   // Stable identity so root-level re-renders don't invalidate every consumer;
   // setTheme is already a stable useCallback.
-  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme])
+  const value = useMemo(
+    () => ({ theme, resolvedTheme, setTheme }),
+    [theme, resolvedTheme, setTheme]
+  )
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

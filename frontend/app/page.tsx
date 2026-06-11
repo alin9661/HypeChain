@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Navigation } from '@/components/navigation'
 import { useState } from 'react'
 import { Leva } from 'leva'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { VerifyFlowSection } from '@/components/landing/verify-flow-section'
 import { EvidenceMovesSection } from '@/components/landing/evidence-moves-section'
 import { MarketplaceProofSection } from '@/components/landing/marketplace-proof-section'
@@ -41,7 +42,12 @@ export default function LandingPage() {
       <main>
       {/* Hero Section with WebGL Background */}
       <div className="flex flex-col h-svh justify-between bg-black">
-        <GL hovering={hovering} rippleNonce={rippleNonce} />
+        {/* Decorative background — a chunk-load or WebGL failure must degrade
+            to the plain black hero, not bubble to the root boundary and
+            replace the whole landing page. */}
+        <ErrorBoundary fallback={null}>
+          <GL hovering={hovering} rippleNonce={rippleNonce} />
+        </ErrorBoundary>
 
         <div className="pb-16 mt-auto text-center relative z-10 px-4">
           <Pill className="mb-6">BETA RELEASE</Pill>

@@ -5,10 +5,12 @@ import { useTheme } from '@/components/theme-provider'
 import Link from 'next/link'
 
 export function TopHeader() {
-  // No mounted gate needed: the first-party ThemeProvider reports `theme` as
-  // undefined on both the server pass and the first client render, so there is
-  // no hydration mismatch to hide behind a skeleton (a next-themes-era fix).
-  const { theme, setTheme } = useTheme()
+  // No mounted gate needed: the first-party ThemeProvider reports theme state
+  // as undefined on both the server pass and the first client render, so there
+  // is no hydration mismatch to hide behind a skeleton (a next-themes-era fix).
+  // resolvedTheme (not theme) drives the toggle — for a 'system' preference it
+  // reflects what's actually on screen, so the icon never lies.
+  const { resolvedTheme, setTheme } = useTheme()
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-700 bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60">
@@ -55,11 +57,11 @@ export function TopHeader() {
         <div className="flex items-center gap-4">
           {/* Theme toggle */}
           <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
             aria-label="Toggle theme"
           >
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {resolvedTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
 
           {/* Notifications */}
