@@ -45,6 +45,17 @@ export function findListingPda(nftMint) {
   );
 }
 
+// ─── Listing status — mirror of the on-chain enum ─────────────────────────
+
+export const ListingStatus = Object.freeze({
+  Pending: 0,
+  Verified: 1,
+  Listed: 2,
+  Sold: 3,
+  Delisted: 4,
+  Disputed: 5,
+});
+
 // ─── Discriminators — sha256("global:<ix>")[0..8] ─────────────────────────
 
 const IX_INIT_DOSSIER = Buffer.from([60, 164, 158, 113, 143, 45, 252, 114]);
@@ -180,6 +191,65 @@ export function buildPurchaseEvidenceIx({
     ],
     data: IX_PURCHASE_EVIDENCE,
   });
+}
+
+// ─── Account decoding — mirror of frontend/lib/anchor-client.ts ────────────
+//
+// Account discriminator = sha256("account:EvidenceListing")[0..8]. Pinned in
+// both clients; the cosign test suite round-trips an encoded fixture so any
+// drift fails loudly (TODOS.md P2 mitigation).
+
+const ACCT_LISTING = Buffer.from([158, 32, 222, 3, 220, 148, 119, 255]);
+
+class BinaryReader {
+  constructor(buf) {
+    this.buf = buf;
+    this.offset = 0;
+  }
+  u8() { const v = this.buf.readUInt8(this.offset); this.offset += 1; return v; }
+  u32() { const v = this.buf.readUInt32LE(this.offset); this.offset += 4; return v; }
+  u64() { const v = this.buf.readBigUInt64LE(this.offset); this.offset += 8; return v; }
+  i64() { const v = this.buf.readBigInt64LE(this.offset); this.offset += 8; return v; }
+  pubkey() {
+    const v = new PublicKey(this.buf.subarray(this.offset, this.offset + 32));
+    this.offset += 32;
+    return v;
+  }
+  optionalPubkey() {
+    return this.u8() === 1 ? this.pubkey() : null;
+  }
+  expectDiscriminator(disc) {
+    const head = this.buf.subarray(this.offset, this.offset + 8);
+    this.offset += 8;
+    for (let i = 0; i < 8; i++) {
+      if (head[i] !== disc[i]) throw new Error('Account discriminator mismatch');
+    }
+  }
+}
+
+export function decodeEvidenceListing(buf) {
+  const r = new BinaryReader(buf);
+  r.expectDiscriminator(ACCT_LISTING);
+  return {
+    seller: r.pubkey(),
+    nftMint: r.pubkey(),
+    dossier: r.pubkey(),
+    verificationProof: r.pubkey(),
+    examiner: r.pubkey(),
+    custodian: r.optionalPubkey(),
+    caseNumber: r.u32(),
+    priceLamports: r.u64(),
+    status: r.u8(),
+    createdAt: r.i64(),
+    bump: r.u8(),
+  };
+}
+
+export async function fetchEvidenceListing(connection, nftMint) {
+  const [pda] = findListingPda(nftMint);
+  const account = await connection.getAccountInfo(pda, 'confirmed');
+  if (!account) return null;
+  return decodeEvidenceListing(account.data);
 }
 
 export function buildFlagDisputeIx({ signer, nftMint, reason }) {

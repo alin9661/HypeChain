@@ -12,8 +12,91 @@ import {
   getWalletBalance,
   fetchListing
 } from '../services/payment.js';
+import { getConnection, getServerWallet } from '../services/solana.js';
+import { buildCosignedPurchaseTx, CosignError } from '../services/cosign-purchase.js';
 
 const router = express.Router();
+
+/**
+ * Handler factory for POST /api/payments/cosign-purchase — deps injectable
+ * for tests. See services/cosign-purchase.js for the security model (the
+ * server only signs transactions it built itself).
+ */
+export function createCosignPurchaseHandler({
+  fetchListingFn = fetchListing,
+  getConnectionFn = getConnection,
+  getServerWalletFn = getServerWallet,
+  buildTxFn = buildCosignedPurchaseTx,
+} = {}) {
+  return async (req, res) => {
+    const { listingId, buyerWallet } = req.body || {};
+    if (!listingId || !buyerWallet) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: listingId and buyerWallet',
+        code: 'MISSING_FIELDS',
+      });
+    }
+
+    let listingRow;
+    try {
+      listingRow = await fetchListingFn(listingId);
+    } catch (error) {
+      const notFound = /not found|fetch listing/i.test(error.message);
+      return res.status(notFound ? 404 : 409).json({
+        success: false,
+        error: error.message,
+        code: notFound ? 'LISTING_NOT_FOUND' : 'LISTING_NOT_ACTIVE',
+      });
+    }
+
+    try {
+      const result = await buildTxFn({
+        connection: getConnectionFn(),
+        serverWallet: getServerWalletFn(),
+        listingRow,
+        buyerWallet,
+      });
+      return res.json({
+        success: true,
+        transaction: result.transactionBase64,
+        priceLamports: result.priceLamports,
+        priceSol: result.priceSol,
+        blockhash: result.blockhash,
+        lastValidBlockHeight: result.lastValidBlockHeight,
+        nftMint: result.nftMint,
+        listingPda: result.listingPda,
+        seller: result.seller,
+      });
+    } catch (error) {
+      if (error instanceof CosignError) {
+        return res.status(error.httpStatus).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+        });
+      }
+      console.error('[API] Cosign purchase failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to co-sign purchase transaction',
+        code: 'COSIGN_FAILED',
+      });
+    }
+  };
+}
+
+/**
+ * POST /api/payments/cosign-purchase
+ * Build + custodially co-sign a purchase_evidence transaction.
+ *
+ * Request body:  { listingId: string, buyerWallet: string }
+ * Response 200:  { success, transaction (base64, seller-signed),
+ *                  priceLamports, priceSol, blockhash,
+ *                  lastValidBlockHeight, nftMint, listingPda, seller }
+ * Errors use { success: false, error, code } with 400/404/409/500.
+ */
+router.post('/cosign-purchase', createCosignPurchaseHandler());
 
 /**
  * POST /api/payments/create
