@@ -1,8 +1,10 @@
 # HypeChain Backend (FastAPI)
 
 Python 3.13 / FastAPI port of the Express backend, deployed as an AWS Lambda
-container. Built side-by-side with `../backend` (Express) until parity is proven;
-the frontend cuts over by flipping `BACKEND_URL`.
+container. Keeps HTTP parity with `../backend` (Express) and adds an on-chain
+activities / provenance feed and a Helius transfer-ingest webhook on top. The
+frontend cuts over by flipping `BACKEND_URL`; the Express backend stays until
+that cutover lands.
 
 Design spec: [`../docs/superpowers/specs/2026-05-28-backend-fastapi-refactor-design.md`](../docs/superpowers/specs/2026-05-28-backend-fastapi-refactor-design.md)
 
@@ -40,17 +42,25 @@ Open `http://localhost:3001/docs` for the OpenAPI UI, `/health` for the probe.
 uv run pytest
 ```
 
-## Build status (parallel PRs)
+## What shipped
 
-This is built across 5 PRs (see spec §7):
+Built and merged across the refactor (see spec §7):
 
-1. **Scaffold** (this PR) — app factory, settings, middleware, health, error contract, Dockerfile.
+1. **Scaffold** — app factory, settings, middleware, health, error contract, Dockerfile.
 2. **DSQL data layer** — schema, async pool, OCC-safe writes, queries.
 3. **Solana / Metaplex** — standard NFT mint, on-chain verification.
 4. **OpenRouter / IPFS / cache** — AI verify + image gen, IPFS upload, Redis.
 5. **Integration** — `listings` + `payments` routers, schemas, HTTP-parity harness.
+6. **Activities + provenance** — `activities` feed router and per-mint
+   `/api/nft/{mint}/history`, fed by a fail-closed Helius `webhooks` ingest endpoint.
+
+Routes: `/`, `/health`, `/api/create-listing`, `/api/payments/*` (6),
+`/api/activities`, `/api/nft/{mint}/history`, `/api/webhooks/helius`.
 
 ## Deploy
 
 AWS Lambda container image (`Dockerfile`, `public.ecr.aws/lambda/python:3.13`),
 handler `app.lambda_handler.handler`. Reuses the existing Function URL / SAM template.
+Deploy scripts and checklists live in [`deploy/`](deploy/): `deploy.sh`,
+`smoke-test.sh`, [`SECRETS.md`](deploy/SECRETS.md), [`CUTOVER.md`](deploy/CUTOVER.md),
+[`THROTTLING.md`](deploy/THROTTLING.md). All AWS-authenticated steps are operator-run.
