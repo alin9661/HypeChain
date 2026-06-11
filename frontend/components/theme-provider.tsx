@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -18,8 +19,13 @@ import { useServerInsertedHTML } from 'next/navigation'
 
 type Theme = 'light' | 'dark' | 'system'
 
+// Both constants are interpolated into INIT_SCRIPT below — they MUST remain
+// static literals (never user- or runtime-derived), or the inline script
+// becomes an injection surface.
 const STORAGE_KEY = 'theme'
-const DEFAULT_THEME: Theme = 'light'
+// 'dark' per frontend/DESIGN.md ("Dark only") — the terminal aesthetic is the
+// default; light remains a user-selectable preference in /settings.
+const DEFAULT_THEME: Theme = 'dark'
 
 // Runs during HTML parsing, before first paint, so a saved dark preference
 // never flashes light. Must stay dependency-free and idempotent.
@@ -84,9 +90,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(next)
   }, [])
 
-  // Read the saved preference after mount (the init script already applied it).
+  // Read the saved preference after mount. The init script normally applied it
+  // pre-paint already; re-applying is idempotent and self-heals environments
+  // where the inline script never ran (e.g. blocked by a strict CSP).
   useEffect(() => {
-    setThemeState(readStoredTheme())
+    const stored = readStoredTheme()
+    setThemeState(stored)
+    applyTheme(stored)
   }, [])
 
   // Track OS appearance while preference is "system".
@@ -101,7 +111,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Cross-tab sync: another tab changing the preference updates this one.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY) return
+      // key === null means another tab called localStorage.clear() — treat it
+      // as a reset to the default rather than ignoring it.
+      if (e.key !== null && e.key !== STORAGE_KEY) return
       const next = readStoredTheme()
       setThemeState(next)
       applyTheme(next)
@@ -110,9 +122,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
+  // Stable identity so root-level re-renders don't invalidate every consumer;
+  // setTheme is already a stable useCallback.
+  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme])
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   )
 }

@@ -5,8 +5,9 @@
  * Covers the resolution matrix (light/dark/system x OS preference), localStorage
  * persistence with throw fallbacks, mount hydration, system matchMedia tracking
  * and cleanup, cross-tab storage sync, the useServerInsertedHTML once-guard, and
- * the top-header toggle flow. The pre-paint INIT_SCRIPT execution itself is
- * browser-only (SSR stream) and is covered by manual/E2E verification, not here.
+ * the top-header toggle flow. The INIT_SCRIPT body is executed via window.eval
+ * so it cannot drift from applyTheme; only its SSR-stream pre-paint timing
+ * (no-FOUC) remains browser/E2E-verified.
  */
 
 import React, { act } from 'react';
@@ -41,9 +42,6 @@ function installMatchMedia(initialDark = false) {
   };
   window.matchMedia = jest.fn().mockImplementation(() => mql) as any;
   return {
-    setOSDark(dark: boolean) {
-      mql.matches = dark;
-    },
     fireChange(dark: boolean) {
       mql.matches = dark;
       listeners.forEach((cb) => cb({ matches: dark }));
@@ -118,13 +116,13 @@ describe('ThemeProvider', () => {
       expect(screen.getByTestId('theme-value')).toHaveTextContent('dark');
     });
 
-    it("falls back to 'light' for a garbage stored value", () => {
+    it("falls back to the 'dark' default for a garbage stored value", () => {
       window.localStorage.setItem('theme', 'neon-vaporwave');
       renderProvider();
-      expect(screen.getByTestId('theme-value')).toHaveTextContent('light');
+      expect(screen.getByTestId('theme-value')).toHaveTextContent('dark');
     });
 
-    it("falls back to 'light' when localStorage.getItem throws", () => {
+    it("falls back to the 'dark' default when localStorage.getItem throws", () => {
       const spy = jest
         .spyOn(Storage.prototype, 'getItem')
         .mockImplementation(() => {
@@ -132,7 +130,7 @@ describe('ThemeProvider', () => {
         });
       try {
         renderProvider();
-        expect(screen.getByTestId('theme-value')).toHaveTextContent('light');
+        expect(screen.getByTestId('theme-value')).toHaveTextContent('dark');
       } finally {
         spy.mockRestore();
       }
@@ -184,7 +182,7 @@ describe('ThemeProvider', () => {
       const mm = installMatchMedia(false);
       const { unmount } = renderProvider();
 
-      // Default pref is 'light' — the system effect takes its early return.
+      // Default pref is 'dark' — the system effect takes its early return.
       expect(mm.listeners).toHaveLength(0);
       fireEvent.click(screen.getByText('to-dark'));
       expect(mm.listeners).toHaveLength(0);
@@ -220,6 +218,17 @@ describe('ThemeProvider', () => {
       expect(screen.getByTestId('theme-value')).toHaveTextContent('dark');
       expect(htmlClasses().contains('dark')).toBe(true);
     });
+
+    it('treats a cross-tab localStorage.clear() (key null) as a reset', () => {
+      renderProvider();
+      fireEvent.click(screen.getByText('to-light'));
+      window.localStorage.clear();
+      act(() => {
+        window.dispatchEvent(new StorageEvent('storage', { key: null }));
+      });
+      expect(screen.getByTestId('theme-value')).toHaveTextContent('dark');
+      expect(htmlClasses().contains('dark')).toBe(true);
+    });
   });
 
   describe('SSR script injection (useServerInsertedHTML once-guard)', () => {
@@ -242,6 +251,42 @@ describe('ThemeProvider', () => {
       // Second flush of the same provider instance must not duplicate.
       expect(insertCallback()).toBeNull();
     });
+
+    // Execute the actual script body in jsdom so INIT_SCRIPT can never drift
+    // from applyTheme without failing CI. Each test renders a fresh provider,
+    // then wipes the classes the provider's own mount effect applied, so the
+    // assertions isolate the script's effect.
+    function renderAndGetScript(): string {
+      renderProvider(<div />);
+      const calls = (useServerInsertedHTML as jest.Mock).mock.calls;
+      const insertCallback = calls[calls.length - 1][0];
+      const script = insertCallback().props.dangerouslySetInnerHTML.__html;
+      document.documentElement.classList.remove('dark', 'light');
+      document.documentElement.style.colorScheme = '';
+      return script;
+    }
+
+    it('INIT_SCRIPT applies a saved dark preference when executed', () => {
+      window.localStorage.setItem('theme', 'dark');
+      window.eval(renderAndGetScript());
+      expect(htmlClasses().contains('dark')).toBe(true);
+      expect(htmlClasses().contains('light')).toBe(false);
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+    });
+
+    it("INIT_SCRIPT resolves 'system' against the OS preference", () => {
+      installMatchMedia(true);
+      window.localStorage.setItem('theme', 'system');
+      window.eval(renderAndGetScript());
+      expect(htmlClasses().contains('dark')).toBe(true);
+    });
+
+    it('INIT_SCRIPT defaults to dark when nothing is stored', () => {
+      window.eval(renderAndGetScript());
+      expect(htmlClasses().contains('dark')).toBe(true);
+      expect(htmlClasses().contains('light')).toBe(false);
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+    });
   });
 
   describe('top-header toggle flow', () => {
@@ -249,13 +294,14 @@ describe('ThemeProvider', () => {
       renderProvider(<TopHeader />);
       const toggle = await screen.findByLabelText('Toggle theme');
 
-      fireEvent.click(toggle);
-      expect(htmlClasses().contains('dark')).toBe(true);
-      expect(window.localStorage.getItem('theme')).toBe('dark');
-
+      // Default preference is 'dark', so the first toggle goes to light.
       fireEvent.click(toggle);
       expect(htmlClasses().contains('light')).toBe(true);
       expect(window.localStorage.getItem('theme')).toBe('light');
+
+      fireEvent.click(toggle);
+      expect(htmlClasses().contains('dark')).toBe(true);
+      expect(window.localStorage.getItem('theme')).toBe('dark');
     });
   });
 });

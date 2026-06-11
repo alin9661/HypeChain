@@ -50,7 +50,13 @@ describe('PrivyProviderWrapper', () => {
   });
 
   afterEach(() => {
-    process.env.NEXT_PUBLIC_PRIVY_APP_ID = ORIGINAL_APP_ID;
+    // Assigning undefined would coerce to the string "undefined" and leak a
+    // truthy value into later suites in the same worker — delete instead.
+    if (ORIGINAL_APP_ID === undefined) {
+      delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    } else {
+      process.env.NEXT_PUBLIC_PRIVY_APP_ID = ORIGINAL_APP_ID;
+    }
   });
 
   it('keeps config and connector identity stable across re-renders', () => {
@@ -87,7 +93,7 @@ describe('PrivyProviderWrapper', () => {
     expect(config.appearance.walletChainType).toBe('ethereum-and-solana');
   });
 
-  it('passes the env appId through, with a placeholder fallback', () => {
+  it('passes the env appId through, with a placeholder fallback outside production', () => {
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-app-id';
     render(<Host />);
     expect(mockCapturedProps[0].appId).toBe('test-app-id');
@@ -96,6 +102,20 @@ describe('PrivyProviderWrapper', () => {
     delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     render(<Host />);
     expect(mockCapturedProps[0].appId).toBe('your-privy-app-id');
+  });
+
+  it('throws at render in production when the app ID is missing', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    // React re-throws render errors but also logs them — keep output clean.
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    (process.env as any).NODE_ENV = 'production';
+    try {
+      expect(() => render(<Host />)).toThrow(/NEXT_PUBLIC_PRIVY_APP_ID/);
+    } finally {
+      (process.env as any).NODE_ENV = originalNodeEnv;
+      consoleSpy.mockRestore();
+    }
   });
 
   it('renders its children', () => {

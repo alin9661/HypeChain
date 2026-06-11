@@ -2,28 +2,13 @@
 
 import { Bell, Search, Moon, Sun } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 export function TopHeader() {
+  // No mounted gate needed: the first-party ThemeProvider reports `theme` as
+  // undefined on both the server pass and the first client render, so there is
+  // no hydration mismatch to hide behind a skeleton (a next-themes-era fix).
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <header className="sticky top-0 z-20 border-b border-slate-700 bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60">
-        <div className="flex h-16 items-center gap-6 px-6">
-          {/* Logo - Loading State */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500" />
-          <div className="flex-1" />
-        </div>
-      </header>
-    )
-  }
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-700 bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-slate-900/60">
