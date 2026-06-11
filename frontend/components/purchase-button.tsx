@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { usePrivy } from '@privy-io/react-auth';
 import { apiClient } from '@/lib/api-client';
-import { buildPurchaseEvidenceIx } from '@/lib/anchor-client';
+import { assertPriceMatches, deserializeCosignedTx } from '@/lib/purchase-helpers';
 import { toast } from 'sonner';
 
 /**
@@ -102,40 +101,49 @@ export function PurchaseButton({
       const recipientPublicKey = new PublicKey(paymentRequest.recipient);
       const amountLamports = Math.floor(paymentRequest.amount * LAMPORTS_PER_SOL);
 
-      // Anchor path is feature-flagged — requires the backend to have
-      // submitted a `VerificationProof` and opened an `EvidenceListing`
-      // PDA. The seller must also co-sign (custodial: backend does;
-      // user-wallet: out-of-band). When the flag is off, we fall back to
-      // the SOL-only `SystemProgram.transfer` that has shipped to date.
-      const transaction = new Transaction();
+      // Anchor path is feature-flagged. `purchase_evidence` needs BOTH the
+      // buyer and seller to sign; for custodial (guest) listings the backend
+      // co-sign endpoint builds the full transaction and partial-signs as
+      // seller — we verify price + fee payer, then the buyer signs on top.
+      // Non-custodial / never-anchored listings (SELLER_NOT_CUSTODIAL,
+      // LISTING_NOT_ON_CHAIN) fall back to the legacy SOL-only transfer.
+      let transaction: Transaction | null = null;
+      let confirmStrategy: { blockhash: string; lastValidBlockHeight: number } | null = null;
+
       if (USE_ANCHOR_PURCHASE && paymentRequest.nftMintAddress) {
-        const nftMint = new PublicKey(paymentRequest.nftMintAddress);
-        const sellerPublicKey = new PublicKey(sellerWallet);
-        const sellerAta = getAssociatedTokenAddressSync(nftMint, sellerPublicKey);
-        const buyerAta = getAssociatedTokenAddressSync(nftMint, buyerPublicKey);
-        transaction.add(
-          buildPurchaseEvidenceIx({
-            buyer: buyerPublicKey,
-            seller: sellerPublicKey,
-            nftMint,
-            sellerTokenAccount: sellerAta,
-            buyerTokenAccount: buyerAta,
-          })
-        );
-      } else {
-        transaction.add(
+        setStatus('Requesting platform co-signature...');
+        const cosign = await apiClient.cosignPurchase({ listingId, buyerWallet });
+
+        if (cosign.success && cosign.data) {
+          // The price shown to the user must equal what the chain charges.
+          assertPriceMatches(paymentRequest.amount, cosign.data.priceLamports);
+          transaction = deserializeCosignedTx(cosign.data.transaction, buyerPublicKey);
+          confirmStrategy = {
+            blockhash: cosign.data.blockhash,
+            lastValidBlockHeight: cosign.data.lastValidBlockHeight,
+          };
+        } else if (
+          cosign.code !== 'SELLER_NOT_CUSTODIAL' &&
+          cosign.code !== 'LISTING_NOT_ON_CHAIN'
+        ) {
+          throw new Error(cosign.error || 'Failed to obtain platform co-signature');
+        }
+        // else: user-wallet listing — take the legacy path below.
+      }
+
+      if (!transaction) {
+        transaction = new Transaction().add(
           SystemProgram.transfer({
             fromPubkey: buyerPublicKey,
             toPubkey: recipientPublicKey,
             lamports: amountLamports,
           })
         );
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = buyerPublicKey;
+        confirmStrategy = { blockhash, lastValidBlockHeight };
       }
-
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = buyerPublicKey;
 
       setStatus('Awaiting wallet approval...');
 
@@ -160,8 +168,14 @@ export function PurchaseButton({
 
       setStatus('Confirming transaction...');
 
-      // Wait for confirmation
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+      // Wait for confirmation — the blockhash strategy surfaces expiry
+      // (block height exceeded) instead of hanging. On expiry the user can
+      // simply retry: the co-sign endpoint is stateless and re-issues
+      // against a fresh blockhash.
+      const confirmation = await connection.confirmTransaction(
+        { signature, ...confirmStrategy! },
+        'confirmed'
+      );
 
       if (confirmation.value.err) {
         throw new Error('Transaction failed on blockchain');

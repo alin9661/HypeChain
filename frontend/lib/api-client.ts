@@ -13,6 +13,26 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  /** Machine-readable error code from the backend error envelope, when present. */
+  code?: string;
+}
+
+export interface CosignPurchaseRequest {
+  listingId: string;
+  buyerWallet: string;
+}
+
+export interface CosignPurchaseResponse {
+  success: boolean;
+  /** base64 legacy Transaction, partial-signed by the custodial seller. */
+  transaction: string;
+  priceLamports: string;
+  priceSol: number;
+  blockhash: string;
+  lastValidBlockHeight: number;
+  nftMint: string;
+  listingPda: string;
+  seller: string;
 }
 
 export interface CreateListingRequest {
@@ -247,9 +267,10 @@ class ApiClient {
    */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    baseURL: string = this.baseURL
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseURL}${endpoint}`;
+    const url = `${baseURL}${endpoint}`;
 
     try {
       const response = await fetch(url, {
@@ -266,6 +287,7 @@ class ApiClient {
         return {
           success: false,
           error: data.error || `HTTP ${response.status}: ${response.statusText}`,
+          ...(data.code ? { code: data.code } : {}),
         };
       }
 
@@ -421,6 +443,27 @@ class ApiClient {
   /**
    * POST /api/payments/create - Create payment request for a listing
    */
+  /**
+   * POST /api/payments/cosign-purchase — custodial co-sign (PR2).
+   *
+   * Lives on the Express write service, which may be deployed separately
+   * from the payments API: NEXT_PUBLIC_WRITE_API_URL overrides the base URL,
+   * falling back to the regular API base for single-service setups.
+   */
+  async cosignPurchase(
+    data: CosignPurchaseRequest
+  ): Promise<ApiResponse<CosignPurchaseResponse>> {
+    const writeBase = process.env.NEXT_PUBLIC_WRITE_API_URL || this.baseURL;
+    return this.request<CosignPurchaseResponse>(
+      '/api/payments/cosign-purchase',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      writeBase
+    );
+  }
+
   async createPayment(
     data: CreatePaymentRequest
   ): Promise<ApiResponse<CreatePaymentResponse>> {
