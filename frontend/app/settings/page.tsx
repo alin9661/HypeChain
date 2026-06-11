@@ -2,7 +2,7 @@
 
 import { AppLayout } from '@/components/app-layout'
 import { User, Bell, Shield, Wallet, Moon, Sun } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/components/theme-provider'
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
