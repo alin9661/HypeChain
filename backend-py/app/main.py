@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.config.settings import get_settings
+from app.config.settings import get_settings, require_marketplace_program_id
 from app.middleware.cors import add_cors
 from app.middleware.security import BodySizeLimitMiddleware, SecurityHeadersMiddleware
 from app.routers import activities, health, listings, payments, webhooks
@@ -39,6 +39,11 @@ def create_app() -> FastAPI:
     settings = get_settings()
     _configure_logging(settings.is_development)
     log = structlog.get_logger()
+
+    # T8: fail loud at startup if the marketplace program ID is unset or still
+    # the Anchor scaffold placeholder (outside dev/test). A half-configured
+    # deploy must crash here rather than silently target the wrong program.
+    require_marketplace_program_id()
 
     app = FastAPI(
         title="HypeChain Backend API",

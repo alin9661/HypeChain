@@ -17,6 +17,11 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Anchor scaffold placeholder program ID (declare_id! default). Used as a
+# fallback ONLY in dev/test; in production it is treated as "unset" so a
+# half-configured deploy fails loud instead of targeting the wrong program (T8).
+PLACEHOLDER_PROGRAM_ID = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -89,3 +94,39 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Cached singleton — read once per process, reused across warm invocations."""
     return Settings()
+
+
+def _running_under_pytest() -> bool:
+    """True during a pytest run (present in ``sys.modules`` from import onward)."""
+    import sys
+
+    return "pytest" in sys.modules
+
+
+def require_marketplace_program_id(*, allow_test_bypass: bool = True) -> str | None:
+    """Fail loud at startup if the marketplace program ID is misconfigured (T8).
+
+    Outside dev/test, raise ``RuntimeError`` when ``HACKNYU_MARKETPLACE_PROGRAM_ID``
+    is unset OR still the Anchor scaffold placeholder — a half-configured deploy
+    must crash, not silently target the wrong program. Returns the validated
+    program ID (or ``None`` in dev/test, where the guard is a no-op).
+
+    ``allow_test_bypass`` (default True) lets the running pytest suite boot the
+    app without a real program ID. The dedicated guard tests pass
+    ``allow_test_bypass=False`` to exercise the production raise/return paths.
+    """
+    settings = get_settings()
+    program_id = settings.hacknyu_marketplace_program_id
+
+    bypass = settings.is_development or (allow_test_bypass and _running_under_pytest())
+    if bypass:
+        return program_id
+
+    if not program_id or program_id == PLACEHOLDER_PROGRAM_ID:
+        raise RuntimeError(
+            "HACKNYU_MARKETPLACE_PROGRAM_ID is unset or the Anchor scaffold "
+            f"placeholder ({PLACEHOLDER_PROGRAM_ID}). Set it to the deployed "
+            "program ID before starting in production (run `anchor keys sync` + "
+            "`anchor deploy`, then export the printed program ID)."
+        )
+    return program_id
