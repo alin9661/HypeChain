@@ -11,7 +11,7 @@ import {
 } from '../services/openrouter.js';
 import { isValidVisionModel, isValidImageGenModel } from '../config/ai-models.js';
 import { createAndUploadNFTMetadata } from '../services/ipfs.js';
-import { mintNFT, listItemOnMarketplace } from '../services/solana.js';
+import { mintNFT, listItemOnMarketplace, getServerWallet } from '../services/solana.js';
 import { mintCompressedNFT } from '../services/compressed-nft.js';
 import { submitVerification, confidenceToBps } from '../services/verification.js';
 
@@ -64,14 +64,17 @@ router.post('/create-listing', async (req, res) => {
       });
     }
 
-    // Use platform custodial wallet if user wallet not provided
-    const PLATFORM_WALLET = process.env.PLATFORM_CUSTODIAL_WALLET || 'HypeChainPlatformWallet1111111111111111111111111';
-    const targetWallet = userWallet || PLATFORM_WALLET;
+    // Guest listings use the platform custodial wallet — derived from the
+    // server keypair so it is always a wallet the server can sign for (E5
+    // parity with backend-py). The old PLATFORM_CUSTODIAL_WALLET env var
+    // with its non-decodable placeholder fallback minted to an address
+    // nobody could sign for, which would make every custodial co-sign 409.
+    const targetWallet = userWallet || getServerWallet().publicKey.toBase58();
     const isPendingWallet = !userWallet;
 
     if (isPendingWallet) {
       console.log('📧 Guest user detected - using platform custodial wallet');
-      console.log('   Email:', userEmail);
+      console.log('   Email:', JSON.stringify(String(userEmail)));
       console.log('   NFT will be held until user connects wallet');
     }
 
