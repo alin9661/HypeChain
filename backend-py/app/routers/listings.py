@@ -64,9 +64,14 @@ async def create_listing(body: CreateListingRequest):
     if body.image_gen_model_id and not is_valid_image_gen_model(body.image_gen_model_id):
         return _bad_request(f"Invalid image generation model ID: {body.image_gen_model_id}")
 
-    platform_wallet = settings.platform_custodial_wallet
-    target_wallet = body.user_wallet or platform_wallet
     is_pending = body.user_wallet is None
+    # E5: the custodial identity is the REAL server keypair's pubkey, derived at
+    # runtime — NOT a hardcoded placeholder. For guest listings the mint target,
+    # the on-chain seller, and the persisted seller_wallet must all equal this
+    # one key the backend can sign for. Resolve it only for the guest path so a
+    # user-wallet listing never requires the server key to be present.
+    custodial_wallet = str(solana.get_platform_custodial_pubkey()) if is_pending else None
+    target_wallet = body.user_wallet or custodial_wallet
 
     try:
         # ---- Step 1: AI verification ----
@@ -170,7 +175,11 @@ async def create_listing(body: CreateListingRequest):
                     conn,
                     {
                         "nft_mint_address": nft_mint_address,
-                        "seller_wallet": body.user_wallet,
+                        # E5: guest listings record the custodial server pubkey as
+                        # the seller_wallet (a valid, signable, on-curve key) so the
+                        # custodial on-chain branch and payment seller-binding both
+                        # resolve. User listings record the user's own wallet.
+                        "seller_wallet": body.user_wallet or custodial_wallet,
                         "seller_user_id": seller_user_id,
                         "product_name": product_name,
                         "description": description,

@@ -48,7 +48,12 @@ class Settings(BaseSettings):
     hacknyu_server_wallet_private_key: str | None = None
     hacknyu_marketplace_program_id: str | None = None
     hacknyu_case_prefix: str = "HC-2026-"
-    platform_custodial_wallet: str = "HypeChainPlatformWallet1111111111111111111111111"
+    # NOTE: the platform custodial wallet is NOT configured by a string here. It
+    # is derived at runtime from the server keypair via
+    # ``app.services.solana.get_platform_custodial_pubkey()`` so the mint target,
+    # the on-chain seller, and the persisted seller_wallet are ONE real keypair
+    # the backend can actually sign for (E5). The old vanity placeholder was not
+    # a decodable pubkey and broke the custodial purchase flow.
     # cNFT vars — DEPRECATED (compressed-NFT path dropped); kept for env compatibility.
     hacknyu_das_rpc_url: str | None = None
     hacknyu_merkle_tree_address: str | None = None
