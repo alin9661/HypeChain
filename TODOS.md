@@ -76,14 +76,6 @@ Mandatory before mainnet.
 **Found:** v0.3.0.0 coverage audit
 PDA helpers, instruction builders, Borsh decoders. Highest-value test target: `decodeEvidenceListing` round-trip against a fixture.
 
-## Frontend test infra
-
-### Pre-existing test failures in `nft-card.test.tsx`
-**Priority:** P3
-**File:** `frontend/__tests__/nft-card.test.tsx:42,80`
-**Found:** v0.3.0.0 /ship test run
-Uses `screen.getByAlt` (doesn't exist; should be `getByAltText`). Pre-existing, unrelated to Solana work.
-
 ## Backend (FastAPI / backend-py)
 
 ### Payment verification not bound to a Solana Pay reference pubkey
@@ -108,4 +100,12 @@ solders attribute paths) before relying on the end-to-end mint/verify on mainnet
 
 ## Completed
 
-(none yet for v0.3.0.0)
+### Pre-existing test failures in `nft-card.test.tsx`
+**Priority:** P3
+**File:** `frontend/__tests__/nft-card.test.tsx:42,80`
+**Found:** v0.3.0.0 /ship test run
+Used `screen.getByAlt` (doesn't exist; should be `getByAltText`) plus a stale
+`0.5 SOL` assertion (card renders USDC). Fixed alongside a full frontend suite
+repair (setup.ts window guard, jest setup-file exclusion) — 5 suites / 59
+tests green.
+**Completed:** v0.4.1.0 (2026-06-11)
