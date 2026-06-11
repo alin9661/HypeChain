@@ -29,7 +29,8 @@ export function PrivyProviderWrapper({ children }: { children: ReactNode }) {
         },
       },
       embeddedWallets: {
-        createOnLogin: 'off',
+        ethereum: { createOnLogin: 'off' },
+        solana: { createOnLogin: 'off' },
       },
       loginMethods: ['wallet'],
     }),
