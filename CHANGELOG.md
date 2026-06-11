@@ -39,6 +39,9 @@ All notable changes to HypeChain are recorded here. Format follows
   and 27 tests added covering the theme provider (including executing the
   pre-paint script), the Privy provider config, and the header toggle —
   5 suites / 59 tests, all green.
+- `@solana/spl-token` is now declared in `frontend/package.json` instead of
+  relying on another package hoisting it — installs no longer break when the
+  dependency tree shifts.
 
 ## [0.4.0.0] - 2026-06-04
 

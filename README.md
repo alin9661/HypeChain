@@ -77,6 +77,10 @@ MARKETPLACE_PROGRAM_ID=your_program_id
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:3001
+
+# Privy wallet auth — required in production builds (the app throws at
+# startup without it); local dev/test fall back to a placeholder.
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
 ```
 
 ### 3. Deploy Smart Contract
