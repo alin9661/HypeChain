@@ -326,9 +326,11 @@ pub struct ListEvidence<'info> {
     pub dossier: Account<'info, Dossier>,
 
     /// CHECK: alias for `dossier.authority` to satisfy `has_one`. Tied
-    /// to the seller signer via the constraint above; no extra checks
-    /// needed here.
-    #[account(address = seller.key())]
+    /// to the seller signer via the constraint below; no extra checks
+    /// needed here. (`constraint =` rather than `address =`: anchor 0.30
+    /// IDL generation const-evaluates `address` expressions outside the
+    /// accounts scope, so account-referencing exprs fail to compile.)
+    #[account(constraint = authority.key() == seller.key() @ MarketplaceError::DossierAuthorityMismatch)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(

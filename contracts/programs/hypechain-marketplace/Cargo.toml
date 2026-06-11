@@ -1,12 +1,22 @@
 [package]
-name = "hypechain-marketplace"
+name = "hypechain-evidence-locker"
 version = "0.1.0"
-description = "HypeChain NFT Marketplace Smart Contract"
+description = "HypeChain Evidence Locker Smart Contract"
 edition = "2021"
+# Solana 1.18.17 platform-tools (anchor 0.30.1's paired toolchain) bundle
+# cargo/rustc 1.75 — the lockfile must resolve to crates that old toolchain
+# can parse and compile. Regenerate with:
+#   CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo generate-lockfile
+# then keep the lockfile's `version = 3` header (cargo 1.75 can't read v4).
+rust-version = "1.75"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "hypechain_marketplace"
+# MUST match the `#[program] pub mod hypechain_evidence_locker` in src/lib.rs and
+# the `[programs.*]` key in Anchor.toml so the generated IDL, the TS types
+# (target/types/hypechain_evidence_locker), the deployed .so, and the program
+# keypair all share ONE name. A mismatch generates the IDL under the wrong key.
+name = "hypechain_evidence_locker"
 
 [features]
 no-entrypoint = []
