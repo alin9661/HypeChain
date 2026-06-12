@@ -116,7 +116,7 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it before changing any visual element.
 
 - **Aesthetic:** Verified Yellow + Evidence Chrome ("Notarized Cypherpunk"). The memorable thing: *"It looks like a financial terminal, not a JPEG mall."*
-- **Accent:** evidence-locker brass `#D4A82C` (retoned from caution-yellow `#FFC700` on 2026-05-18 — see Decisions Log in `DESIGN.md`).
+- **Accent:** evidence-locker brass `#EBC658` (retoned from caution-yellow `#FFC700` via `#D4A82C`, brightened 2026-05-19 — see Decisions Log in `DESIGN.md`).
 - **Typography:** Sentient italic display, Geist body, Geist Mono UPPERCASE for UI/labels/data with `tabular-nums`.
 - **Signature primitives:** Case-File Ribbon, Redacted Field (`<RedactedField>`), Mint Certificate. Marketing surfaces (`/`, `/waitlist`, `/sold`) intentionally omit the ribbon.
 
@@ -134,10 +134,10 @@ All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it be
 
 ### Testing
 - **Jest** with React Testing Library
-- Unit tests for API client
-- Component tests for NFTCard
+- Unit tests for API client and landing scrub-math helpers
+- Component tests for NFTCard, the theme provider (including the pre-paint init script), and the Privy provider config
 - Mock setup for Next.js environment
-- 15+ passing test cases
+- 5 suites / 59 passing tests
 
 ## Tech Stack
 
@@ -147,7 +147,7 @@ All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it be
 - **Components**: Radix UI, Lucide Icons
 - **Forms**: react-hook-form, zod
 - **Testing**: Jest, React Testing Library
-- **Theme**: next-themes
+- **Theme**: first-party provider (`components/theme-provider.tsx`), dark by default
 - **Date**: date-fns
 - **State**: React Context API
 
@@ -223,7 +223,7 @@ frontend/
 │   ├── nft-grid.tsx                # NFT grid layout
 │   ├── floating-chat-button.tsx    # Embedded chat affordance
 │   ├── chat-overlay.tsx            # Chat overlay panel
-│   ├── theme-provider.tsx          # Theme context
+│   ├── theme-provider.tsx          # First-party theme provider (dark default, pre-paint script, useTheme/resolvedTheme)
 │   ├── toast.tsx                   # Toast notifications
 │   ├── error-boundary.tsx          # Error handling
 │   ├── landing/                    # Landing-page scroll-story sections
@@ -256,6 +256,8 @@ frontend/
 │   ├── setup.ts                   # Jest configuration
 │   ├── api-client.test.ts         # API client tests
 │   ├── nft-card.test.tsx          # Component tests
+│   ├── theme-provider.test.tsx    # Theme provider + header toggle (init script, resolvedTheme, cross-tab sync)
+│   ├── privy-provider-wrapper.test.tsx # Privy config memoization + production appId guard
 │   └── landing-section-data.test.ts # Pure scrub-math helpers (clamp01, progressToStep, subProgress)
 │
 ├── jest.config.js                 # Jest setup
@@ -426,9 +428,12 @@ bun test api-client.test.ts
 
 ### Test Coverage
 
-Current test coverage:
+Current test coverage (5 suites / 59 tests):
 - API Client (healthCheck, createListing, validation)
 - NFTCard component (rendering, interactions, IPFS links)
+- Theme provider (pre-paint init script execution, `resolvedTheme`, system-preference tracking, cross-tab sync) and the header theme toggle
+- Privy provider (config identity across re-renders, per-chain embedded-wallet shape, production app-ID guard)
+- Landing scrub-math helpers (clamp01, progressToStep, subProgress)
 - Mock setup for Next.js environment
 
 More tests in `__tests__/` directory.
@@ -440,6 +445,7 @@ More tests in `__tests__/` directory.
 | `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:3001` |
 | `NEXT_PUBLIC_WS_URL` | WebSocket server URL | `ws://localhost:3001/ws` |
 | `NEXT_PUBLIC_SOLANA_NETWORK` | Solana network (devnet/mainnet-beta) | `devnet` |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID for wallet auth. **Required in production** — production builds throw at startup if unset. | dev/test placeholder |
 
 ## Browser Support
 
@@ -481,9 +487,9 @@ bun dev
 
 ### Complete Guides
 
-1. **[FRONTEND_INTEGRATION_SUMMARY.md](../FRONTEND_INTEGRATION_SUMMARY.md)** - Comprehensive integration documentation
-2. **[DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md)** - Full deployment instructions
-3. **[DEMO_INSTRUCTIONS.md](../DEMO_INSTRUCTIONS.md)** - Demo walkthrough and scripts
+1. **[FRONTEND_INTEGRATION_SUMMARY.md](../docs/implementation/FRONTEND_INTEGRATION_SUMMARY.md)** - Comprehensive integration documentation
+2. **[DEPLOYMENT_GUIDE.md](../docs/guides/DEPLOYMENT_GUIDE.md)** - Full deployment instructions
+3. **[DEMO_INSTRUCTIONS.md](../docs/guides/DEMO_INSTRUCTIONS.md)** - Demo walkthrough and scripts
 4. **[API Documentation](http://localhost:3000/api-docs)** - Interactive API docs (when running)
 
 ### Key Features
@@ -534,7 +540,7 @@ To demo the application:
 6. Watch the AI verification process
 7. View your NFT in the marketplace!
 
-See [DEMO_INSTRUCTIONS.md](../DEMO_INSTRUCTIONS.md) for detailed demo script.
+See [DEMO_INSTRUCTIONS.md](../docs/guides/DEMO_INSTRUCTIONS.md) for detailed demo script.
 
 ## Support
 

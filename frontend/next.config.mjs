@@ -6,6 +6,13 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // @react-three/fiber 9.x ships no `exports` map (only main/module), the
+  // classic dual-package hazard: Turbopack can instantiate the package twice
+  // (ESM + CJS interop), so <Canvas> writes the R3F store into one copy while
+  // drei's useThree/useFBO read the other → "R3F: Hooks can only be used
+  // within the Canvas component!" in dev. Transpiling forces one resolution
+  // path through Next for all three packages.
+  transpilePackages: ['three', '@react-three/fiber', '@react-three/drei'],
   webpack: (config, { isServer }) => {
     // Privy pulls these Solana packages in server-side; keep them out of the
     // server bundle so Node.js's CommonJS loader resolves them at runtime.
@@ -22,7 +29,12 @@ const nextConfig = {
     return config;
   },
   turbopack: {
-    // Empty config to acknowledge Turbopack awareness
+    // Pin every importer of fiber (the app, drei, its-fine) to the single ESM
+    // build so Turbopack cannot create a second module instance — see the
+    // transpilePackages comment above for the failure mode this prevents.
+    resolveAlias: {
+      '@react-three/fiber': '@react-three/fiber/dist/react-three-fiber.esm.js',
+    },
   },
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { ThemeProvider } from 'next-themes'
+import { ThemeProvider } from '@/components/theme-provider'
 import { AppProvider } from '@/contexts/AppContext'
 import { ToastContainer } from '@/components/toast'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -41,9 +41,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // Dark baked into the SSR HTML so the terminal aesthetic doesn't depend on
+    // JS executing (no-JS, blocked inline script). The pre-paint theme script
+    // only flips classes for users who chose light / system-light;
+    // suppressHydrationWarning covers that mismatch.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className="dark"
+      style={{ colorScheme: 'dark' }}
+    >
       <body className={`font-sans antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <ThemeProvider>
           <PrivyProviderWrapper>
             <ErrorBoundary>
               <AppProvider>

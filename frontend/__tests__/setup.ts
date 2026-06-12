@@ -35,11 +35,16 @@ jest.mock('next/navigation', () => ({
   useSearchParams() {
     return new URLSearchParams();
   },
+  // No-op in jsdom: the real hook only emits during SSR streaming. Exposed as
+  // a jest.fn so suites can grab the inserted-HTML callback and test it.
+  useServerInsertedHTML: jest.fn(),
 }));
 
 // Mock window.matchMedia — guarded so suites that opt into the node
-// environment (e.g. web3.js transaction serialization tests, where jsdom's
-// Uint8Array realm breaks Buffer instanceof checks) can share this setup.
+// environment can still run this shared setup file without crashing —
+// e.g. landing-section-data.test.ts (DOM-free by design) and the web3.js
+// transaction serialization tests (jsdom's Uint8Array realm breaks Buffer
+// instanceof checks).
 if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

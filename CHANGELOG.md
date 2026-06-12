@@ -3,6 +3,46 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1.0] - 2026-06-11
+
+### Fixed
+
+- Landing page no longer crashes with "R3F: Hooks can only be used within the
+  Canvas component" — the WebGL hero now loads client-only, where WebGL
+  actually runs.
+- Connecting a wallet no longer re-initializes WalletConnect on every
+  re-render ("Init() was called 2 times"), which could drop or duplicate
+  wallet sessions.
+- The console error "Encountered a script tag while rendering React
+  component" is gone on every page: the unmaintained next-themes package was
+  replaced with a built-in theme provider that applies your saved theme
+  before first paint without tripping React 19.
+- Embedded-wallet creation is now correctly declared off for both Ethereum
+  and Solana (the previous setting was silently ignored by the Privy SDK).
+- The light/dark toggle in the header now reflects what is actually on
+  screen for "System" users — the first click changes the theme instead of
+  doing nothing visible.
+
+### Changed
+
+- Dark is now the default appearance, including before any scripts run —
+  matching the financial-terminal design. Light and System remain selectable
+  in Settings, sync across tabs, and survive another tab clearing storage.
+- A WebGL or network failure in the landing hero now degrades to the plain
+  black background instead of replacing the whole page with an error screen.
+- Production builds now fail fast with a clear message when the Privy app ID
+  is missing, instead of silently booting an app where no one can sign in.
+
+### Infrastructure
+
+- Frontend test suite repaired and expanded: 3 previously-broken suites fixed
+  and 27 tests added covering the theme provider (including executing the
+  pre-paint script), the Privy provider config, and the header toggle —
+  5 suites / 59 tests, all green.
+- `@solana/spl-token` is now declared in `frontend/package.json` instead of
+  relying on another package hoisting it — installs no longer break when the
+  dependency tree shifts.
+
 ## [0.4.0.0] - 2026-06-04
 
 ### Added

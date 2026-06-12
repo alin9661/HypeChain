@@ -257,8 +257,10 @@ class ApiClient {
   private defaultHeaders: HeadersInit;
 
   constructor() {
-    // Use environment variable with fallback
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Use environment variable with fallback. Strip trailing slashes so a
+    // configured "https://host/" + "/api/..." doesn't become "host//api/...".
+    this.baseURL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
+      .replace(/\/+$/, '');
     this.defaultHeaders = {
       'Content-Type': 'application/json',
     };
@@ -301,7 +303,12 @@ class ApiClient {
         data,
       };
     } catch (error) {
-      console.error('API request failed for endpoint:', endpoint, error);
+      // Network-level failure (backend down/unreachable). console.warn, not
+      // console.error: callers receive the structured failure and decide how
+      // to surface it — and Next's dev overlay turns every console.error into
+      // a full-screen Console Error for what is often just a dev server
+      // running without a backend.
+      console.warn('API request failed for endpoint:', endpoint, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -400,7 +407,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error('API request failed for url:', url, error);
+      console.warn('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -437,7 +444,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error('API request failed for url:', url, error);
+      console.warn('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -567,7 +574,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error('API request failed for url:', url, error);
+      console.warn('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
