@@ -18,7 +18,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("7Mjjnp85c2gKQUKY6YjG6X91D59LUv8sE7YfDFvshDjN");
 
 /// Minimum AI confidence (in basis points) required to flip a listing
 /// from `Pending` to `Verified`. 5_000 bps = 50 %. Exposed via the IDL
@@ -326,9 +326,11 @@ pub struct ListEvidence<'info> {
     pub dossier: Account<'info, Dossier>,
 
     /// CHECK: alias for `dossier.authority` to satisfy `has_one`. Tied
-    /// to the seller signer via the constraint above; no extra checks
-    /// needed here.
-    #[account(address = seller.key())]
+    /// to the seller signer via the constraint below; no extra checks
+    /// needed here. (`constraint =` rather than `address =`: anchor 0.30
+    /// IDL generation const-evaluates `address` expressions outside the
+    /// accounts scope, so account-referencing exprs fail to compile.)
+    #[account(constraint = authority.key() == seller.key() @ MarketplaceError::DossierAuthorityMismatch)]
     pub authority: UncheckedAccount<'info>,
 
     #[account(

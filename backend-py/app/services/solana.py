@@ -111,6 +111,7 @@ class SolanaRpc:
 
 _rpc: SolanaRpc | None = None
 _server_wallet: Keypair | None = None
+_platform_custodial_pubkey: Pubkey | None = None
 
 
 def get_rpc() -> SolanaRpc:
@@ -138,6 +139,21 @@ def get_server_wallet() -> Keypair:
     except Exception as exc:  # noqa: BLE001 — match JS broad catch on bad key
         raise SolanaError("Invalid HACKNYU_SERVER_WALLET_PRIVATE_KEY format") from exc
     return _server_wallet
+
+
+def get_platform_custodial_pubkey() -> Pubkey:
+    """The ONE custodial identity: the real server keypair's pubkey (E5).
+
+    Guest/custodial listings mint to, list on-chain as, and persist this pubkey
+    as their ``seller_wallet`` — so the custodial seller is a key the backend can
+    actually sign for (unlike the retired non-decodable vanity placeholder).
+    Derived from ``get_server_wallet()`` and cached; resolving it is therefore
+    gated on ``HACKNYU_SERVER_WALLET_PRIVATE_KEY`` being set (fails loud if not).
+    """
+    global _platform_custodial_pubkey
+    if _platform_custodial_pubkey is None:
+        _platform_custodial_pubkey = get_server_wallet().pubkey()
+    return _platform_custodial_pubkey
 
 
 # ──────────────────────────────────────────────────────────────────────────────

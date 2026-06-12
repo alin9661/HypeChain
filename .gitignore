@@ -67,4 +67,8 @@ yarn-error.log*
 !backend-py/deploy/**
 *.so
 Cargo.lock
+# The Evidence Locker program's lockfile is load-bearing: it pins crate
+# versions compatible with the Solana 1.18.17 SBF toolchain (cargo 1.75).
+# See the comment in that Cargo.toml before regenerating.
+!contracts/programs/hypechain-marketplace/Cargo.lock
 .gstack/
