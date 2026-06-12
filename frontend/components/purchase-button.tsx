@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { usePrivy } from '@privy-io/react-auth';
 import { apiClient } from '@/lib/api-client';
-import { buildPurchaseEvidenceIx } from '@/lib/anchor-client';
+import {
+  assertCosignedInstructions,
+  assertPriceMatches,
+  deserializeCosignedTx,
+} from '@/lib/purchase-helpers';
 import { toast } from 'sonner';
 
 /**
@@ -51,9 +54,11 @@ export function PurchaseButton({
   const getSolanaWallet = () => {
     if (!user) return null;
 
-    // Find Solana wallet from Privy user
+    // Find Solana wallet from Privy user. Type-guard predicate so the find
+    // result narrows to the wallet member of the LinkedAccount union.
     const solanaWallet = user.linkedAccounts.find(
-      (account) => account.type === 'wallet' && account.chainType === 'solana'
+      (account): account is Extract<typeof account, { address: string }> =>
+        account.type === 'wallet' && account.chainType === 'solana'
     );
 
     return solanaWallet?.address || null;
@@ -102,40 +107,61 @@ export function PurchaseButton({
       const recipientPublicKey = new PublicKey(paymentRequest.recipient);
       const amountLamports = Math.floor(paymentRequest.amount * LAMPORTS_PER_SOL);
 
-      // Anchor path is feature-flagged — requires the backend to have
-      // submitted a `VerificationProof` and opened an `EvidenceListing`
-      // PDA. The seller must also co-sign (custodial: backend does;
-      // user-wallet: out-of-band). When the flag is off, we fall back to
-      // the SOL-only `SystemProgram.transfer` that has shipped to date.
-      const transaction = new Transaction();
+      // Anchor path is feature-flagged. `purchase_evidence` needs BOTH the
+      // buyer and seller to sign; for custodial (guest) listings the backend
+      // co-sign endpoint builds the full transaction and partial-signs as
+      // seller — we verify price + fee payer, then the buyer signs on top.
+      // Non-custodial / never-anchored listings (SELLER_NOT_CUSTODIAL,
+      // LISTING_NOT_ON_CHAIN) fall back to the legacy SOL-only transfer.
+      let transaction: Transaction | null = null;
+      let confirmStrategy: { blockhash: string; lastValidBlockHeight: number } | null = null;
+
       if (USE_ANCHOR_PURCHASE && paymentRequest.nftMintAddress) {
-        const nftMint = new PublicKey(paymentRequest.nftMintAddress);
-        const sellerPublicKey = new PublicKey(sellerWallet);
-        const sellerAta = getAssociatedTokenAddressSync(nftMint, sellerPublicKey);
-        const buyerAta = getAssociatedTokenAddressSync(nftMint, buyerPublicKey);
-        transaction.add(
-          buildPurchaseEvidenceIx({
-            buyer: buyerPublicKey,
-            seller: sellerPublicKey,
-            nftMint,
-            sellerTokenAccount: sellerAta,
-            buyerTokenAccount: buyerAta,
-          })
-        );
-      } else {
-        transaction.add(
+        setStatus('Requesting platform co-signature...');
+        const cosign = await apiClient.cosignPurchase({ listingId, buyerWallet });
+
+        if (cosign.success && cosign.data) {
+          // The price shown to the user must equal what the chain charges.
+          assertPriceMatches(paymentRequest.amount, cosign.data.priceLamports);
+          transaction = deserializeCosignedTx(cosign.data.transaction, buyerPublicKey);
+          // Never sign unverified bytes: every instruction must be one the
+          // co-sign endpoint legitimately builds (allowlisted programs, one
+          // purchase_evidence at the agreed price, no stray transfers).
+          assertCosignedInstructions(transaction, buyerPublicKey, cosign.data.priceLamports);
+          confirmStrategy = {
+            blockhash: cosign.data.blockhash,
+            lastValidBlockHeight: cosign.data.lastValidBlockHeight,
+          };
+        } else if (
+          cosign.code === 'SELLER_NOT_CUSTODIAL' ||
+          cosign.code === 'LISTING_NOT_ON_CHAIN'
+        ) {
+          // Explicitly non-custodial / never-anchored listing — the legacy
+          // SOL-only transfer below is the correct path.
+        } else if (!cosign.code && cosign.status === 404) {
+          // Code-less 404 means the co-sign endpoint itself is missing
+          // (misdeployed write service). Falling back to the legacy transfer
+          // here would charge the buyer WITHOUT delivering the NFT on
+          // custodial listings — hard-fail instead (red-team finding).
+          throw new Error('Purchase service unavailable — please try again shortly.');
+        } else {
+          throw new Error(cosign.error || 'Failed to obtain platform co-signature');
+        }
+      }
+
+      if (!transaction) {
+        transaction = new Transaction().add(
           SystemProgram.transfer({
             fromPubkey: buyerPublicKey,
             toPubkey: recipientPublicKey,
             lamports: amountLamports,
           })
         );
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = buyerPublicKey;
+        confirmStrategy = { blockhash, lastValidBlockHeight };
       }
-
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = buyerPublicKey;
 
       setStatus('Awaiting wallet approval...');
 
@@ -160,8 +186,14 @@ export function PurchaseButton({
 
       setStatus('Confirming transaction...');
 
-      // Wait for confirmation
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+      // Wait for confirmation — the blockhash strategy surfaces expiry
+      // (block height exceeded) instead of hanging. On expiry the user can
+      // simply retry: the co-sign endpoint is stateless and re-issues
+      // against a fresh blockhash.
+      const confirmation = await connection.confirmTransaction(
+        { signature, ...confirmStrategy! },
+        'confirmed'
+      );
 
       if (confirmation.value.err) {
         throw new Error('Transaction failed on blockchain');
@@ -181,8 +213,8 @@ export function PurchaseButton({
         throw new Error(verifyResponse.error || 'Failed to verify payment');
       }
 
-      // Success!
-      toast.success(`🎉 Successfully purchased ${productName}!`, {
+      // Success — terminal voice, no confetti.
+      toast.success(`PURCHASE CONFIRMED — ${productName}`, {
         description: `Transaction: ${signature.substring(0, 8)}...${signature.substring(signature.length - 8)}`,
         duration: 5000,
       });
@@ -192,7 +224,14 @@ export function PurchaseButton({
     } catch (error: any) {
       console.error('Purchase error:', error);
 
-      const errorMessage = error?.message || 'Purchase failed. Please try again.';
+      // Blockhash expiry is the one designed-for retryable failure: surface
+      // a plain retry hint instead of web3.js's signature-embedding message.
+      const isExpiry =
+        error?.name === 'TransactionExpiredBlockheightExceededError' ||
+        /block height exceeded/i.test(error?.message || '');
+      const errorMessage = isExpiry
+        ? 'Transaction expired before confirmation — please retry the purchase.'
+        : error?.message || 'Purchase failed. Please try again.';
       toast.error('Purchase Failed', {
         description: errorMessage,
         duration: 5000,
@@ -213,53 +252,33 @@ export function PurchaseButton({
         onClick={handlePurchase}
         disabled={isDisabled}
         className={`
-          w-full px-6 py-3 rounded-md font-mono uppercase font-bold
+          w-full px-6 py-3 rounded font-mono uppercase font-bold
           transition-all duration-200
           ${
             isDisabled
-              ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
-              : 'bg-[#D4A82C] text-black hover:bg-[#D4A82C] hover:scale-105 active:scale-95'
+              ? 'bg-[var(--hc-surface-2)] text-[var(--hc-text-muted)] cursor-not-allowed'
+              : 'bg-[var(--hc-accent)] text-black hover:bg-[var(--hc-accent-deep)] hover:scale-[1.02] active:scale-[0.98]'
           }
           ${className}
         `}
       >
         {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg
-              className="animate-spin h-5 w-5"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
+          <span className="font-mono uppercase tracking-widest animate-pulse">
             {status || 'Processing...'}
           </span>
         ) : (
-          `Buy for ${price} USDC`
+          `Buy for ${price} SOL`
         )}
       </button>
 
       {!authenticated && (
-        <p className="text-sm text-gray-400 text-center font-mono">
+        <p className="text-sm text-[var(--hc-text-muted)] text-center font-mono">
           Connect your wallet to purchase
         </p>
       )}
 
       {loading && status && (
-        <p className="text-sm text-[#D4A82C] text-center font-mono animate-pulse">
+        <p className="text-sm text-[var(--hc-accent)] text-center font-mono animate-pulse">
           {status}
         </p>
       )}

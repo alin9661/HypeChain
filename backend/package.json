@@ -9,7 +9,7 @@
     "start": "node src/dev.js",
     "build": "tsc",
     "lint": "eslint src/**/*.{js,ts}",
-    "test": "jest",
+    "test": "bun test",
     "setup-tree": "node scripts/setup-merkle-tree.js"
   },
   "keywords": [

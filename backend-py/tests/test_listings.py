@@ -9,22 +9,13 @@ from __future__ import annotations
 
 import types
 
-import base58
 import pytest
-from solders.keypair import Keypair
 
 import app.db.pool as pool_module
 import app.db.queries as queries
 import app.routers.listings as listings_mod
 import app.services.openrouter as openrouter
 import app.services.solana as solana
-
-# A known server keypair so guest/custodial listings have a real, decodable
-# custodial pubkey (E5). ``str(...)`` is the base58 the platform custodial wallet
-# must resolve to for guest mints + the persisted seller_wallet.
-_SERVER_KP = Keypair()
-_SERVER_SECRET_B58 = base58.b58encode(bytes(_SERVER_KP)).decode()
-SERVER_PUBKEY = str(_SERVER_KP.pubkey())
 
 VALID_VR = {
     "product_identification": {
@@ -60,13 +51,6 @@ def happy_pipeline(monkeypatch):
     monkeypatch.setattr(listings_mod, "is_valid_solana_pubkey", lambda v: True)
     monkeypatch.setattr(
         listings_mod, "validate_base64_image", lambda v: types.SimpleNamespace(valid=True, error=None)
-    )
-    # Inject a real server keypair so the platform custodial pubkey resolves to a
-    # real, decodable wallet (E5) for guest listings.
-    monkeypatch.setattr(solana, "_server_wallet", _SERVER_KP)
-    monkeypatch.setattr(solana, "_platform_custodial_pubkey", None, raising=False)
-    monkeypatch.setattr(
-        solana.get_settings(), "hacknyu_server_wallet_private_key", _SERVER_SECRET_B58
     )
 
     async def fake_verify(image):
@@ -119,53 +103,29 @@ async def test_happy_path_with_wallet(client, happy_pipeline):
     assert body["verification"]["liveness_score"] == 87
 
 
-async def test_guest_flow_pending_wallet(client, happy_pipeline):
+async def test_wallet_listing_persists_seller_wallet(client, happy_pipeline):
+    """Every listing belongs to a real user wallet — the persisted seller_wallet
+    is the user's wallet (never NULL, never the custodial server key) and all
+    guest/pending fields are off."""
     resp = await client.post(
         "/api/create-listing",
-        json={"userEmail": "a@b.com", "productImage": "data:image/png;base64,AAAA"},
+        json={"userWallet": "Wallet111", "productImage": "data:image/png;base64,AAAA"},
     )
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "pending_wallet"
-    assert body["is_pending_claim"] is True
-
-
-async def test_guest_mints_to_server_wallet(client, happy_pipeline):
-    """E5(a): a guest (no wallet) listing mints to the real server-wallet pubkey,
-    NOT to a non-decodable placeholder."""
-    resp = await client.post(
-        "/api/create-listing",
-        json={"userEmail": "a@b.com", "productImage": "data:image/png;base64,AAAA"},
-    )
-    assert resp.status_code == 200
-    # Exactly one mint, targeting the server custodial pubkey.
-    assert happy_pipeline.mint_targets == [SERVER_PUBKEY]
-
-
-async def test_guest_records_server_wallet_as_seller(client, happy_pipeline):
-    """E5(a): the persisted listing records the server-wallet pubkey as both the
-    custodial seller_wallet and platform_wallet so the on-chain custodial branch
-    and the payment seller-binding (payment.py:63) both resolve."""
-    resp = await client.post(
-        "/api/create-listing",
-        json={"userEmail": "a@b.com", "productImage": "data:image/png;base64,AAAA"},
-    )
-    assert resp.status_code == 200
+    assert happy_pipeline.mint_targets == ["Wallet111"]
     inserted = happy_pipeline.inserted
-    assert inserted["seller_wallet"] == SERVER_PUBKEY
-    assert inserted["platform_wallet"] == SERVER_PUBKEY
-    assert inserted["is_pending_claim"] is True
-    # The recorded custodial seller must be a valid (decodable, on-curve) pubkey.
-    from app.utils.solana_validation import is_valid_solana_pubkey
-
-    assert is_valid_solana_pubkey(inserted["seller_wallet"])
+    assert inserted["seller_wallet"] == "Wallet111"
+    assert inserted["status"] == "active"
+    assert inserted["is_pending_claim"] is False
+    assert inserted["platform_wallet"] is None
+    assert inserted["guest_email"] is None
 
 
-async def test_guest_custodial_onchain_branch_fires(client, happy_pipeline, monkeypatch):
-    """E5(b): with a program id set, the guest listing reaches the CUSTODIAL
-    on-chain listing branch (seller == server wallet), not the user-signature
-    branch. We capture the seller passed to list_item_on_marketplace and assert
-    it equals the server custodial pubkey."""
+async def test_onchain_listing_uses_user_wallet_as_seller(client, happy_pipeline, monkeypatch):
+    """With a program id set, the on-chain listing branch sees the USER wallet
+    as the seller. (The custodial list_item_on_marketplace flow with
+    seller == server wallet remains a service-level capability for the buy-side
+    rescue path — covered in test_solana.py — but create-listing never uses it.)"""
     monkeypatch.setattr(
         listings_mod.get_settings(), "hacknyu_marketplace_program_id", "PROG", raising=False
     )
@@ -175,21 +135,44 @@ async def test_guest_custodial_onchain_branch_fires(client, happy_pipeline, monk
 
     def fake_list(nft_mint, price, seller):
         seen["seller"] = seller
-        return {"mode": "custodial_listed"}
+        return {"mode": "user_listed"}
 
     monkeypatch.setattr(solana, "list_item_on_marketplace", fake_list)
     resp = await client.post(
         "/api/create-listing",
-        json={"userEmail": "a@b.com", "productImage": "data:image/png;base64,AAAA"},
+        json={"userWallet": "Wallet111", "productImage": "data:image/png;base64,AAAA"},
     )
     assert resp.status_code == 200
-    assert seen["seller"] == SERVER_PUBKEY
+    assert seen["seller"] == "Wallet111"
 
 
-async def test_no_wallet_no_email_400(client):
+async def test_missing_wallet_400_account_required(client):
     resp = await client.post("/api/create-listing", json={"productImage": "x"})
     assert resp.status_code == 400
-    assert "wallet" in resp.json()["error"].lower()
+    body = resp.json()
+    assert body["success"] is False
+    assert body["code"] == "ACCOUNT_REQUIRED"
+    assert body["error"] == "An account with a wallet is required to create a listing"
+
+
+async def test_empty_wallet_400_account_required(client):
+    resp = await client.post(
+        "/api/create-listing", json={"userWallet": "", "productImage": "x"}
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "ACCOUNT_REQUIRED"
+
+
+async def test_guest_email_only_400_account_required(client, happy_pipeline):
+    """Guests must create an account before listing — email-only intake is
+    rejected up front and never reaches the mint pipeline."""
+    resp = await client.post(
+        "/api/create-listing",
+        json={"userEmail": "a@b.com", "productImage": "data:image/png;base64,AAAA"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "ACCOUNT_REQUIRED"
+    assert happy_pipeline.mint_targets == []
 
 
 async def test_invalid_pubkey_400(client, monkeypatch):

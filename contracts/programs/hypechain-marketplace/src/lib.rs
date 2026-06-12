@@ -18,7 +18,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("7Mjjnp85c2gKQUKY6YjG6X91D59LUv8sE7YfDFvshDjN");
+declare_id!("2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF");
 
 /// Minimum AI confidence (in basis points) required to flip a listing
 /// from `Pending` to `Verified`. 5_000 bps = 50 %. Exposed via the IDL

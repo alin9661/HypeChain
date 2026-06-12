@@ -2,23 +2,41 @@
 
 ## Solana / Evidence Locker
 
-### Anchor purchase flow has no seller co-sign path
-**Priority:** P0
-**File:** `frontend/components/purchase-button.tsx:108-120`, `frontend/lib/anchor-client.ts:303-304`
-**Found:** v0.3.0.0 pre-landing review (gstack /ship 2026-05-27)
-`USE_ANCHOR_PURCHASE` branch marks both buyer and seller as `isSigner: true` but the frontend only collects the buyer's signature. `sendRawTransaction` will fail with "missing signature" the first time the flag is enabled. Mitigation today: feature flag is default-off. Fix: backend endpoint that returns a partially-signed tx with the custodial seller's signature for guest listings, OR escrow refactor so purchase doesn't need the seller live.
+### Server-driven purchase finalization (full reconciler)
+**Priority:** P1
+**Files:** `backend/src/services/cosign-purchase.js`, planned V2 write service
+**Found:** v0.4.x pre-landing review + ACID research (2026-06-11)
+DB finalization of Anchor purchases rides on the buyer's browser calling `verifyPayment`. The land adds idempotent verify + read-repair as outbox-lite, but the real fix is a server-side reconciler (poll/webhook keyed on listingPda) that converges DB rows from chain state. Belongs in the V2 TypeScript write service.
+
+### Rate-limit + authenticate the co-sign endpoint
+**Priority:** P1
+**File:** `backend/src/routes/payment.js` (`POST /api/payments/cosign-purchase`)
+**Found:** v0.4.x pre-landing review (security + red team)
+Unauthenticated callers can drive unlimited custodial signing ops (3 RPC reads each) — an anonymous loop exhausts the shared devnet RPC budget (~40 req/10s/method) and stalls mint/verify/list for everyone. Fix: per-IP + per-listing rate limit; optionally require an existing pending payment record for the buyer.
+
+### create-listing blocking confirms vs API-gateway timeouts
+**Priority:** P1
+**File:** `backend-py/app/services/solana.py:send_transaction`
+**Found:** red team (2026-06-11)
+Confirmed sends are correct (Anchor 3012 fix) but serialize 3-4 devnet confirmations inside one HTTP request; under congestion this exceeds the 29s API-gateway cap, and a retry double-mints (no idempotency key). Fix in V2: respond after mint, anchor verify+list async, or add an idempotency key to create-listing.
+
+### Cluster consistency check (genesis hash)
+**Priority:** P2
+**Files:** `backend/src/services/cosign-purchase.js`, `frontend/components/purchase-button.tsx`
+**Found:** red team (2026-06-11)
+Nothing asserts the frontend and backends point at the same cluster; mismatch fails after wallet approval with "Blockhash not found". Fix: cosign response includes the backend's genesis hash; client compares before the wallet popup.
+
+### Purchase-button Frame primitive + inset-glow hover
+**Priority:** P3
+**File:** `frontend/components/purchase-button.tsx`
+**Found:** design review (2026-06-11)
+Token cleanup landed (accent/disabled/muted/spinner/emoji); remaining DESIGN.md gaps: clip-path `<Frame>` button tier and the signature yellow inset-glow pulse on CTA hover.
 
 ### `marketplaceResult` not persisted to Supabase or returned to client
 **Priority:** P1
 **File:** `backend/src/routes/listing.js:396-414`
 **Found:** v0.3.0.0 pre-landing review
 `listItemOnMarketplace` can return `mode: 'pending_user_signature'`, `custodial_listed`, or `skipped`, but the route only `console.log`s the result. None of the three modes' fields (`listingPda`, `signature`, `priceLamports`) reach Supabase or the API response. Fix: persist `listing_pubkey` + `verification_proof_pubkey` regardless of mode + include mode + listingPda in `successResponse`.
-
-### No client-side price assertion in Anchor purchase branch
-**Priority:** P1
-**File:** `frontend/components/purchase-button.tsx:108-120`
-**Found:** v0.3.0.0 pre-landing review
-Buyer signs whatever `priceLamports` the on-chain listing PDA has; UI displays `paymentRequest.amount` from the backend. If backend and chain disagree, buyer pays the chain price silently. Fix: `fetchEvidenceListing(connection, nftMint)` before signing and assert price matches the displayed amount.
 
 ### `ensureServerDossier` cold-start race
 **Priority:** P1
@@ -108,4 +126,21 @@ solders attribute paths) before relying on the end-to-end mint/verify on mainnet
 
 ## Completed
 
-(none yet for v0.3.0.0)
+### ✅ Anchor purchase flow has no seller co-sign path (was P0)
+**Fixed:** PR2 (2026-06-10). `POST /api/payments/cosign-purchase` on the Express
+write service builds the full transaction server-side and partial-signs as the
+custodial seller (`backend/src/services/cosign-purchase.js`); the purchase
+button requests the co-sign, validates fee payer + price, and the buyer signs
+on top. Non-custodial listings fall back to the legacy transfer path.
+
+### ✅ No client-side price assertion in Anchor purchase branch (was P1)
+**Fixed:** PR2 (2026-06-10). `assertPriceMatches` in
+`frontend/lib/purchase-helpers.ts` aborts before the wallet popup if the
+displayed SOL amount disagrees with the on-chain `priceLamports` returned by
+the co-sign endpoint.
+
+### ✅ Discriminator drift — partial mitigation (was P2, backend half)
+**Mitigated:** PR2 (2026-06-10). `backend/__tests__/cosign-purchase.test.js`
+round-trips `decodeEvidenceListing` against a hand-encoded fixture with the
+pinned `ACCT_LISTING` discriminator and asserts the purchase ix data equals the
+pinned `IX_PURCHASE_EVIDENCE` bytes. Full fix (IDL-generated constants) still open.

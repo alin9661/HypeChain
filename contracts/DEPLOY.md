@@ -119,6 +119,18 @@ After step 6 prints the program ID, propagate it everywhere:
 This is the proof-of-life ritual after every deploy. Walks the full
 Evidence Locker loop and confirms each PDA exists on chain.
 
+**Scripted versions** (no browser needed, both skip-gated on `RUN_DEVNET=1` +
+program ID + funded server key):
+
+```bash
+# Sell side: custodial mint → verify → list (leaves a live Listed listing)
+cd backend-py && RUN_DEVNET=1 uv run pytest tests/test_devnet_smoke.py -v
+
+# Buy side: co-sign → buyer-sign → send; asserts Sold + NFT moved + SOL received.
+# Pass a mint with an existing custodial listing, or omit to set one up.
+cd backend && RUN_DEVNET=1 node scripts/devnet-buy-smoke.js [nftMint]
+```
+
 ```bash
 # Backend
 cd backend && bun dev

@@ -20,7 +20,7 @@ export function getConnection() {
   return new Connection(SOLANA_RPC_URL, 'confirmed');
 }
 
-function getServerWallet() {
+export function getServerWallet() {
   const privateKeyString = process.env.HACKNYU_SERVER_WALLET_PRIVATE_KEY;
   if (!privateKeyString) {
     throw new Error('SERVER_WALLET_PRIVATE_KEY not set in environment');
