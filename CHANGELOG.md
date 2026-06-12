@@ -3,6 +3,72 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0.0] - 2026-06-12
+
+The buy loop is live on-chain. The Evidence Locker program is deployed to
+devnet and the full custodial purchase flow — co-sign, buy, NFT delivered —
+is proven end-to-end and enabled in production.
+
+### Added
+
+- **Evidence Locker program deployed to devnet** under program ID
+  `2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF`. Builds go through
+  `contracts/anchor.sh` (pins the nightly toolchain anchor 0.30.1 needs);
+  `contracts/DEPLOY.md` documents the full deploy + smoke ritual.
+- **Custodial co-sign purchases** — buyers can now complete real on-chain
+  purchases of custodially-held listings. `POST /api/payments/cosign-purchase`
+  builds the entire transaction server-side, validates it against the
+  chain-authoritative listing PDA (status, seller, price, custody), and
+  partial-signs as the custodial seller. The server never signs
+  client-supplied bytes.
+- **The buyer never signs unverified bytes either** — the frontend decodes
+  the co-signed transaction and asserts every instruction is allowlisted,
+  exactly one `purchase_evidence` exists at the displayed price, and no stray
+  transfers ride along; it also aborts before the wallet popup if the shown
+  price disagrees with the on-chain price.
+- Skip-gated devnet smoke tests prove the loop against the real program:
+  sell side (`backend-py/tests/test_devnet_smoke.py`: mint → verify → list)
+  and buy side (`backend/scripts/devnet-buy-smoke.js`: co-sign → buy →
+  Sold, NFT moved, exact lamports received).
+
+### Changed
+
+- **Breaking: creating a listing now requires an account wallet.** Both
+  backends reject `create-listing` without a user wallet (400
+  `ACCOUNT_REQUIRED`), and `seller_wallet` is never NULL. The custodial
+  co-sign flow remains the buy path for existing custodial inventory.
+- Purchase finalization is ACID-aligned with the chain as source of truth:
+  `verifyPayment` is idempotent (an interrupted purchase recovers by retry
+  instead of dying on "signature already used"), the co-sign service
+  read-repairs DB rows the chain already marked Sold, and a
+  `CUSTODIAL_KEY_DRIFT` error hard-fails rather than letting a buyer pay
+  without receiving the NFT when backend signing keys diverge.
+- Misconfigured deploys fail loud everywhere: backend-py refuses to start,
+  the Express service refuses to build instructions, and the frontend build
+  throws when the marketplace program ID is unset or still the Anchor
+  scaffold placeholder.
+- backend-py submits transactions devnet-safely: sends confirm before
+  returning (fixes a race where `list_evidence` ran before the verification
+  account existed), with a 30s RPC timeout and 2s confirmation polling that
+  respects the public devnet rate caps.
+
+### Fixed
+
+- Guest listings no longer persist a NULL `seller_wallet` that broke payment
+  creation for every custodial purchase.
+- A co-sign endpoint outage (code-less 404) aborts the purchase with a clear
+  message instead of silently downgrading to a pay-without-NFT transfer.
+- Purchase button shows the charge currency correctly (SOL, not USDC),
+  surfaces blockhash expiry as a friendly "please retry", and uses the
+  design-system tokens instead of hardcoded colors.
+
+### For contributors
+
+- Production env propagation: 7 Solana variables in Vercel (program IDs, RPC
+  URLs, custodial key, `NEXT_PUBLIC_USE_ANCHOR_PURCHASE=1`).
+- Pre-merge review pipeline (6 specialists + adversarial + red team) fixed 5
+  critical findings before landing; deferred items tracked in TODOS.md.
+
 ## [0.4.1.0] - 2026-06-11
 
 ### Fixed
