@@ -10,7 +10,9 @@ import {
   completePurchase,
   getTransactionHistory,
   getWalletBalance,
-  fetchListing
+  fetchListing,
+  fetchListingRow,
+  markListingSold
 } from '../services/payment.js';
 import { getConnection, getServerWallet } from '../services/solana.js';
 import { buildCosignedPurchaseTx, CosignError } from '../services/cosign-purchase.js';
@@ -27,6 +29,7 @@ export function createCosignPurchaseHandler({
   getConnectionFn = getConnection,
   getServerWalletFn = getServerWallet,
   buildTxFn = buildCosignedPurchaseTx,
+  markListingSoldFn = markListingSold,
 } = {}) {
   return async (req, res) => {
     const { listingId, buyerWallet } = req.body || {};
@@ -56,6 +59,7 @@ export function createCosignPurchaseHandler({
         serverWallet: getServerWalletFn(),
         listingRow,
         buyerWallet,
+        markListingSoldFn,
       });
       return res.json({
         success: true,
@@ -137,7 +141,7 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    console.log(`[API] Creating payment request for listing ${listingId}`);
+    console.log(`[API] Creating payment request for listing ${JSON.stringify(String(listingId))}`);
 
     const paymentRequest = await createPaymentRequest(listingId, buyerWallet);
 
@@ -180,68 +184,86 @@ router.post('/create', async (req, res) => {
  *   }
  * }
  */
-router.post('/verify', async (req, res) => {
-  try {
-    const { signature, listingId, buyerWallet, buyerUserId } = req.body;
+export function createVerifyPaymentHandler({
+  fetchListingRowFn = fetchListingRow,
+  verifyPaymentFn = verifyPayment,
+  completePurchaseFn = completePurchase,
+} = {}) {
+  return async (req, res) => {
+    try {
+      const { signature, listingId, buyerWallet, buyerUserId } = req.body;
 
-    // Validate input
-    if (!signature || !listingId || !buyerWallet) {
-      return res.status(400).json({
+      // Validate input
+      if (!signature || !listingId || !buyerWallet) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: signature, listingId, and buyerWallet'
+        });
+      }
+
+      // JSON.stringify neutralizes control characters in user input (CWE-117).
+      console.log(
+        `[API] Verifying payment for listing ${JSON.stringify(String(listingId))}, ` +
+          `signature: ${JSON.stringify(String(signature))}`
+      );
+
+      // 1. Fetch listing to get expected recipient and amount. No status gate
+      // here — a replayed verification of an already-completed purchase must
+      // still succeed after the row flipped to sold (idempotent verify).
+      const listing = await fetchListingRowFn(listingId);
+
+      // 2. Verify the payment transaction
+      const verification = await verifyPaymentFn(
+        signature,
+        listing.seller_wallet,
+        listing.price_sol,
+        listingId,
+        buyerWallet
+      );
+
+      if (!verification.valid) {
+        return res.status(400).json({
+          success: false,
+          error: verification.error,
+          needsRetry: verification.needsRetry || false
+        });
+      }
+
+      // 3. Complete the purchase (idempotent: replays converge the listing
+      // row and return the recorded transaction instead of double-writing)
+      const purchaseResult = await completePurchaseFn(
+        listingId,
+        buyerWallet,
+        buyerUserId,
+        signature,
+        verification.amountTransferred
+      );
+
+      console.log(
+        `[API] Purchase completed successfully for listing ${JSON.stringify(String(listingId))}`
+      );
+
+      res.json({
+        success: true,
+        verification: {
+          valid: true,
+          amountTransferred: verification.amountTransferred,
+          blockTime: verification.blockTime,
+          slot: verification.slot
+        },
+        purchase: purchaseResult
+      });
+    } catch (error) {
+      console.error('[API] Error verifying payment:', error);
+      res.status(500).json({
         success: false,
-        error: 'Missing required fields: signature, listingId, and buyerWallet'
+        error: error.message
       });
     }
+  };
+}
 
-    console.log(`[API] Verifying payment for listing ${listingId}, signature: ${signature}`);
-
-    // 1. Fetch listing to get expected recipient and amount
-    const listing = await fetchListing(listingId);
-
-    // 2. Verify the payment transaction
-    const verification = await verifyPayment(
-      signature,
-      listing.seller_wallet,
-      listing.price_sol,
-      listingId
-    );
-
-    if (!verification.valid) {
-      return res.status(400).json({
-        success: false,
-        error: verification.error,
-        needsRetry: verification.needsRetry || false
-      });
-    }
-
-    // 3. Complete the purchase (update listing, create transaction record)
-    const purchaseResult = await completePurchase(
-      listingId,
-      buyerWallet,
-      buyerUserId,
-      signature,
-      verification.amountTransferred
-    );
-
-    console.log(`[API] Purchase completed successfully for listing ${listingId}`);
-
-    res.json({
-      success: true,
-      verification: {
-        valid: true,
-        amountTransferred: verification.amountTransferred,
-        blockTime: verification.blockTime,
-        slot: verification.slot
-      },
-      purchase: purchaseResult
-    });
-  } catch (error) {
-    console.error('[API] Error verifying payment:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+router.post('/verify', createVerifyPaymentHandler());
 
 /**
  * GET /api/payments/history/:walletAddress
@@ -283,7 +305,10 @@ router.get('/history/:walletAddress', async (req, res) => {
       });
     }
 
-    console.log(`[API] Fetching transaction history for wallet ${walletAddress}, type: ${type}`);
+    console.log(
+      `[API] Fetching transaction history for wallet ${JSON.stringify(String(walletAddress))}, ` +
+        `type: ${JSON.stringify(String(type))}`
+    );
 
     const transactions = await getTransactionHistory(walletAddress, type);
 
@@ -323,7 +348,7 @@ router.get('/balance/:walletAddress', async (req, res) => {
       });
     }
 
-    console.log(`[API] Fetching balance for wallet ${walletAddress}`);
+    console.log(`[API] Fetching balance for wallet ${JSON.stringify(String(walletAddress))}`);
 
     const balance = await getWalletBalance(walletAddress);
 
@@ -370,7 +395,7 @@ router.get('/listing/:listingId', async (req, res) => {
       });
     }
 
-    console.log(`[API] Fetching listing ${listingId}`);
+    console.log(`[API] Fetching listing ${JSON.stringify(String(listingId))}`);
 
     const listing = await fetchListing(listingId);
 
@@ -412,7 +437,7 @@ router.post('/cancel', async (req, res) => {
       });
     }
 
-    console.log(`[API] Cancelling payment for listing ${listingId}`);
+    console.log(`[API] Cancelling payment for listing ${JSON.stringify(String(listingId))}`);
 
     // Note: In Solana Pay, there's no actual cancellation needed
     // This endpoint is mainly for UI state management

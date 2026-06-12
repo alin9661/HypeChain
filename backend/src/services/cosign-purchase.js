@@ -53,6 +53,10 @@ function tokenAccountAmount(accountInfo) {
  * @param {import('@solana/web3.js').Keypair} deps.serverWallet custodial seller keypair
  * @param {object} deps.listingRow Supabase `listings` row (id, nft_mint_address, price_sol)
  * @param {string} deps.buyerWallet buyer pubkey, base58
+ * @param {(listingId: string) => Promise<void>} [deps.markListingSoldFn]
+ *   read-repair hook: flips the DB projection to sold when the chain says
+ *   Sold but the row still says active. No-op by default; the route wires
+ *   the real Supabase helper. Failures are logged, never thrown.
  * @throws {CosignError} with a machine-readable `code` and `httpStatus`
  */
 export async function buildCosignedPurchaseTx({
@@ -60,6 +64,7 @@ export async function buildCosignedPurchaseTx({
   serverWallet,
   listingRow,
   buyerWallet,
+  markListingSoldFn = async () => {},
 }) {
   let buyer;
   try {
@@ -90,6 +95,18 @@ export async function buildCosignedPurchaseTx({
     );
   }
   if (chainListing.status !== ListingStatus.Listed) {
+    if (chainListing.status === ListingStatus.Sold && listingRow.status === 'active') {
+      // Chain is the source of truth; the DB projection is stale. Read-repair
+      // it, but never let a repair failure mask the 409 the caller needs.
+      try {
+        await markListingSoldFn(listingRow.id);
+      } catch (repairError) {
+        console.warn(
+          `[cosign] read-repair failed for listing ${JSON.stringify(String(listingRow.id))}: ` +
+            `${repairError?.message ?? repairError}`
+        );
+      }
+    }
     throw new CosignError(
       'LISTING_NOT_PURCHASABLE',
       409,
@@ -97,14 +114,38 @@ export async function buildCosignedPurchaseTx({
     );
   }
   if (!chainListing.seller.equals(serverWallet.publicKey)) {
+    const chainSeller = chainListing.seller.toBase58();
+    const dbSeller = listingRow.seller_wallet || null;
+    if (dbSeller && dbSeller === chainSeller) {
+      // DB and chain agree on a non-custodial seller: a genuine user-wallet
+      // listing. The client's legacy direct-purchase fallback handles it.
+      throw new CosignError(
+        'SELLER_NOT_CUSTODIAL',
+        409,
+        'On-chain seller is not the platform custodial wallet — co-sign unavailable'
+      );
+    }
+    // DB says custodial (seller_wallet null/legacy, equal to our key, or
+    // disagreeing with chain) but the chain seller is a different key: the
+    // two services' custodial keys have drifted. Falling back to a direct
+    // purchase here would charge the buyer without delivering the NFT.
     throw new CosignError(
-      'SELLER_NOT_CUSTODIAL',
+      'CUSTODIAL_KEY_DRIFT',
       409,
-      'On-chain seller is not the platform custodial wallet — co-sign unavailable'
+      `On-chain seller ${chainSeller} does not match the custodial server wallet ` +
+        `${serverWallet.publicKey.toBase58()} — custodial keys have drifted; refusing to co-sign`
     );
   }
 
-  const dbLamports = BigInt(Math.round(Number(listingRow.price_sol) * LAMPORTS_PER_SOL));
+  const priceSolNum = Number(listingRow.price_sol);
+  if (!Number.isFinite(priceSolNum) || priceSolNum <= 0) {
+    throw new CosignError(
+      'PRICE_MISMATCH',
+      409,
+      'Listing has a missing or malformed price'
+    );
+  }
+  const dbLamports = BigInt(Math.round(priceSolNum * LAMPORTS_PER_SOL));
   if (dbLamports !== chainListing.priceLamports) {
     throw new CosignError(
       'PRICE_MISMATCH',

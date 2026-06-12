@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { Keypair, PublicKey, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Keypair, Transaction } from '@solana/web3.js';
 import {
   getAssociatedTokenAddressSync,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -327,8 +327,12 @@ describe('buildCosignedPurchaseTx — rejections', () => {
     });
   }
 
-  it('rejects a non-custodial chain seller (409 SELLER_NOT_CUSTODIAL)', async () => {
-    const f = makeFixture({ chain: { seller: Keypair.generate().publicKey } });
+  it('rejects a genuine user-wallet listing (DB seller matches chain seller) with 409 SELLER_NOT_CUSTODIAL', async () => {
+    const userSeller = Keypair.generate().publicKey;
+    const f = makeFixture({
+      chain: { seller: userSeller },
+      listingRow: { seller_wallet: userSeller.toBase58() },
+    });
     await expectCosignError(
       buildCosignedPurchaseTx({
         connection: f.connection,
@@ -381,5 +385,149 @@ describe('buildCosignedPurchaseTx — rejections', () => {
       'NFT_NOT_IN_CUSTODY',
       409
     );
+  });
+});
+
+// ─── Custodial key drift (fix 2) ───────────────────────────────────────────
+
+describe('buildCosignedPurchaseTx — custodial key drift', () => {
+  function driftCase(listingRowOverrides, chainSeller) {
+    return makeFixture({
+      chain: { seller: chainSeller },
+      listingRow: listingRowOverrides,
+    });
+  }
+
+  it('409 CUSTODIAL_KEY_DRIFT when DB seller_wallet is null (legacy row) and chain seller != server key', async () => {
+    const chainSeller = Keypair.generate().publicKey;
+    const f = driftCase({ seller_wallet: null }, chainSeller);
+    await expectCosignError(
+      buildCosignedPurchaseTx({
+        connection: f.connection,
+        serverWallet: f.serverWallet,
+        listingRow: f.listingRow,
+        buyerWallet: f.buyer.publicKey.toBase58(),
+      }),
+      'CUSTODIAL_KEY_DRIFT',
+      409
+    );
+  });
+
+  it('409 CUSTODIAL_KEY_DRIFT when DB seller_wallet == server key but chain seller is a different key', async () => {
+    // The DB says this listing is custodial (ours), but the chain seller is
+    // some other key — the two services' custodial keys drifted. The default
+    // fixture row already sets seller_wallet to the server pubkey.
+    const f = makeFixture({ chain: { seller: Keypair.generate().publicKey } });
+    await expectCosignError(
+      buildCosignedPurchaseTx({
+        connection: f.connection,
+        serverWallet: f.serverWallet,
+        listingRow: f.listingRow,
+        buyerWallet: f.buyer.publicKey.toBase58(),
+      }),
+      'CUSTODIAL_KEY_DRIFT',
+      409
+    );
+  });
+
+  it('409 CUSTODIAL_KEY_DRIFT when DB seller_wallet is a third key disagreeing with the chain seller', async () => {
+    const chainSeller = Keypair.generate().publicKey;
+    const f = driftCase({ seller_wallet: Keypair.generate().publicKey.toBase58() }, chainSeller);
+    await expectCosignError(
+      buildCosignedPurchaseTx({
+        connection: f.connection,
+        serverWallet: f.serverWallet,
+        listingRow: f.listingRow,
+        buyerWallet: f.buyer.publicKey.toBase58(),
+      }),
+      'CUSTODIAL_KEY_DRIFT',
+      409
+    );
+  });
+
+  it('drift error message names both the chain seller and the server pubkey', async () => {
+    const chainSeller = Keypair.generate().publicKey;
+    const f = driftCase({ seller_wallet: null }, chainSeller);
+    let thrown;
+    try {
+      await buildCosignedPurchaseTx({
+        connection: f.connection,
+        serverWallet: f.serverWallet,
+        listingRow: f.listingRow,
+        buyerWallet: f.buyer.publicKey.toBase58(),
+      });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(CosignError);
+    expect(thrown.message).toContain(chainSeller.toBase58());
+    expect(thrown.message).toContain(f.serverWallet.publicKey.toBase58());
+  });
+});
+
+// ─── Read-repair of a stale sold projection (fix 3) ────────────────────────
+
+describe('buildCosignedPurchaseTx — read-repair on chain-Sold', () => {
+  function callWith(f, markListingSoldFn) {
+    return buildCosignedPurchaseTx({
+      connection: f.connection,
+      serverWallet: f.serverWallet,
+      listingRow: f.listingRow,
+      buyerWallet: f.buyer.publicKey.toBase58(),
+      markListingSoldFn,
+    });
+  }
+
+  it('chain Sold + DB active → invokes the repair callback with the listing id, then throws 409 LISTING_NOT_PURCHASABLE', async () => {
+    const f = makeFixture({ chain: { status: ListingStatus.Sold } });
+    const repaired = [];
+    await expectCosignError(
+      callWith(f, async (listingId) => {
+        repaired.push(listingId);
+      }),
+      'LISTING_NOT_PURCHASABLE',
+      409
+    );
+    expect(repaired).toEqual([f.listingRow.id]);
+  });
+
+  it('a failing repair never masks the 409', async () => {
+    const f = makeFixture({ chain: { status: ListingStatus.Sold } });
+    await expectCosignError(
+      callWith(f, async () => {
+        throw new Error('supabase exploded');
+      }),
+      'LISTING_NOT_PURCHASABLE',
+      409
+    );
+  });
+
+  it('does not invoke the repair callback when the DB row already says sold', async () => {
+    const f = makeFixture({
+      chain: { status: ListingStatus.Sold },
+      listingRow: { status: 'sold' },
+    });
+    let called = 0;
+    await expectCosignError(
+      callWith(f, async () => {
+        called += 1;
+      }),
+      'LISTING_NOT_PURCHASABLE',
+      409
+    );
+    expect(called).toBe(0);
+  });
+
+  it('does not invoke the repair callback for Delisted chain status', async () => {
+    const f = makeFixture({ chain: { status: ListingStatus.Delisted } });
+    let called = 0;
+    await expectCosignError(
+      callWith(f, async () => {
+        called += 1;
+      }),
+      'LISTING_NOT_PURCHASABLE',
+      409
+    );
+    expect(called).toBe(0);
   });
 });
