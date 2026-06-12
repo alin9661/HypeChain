@@ -15,6 +15,8 @@ export interface ApiResponse<T> {
   error?: string;
   /** Machine-readable error code from the backend error envelope, when present. */
   code?: string;
+  /** HTTP status code when the request reached the server but failed. */
+  status?: number;
 }
 
 export interface CosignPurchaseRequest {
@@ -281,11 +283,14 @@ class ApiClient {
         },
       });
 
-      const data = await response.json();
+      // On failure tolerate non-JSON bodies (e.g. a proxy's HTML 404) so the
+      // HTTP status still reaches callers instead of a JSON parse error.
+      const data = response.ok ? await response.json() : await response.json().catch(() => ({}));
 
       if (!response.ok) {
         return {
           success: false,
+          status: response.status,
           error: data.error || `HTTP ${response.status}: ${response.statusText}`,
           ...(data.code ? { code: data.code } : {}),
         };
@@ -296,7 +301,7 @@ class ApiClient {
         data,
       };
     } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
+      console.error('API request failed for endpoint:', endpoint, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -395,7 +400,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error(`API request failed for ${url}:`, error);
+      console.error('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -432,7 +437,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error(`API request failed for ${url}:`, error);
+      console.error('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -440,9 +445,6 @@ class ApiClient {
     }
   }
 
-  /**
-   * POST /api/payments/create - Create payment request for a listing
-   */
   /**
    * POST /api/payments/cosign-purchase — custodial co-sign (PR2).
    *
@@ -464,6 +466,9 @@ class ApiClient {
     );
   }
 
+  /**
+   * POST /api/payments/create - Create payment request for a listing
+   */
   async createPayment(
     data: CreatePaymentRequest
   ): Promise<ApiResponse<CreatePaymentResponse>> {
@@ -562,7 +567,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error(`API request failed for ${url}:`, error);
+      console.error('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
