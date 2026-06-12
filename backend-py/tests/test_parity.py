@@ -31,7 +31,15 @@ async def test_404_contract(client):
 
 
 async def test_create_listing_validation_400_contract(client):
+    # Missing wallet -> ACCOUNT_REQUIRED envelope (carries a machine code,
+    # matching Express).
     resp = await client.post("/api/create-listing", json={"productImage": "x"})
+    assert resp.status_code == 400
+    assert set(resp.json().keys()) == {"success", "error", "code"}
+    # Other validation 400s keep the bare envelope.
+    resp = await client.post(
+        "/api/create-listing", json={"userWallet": "not-a-key", "productImage": "x"}
+    )
     assert resp.status_code == 400
     assert set(resp.json().keys()) == {"success", "error"}
 

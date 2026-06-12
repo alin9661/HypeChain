@@ -27,12 +27,15 @@ const connection = new Connection(
 );
 
 /**
- * Fetch listing details from database
+ * Fetch a listing row from the database without gating on status.
+ * Used by flows that must see sold rows too (e.g. idempotent replay of an
+ * already-completed purchase).
  * @param {string} listingId - UUID of the listing
+ * @param {Object} [deps] - optional injected deps for tests
  * @returns {Promise<Object>} Listing data
  */
-export async function fetchListing(listingId) {
-  const { data, error } = await supabase
+export async function fetchListingRow(listingId, { supabaseClient = supabase } = {}) {
+  const { data, error } = await supabaseClient
     .from('listings')
     .select('*')
     .eq('id', listingId)
@@ -46,11 +49,43 @@ export async function fetchListing(listingId) {
     throw new Error('Listing not found');
   }
 
+  return data;
+}
+
+/**
+ * Fetch listing details from database (purchasable listings only)
+ * @param {string} listingId - UUID of the listing
+ * @returns {Promise<Object>} Listing data
+ */
+export async function fetchListing(listingId) {
+  const data = await fetchListingRow(listingId);
+
   if (data.status !== 'active') {
     throw new Error(`Listing is not available for purchase. Status: ${data.status}`);
   }
 
   return data;
+}
+
+/**
+ * Read-repair helper: converge a stale 'active' DB projection to 'sold'
+ * when the chain (source of truth) says the listing is already Sold.
+ * The status filter makes the update a no-op on already-repaired rows.
+ * @param {string} listingId - UUID of the listing
+ */
+export async function markListingSold(listingId) {
+  const { error } = await supabase
+    .from('listings')
+    .update({
+      status: 'sold',
+      sold_at: new Date().toISOString()
+    })
+    .eq('id', listingId)
+    .eq('status', 'active');
+
+  if (error) {
+    throw new Error(`Failed to mark listing sold: ${error.message}`);
+  }
 }
 
 /**
@@ -126,14 +161,23 @@ export async function createPaymentRequest(listingId, buyerWallet) {
  * @param {string} expectedRecipient - Expected recipient wallet address
  * @param {number} expectedAmount - Expected amount in SOL
  * @param {string} listingId - UUID of the listing
+ * @param {string} [buyerWallet] - Buyer's wallet address (enables idempotent replay detection)
+ * @param {Object} [deps] - optional injected deps for tests
  * @returns {Promise<Object>} Verification result
  */
-export async function verifyPayment(signature, expectedRecipient, expectedAmount, listingId) {
+export async function verifyPayment(
+  signature,
+  expectedRecipient,
+  expectedAmount,
+  listingId,
+  buyerWallet,
+  { supabaseClient = supabase, conn = connection } = {}
+) {
   try {
     console.log(`[Payment] Verifying transaction ${signature}`);
 
     // 1. Fetch transaction from blockchain
-    const transaction = await connection.getTransaction(signature, {
+    const transaction = await conn.getTransaction(signature, {
       commitment: 'confirmed',
       maxSupportedTransactionVersion: 0
     });
@@ -206,18 +250,39 @@ export async function verifyPayment(signature, expectedRecipient, expectedAmount
       // Don't reject, just warn - the transaction might still be valid
     }
 
-    // 6. Check if transaction was already used
-    const { data: existingTransaction } = await supabase
+    // 6. Check if transaction was already used.
+    // The chain is the source of truth: a signature already recorded for the
+    // SAME listing + buyer means the purchase already completed — verifying
+    // it again is an idempotent replay and must succeed. Only a signature
+    // reused for a DIFFERENT listing or buyer is fraudulent.
+    const { data: existingTransaction } = await supabaseClient
       .from('transactions')
-      .select('id')
+      .select('id, listing_id, buyer_wallet')
       .eq('signature', signature)
-      .single();
+      .maybeSingle();
 
     if (existingTransaction) {
+      const isSamePurchase =
+        existingTransaction.listing_id === listingId &&
+        Boolean(buyerWallet) &&
+        existingTransaction.buyer_wallet === buyerWallet;
+
+      if (!isSamePurchase) {
+        return {
+          valid: false,
+          error: 'Transaction signature already used',
+          transaction: transaction
+        };
+      }
+
+      console.log(`[Payment] Replay of completed purchase detected: ${signature}`);
       return {
-        valid: false,
-        error: 'Transaction signature already used',
-        transaction: transaction
+        valid: true,
+        replay: true,
+        transaction: transaction,
+        amountTransferred: amountTransferred,
+        blockTime: blockTime,
+        slot: transaction.slot
       };
     }
 
@@ -247,55 +312,105 @@ export async function verifyPayment(signature, expectedRecipient, expectedAmount
  * @param {string} buyerUserId - Buyer's user ID (optional)
  * @param {string} signature - Transaction signature
  * @param {number} amountSol - Amount paid in SOL
+ * @param {Object} [deps] - optional injected deps for tests
  * @returns {Promise<Object>} Purchase result
+ *
+ * Idempotent: replaying a signature already recorded for the same listing
+ * and buyer converges the listing projection (covers the crash window where
+ * the transactions row was written but the listing update never landed) and
+ * returns success instead of double-writing.
  */
-export async function completePurchase(listingId, buyerWallet, buyerUserId, signature, amountSol) {
+export async function completePurchase(
+  listingId,
+  buyerWallet,
+  buyerUserId,
+  signature,
+  amountSol,
+  { supabaseClient = supabase } = {}
+) {
   try {
-    // 1. Fetch listing
-    const listing = await fetchListing(listingId);
+    // 1. Fetch listing row WITHOUT the active-status gate — replays of a
+    // completed purchase legitimately arrive after the row flipped to sold.
+    const listing = await fetchListingRow(listingId, { supabaseClient });
 
-    // 2. Create transaction record
-    const { data: transactionRecord, error: txError } = await supabase
+    // 2. Idempotency check: has this signature already been recorded?
+    const { data: existingTransaction, error: existingError } = await supabaseClient
       .from('transactions')
-      .insert({
-        listing_id: listingId,
-        buyer_wallet: buyerWallet,
-        seller_wallet: listing.seller_wallet,
-        buyer_user_id: buyerUserId || null,
-        seller_user_id: listing.seller_user_id || null,
-        amount_sol: amountSol,
-        signature: signature,
-        status: 'confirmed',
-        payment_method: 'SOL',
-        blockchain_confirmed: true,
-        confirmed_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      .select('*')
+      .eq('signature', signature)
+      .maybeSingle();
 
-    if (txError) {
-      throw new Error(`Failed to create transaction record: ${txError.message}`);
+    if (existingError) {
+      throw new Error(`Failed to check existing transaction: ${existingError.message}`);
     }
 
-    // 3. Update listing status to sold
-    const { error: updateError } = await supabase
-      .from('listings')
-      .update({
-        status: 'sold',
-        sold_at: new Date().toISOString(),
-        buyer_wallet: buyerWallet,
-        buyer_user_id: buyerUserId || null,
-        transaction_signature: signature
-      })
-      .eq('id', listingId);
-
-    if (updateError) {
-      throw new Error(`Failed to update listing: ${updateError.message}`);
+    if (
+      existingTransaction &&
+      (existingTransaction.listing_id !== listingId ||
+        existingTransaction.buyer_wallet !== buyerWallet)
+    ) {
+      // Same signature pointed at a different listing/buyer — fraud, not replay.
+      throw new Error('Transaction signature already used');
     }
 
-    // 4. Update seller's total volume
-    if (listing.seller_user_id) {
-      const { error: volumeError } = await supabase.rpc('increment_user_volume', {
+    const isReplay = Boolean(existingTransaction);
+    let transactionRecord = existingTransaction;
+
+    if (!isReplay) {
+      // Fresh purchases still require a purchasable listing.
+      if (listing.status !== 'active') {
+        throw new Error(`Listing is not available for purchase. Status: ${listing.status}`);
+      }
+
+      // 3. Create transaction record
+      const { data: insertedRecord, error: txError } = await supabaseClient
+        .from('transactions')
+        .insert({
+          listing_id: listingId,
+          buyer_wallet: buyerWallet,
+          seller_wallet: listing.seller_wallet,
+          buyer_user_id: buyerUserId || null,
+          seller_user_id: listing.seller_user_id || null,
+          amount_sol: amountSol,
+          signature: signature,
+          status: 'confirmed',
+          payment_method: 'SOL',
+          blockchain_confirmed: true,
+          confirmed_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (txError) {
+        throw new Error(`Failed to create transaction record: ${txError.message}`);
+      }
+      transactionRecord = insertedRecord;
+    }
+
+    // 4. Converge listing status to sold. Runs for fresh purchases AND for
+    // replays where the transactions row exists but the listing update was
+    // lost in a crash window (idempotent convergence).
+    if (listing.status !== 'sold') {
+      const { error: updateError } = await supabaseClient
+        .from('listings')
+        .update({
+          status: 'sold',
+          sold_at: new Date().toISOString(),
+          buyer_wallet: buyerWallet,
+          buyer_user_id: buyerUserId || null,
+          transaction_signature: signature
+        })
+        .eq('id', listingId);
+
+      if (updateError) {
+        throw new Error(`Failed to update listing: ${updateError.message}`);
+      }
+    }
+
+    // 5. Update seller's total volume (fresh purchases only — replays must
+    // not double-count volume)
+    if (!isReplay && listing.seller_user_id) {
+      const { error: volumeError } = await supabaseClient.rpc('increment_user_volume', {
         user_id: listing.seller_user_id,
         amount: amountSol
       });
@@ -306,10 +421,13 @@ export async function completePurchase(listingId, buyerWallet, buyerUserId, sign
       }
     }
 
-    console.log(`[Payment] Purchase completed for listing ${listingId}`);
+    console.log(
+      `[Payment] Purchase ${isReplay ? 'replay converged' : 'completed'} for listing ${listingId}`
+    );
 
     return {
       success: true,
+      replay: isReplay,
       transaction: transactionRecord,
       listing: {
         id: listingId,

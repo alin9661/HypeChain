@@ -6,10 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-hypechain_marketplace = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+hypechain_evidence_locker = "2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF"
 
 [programs.localnet]
-hypechain_marketplace = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+hypechain_evidence_locker = "2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF"
 
 [registry]
 url = "https://api.apr.dev"
@@ -23,3 +23,5 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]
 startup_wait = 5000
+shutdown_wait = 2000
+upgradeable = false

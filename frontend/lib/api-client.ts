@@ -13,6 +13,28 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  /** Machine-readable error code from the backend error envelope, when present. */
+  code?: string;
+  /** HTTP status code when the request reached the server but failed. */
+  status?: number;
+}
+
+export interface CosignPurchaseRequest {
+  listingId: string;
+  buyerWallet: string;
+}
+
+export interface CosignPurchaseResponse {
+  success: boolean;
+  /** base64 legacy Transaction, partial-signed by the custodial seller. */
+  transaction: string;
+  priceLamports: string;
+  priceSol: number;
+  blockhash: string;
+  lastValidBlockHeight: number;
+  nftMint: string;
+  listingPda: string;
+  seller: string;
 }
 
 export interface CreateListingRequest {
@@ -247,9 +269,10 @@ class ApiClient {
    */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    baseURL: string = this.baseURL
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseURL}${endpoint}`;
+    const url = `${baseURL}${endpoint}`;
 
     try {
       const response = await fetch(url, {
@@ -260,12 +283,16 @@ class ApiClient {
         },
       });
 
-      const data = await response.json();
+      // On failure tolerate non-JSON bodies (e.g. a proxy's HTML 404) so the
+      // HTTP status still reaches callers instead of a JSON parse error.
+      const data = response.ok ? await response.json() : await response.json().catch(() => ({}));
 
       if (!response.ok) {
         return {
           success: false,
+          status: response.status,
           error: data.error || `HTTP ${response.status}: ${response.statusText}`,
+          ...(data.code ? { code: data.code } : {}),
         };
       }
 
@@ -274,7 +301,7 @@ class ApiClient {
         data,
       };
     } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
+      console.error('API request failed for endpoint:', endpoint, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -373,7 +400,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error(`API request failed for ${url}:`, error);
+      console.error('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -410,12 +437,33 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error(`API request failed for ${url}:`, error);
+      console.error('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
       };
     }
+  }
+
+  /**
+   * POST /api/payments/cosign-purchase — custodial co-sign (PR2).
+   *
+   * Lives on the Express write service, which may be deployed separately
+   * from the payments API: NEXT_PUBLIC_WRITE_API_URL overrides the base URL,
+   * falling back to the regular API base for single-service setups.
+   */
+  async cosignPurchase(
+    data: CosignPurchaseRequest
+  ): Promise<ApiResponse<CosignPurchaseResponse>> {
+    const writeBase = process.env.NEXT_PUBLIC_WRITE_API_URL || this.baseURL;
+    return this.request<CosignPurchaseResponse>(
+      '/api/payments/cosign-purchase',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      writeBase
+    );
   }
 
   /**
@@ -519,7 +567,7 @@ class ApiClient {
         data: responseData,
       };
     } catch (error) {
-      console.error(`API request failed for ${url}:`, error);
+      console.error('API request failed for url:', url, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',

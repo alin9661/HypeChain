@@ -76,7 +76,9 @@ class SolanaRpc:
     def __init__(self, rpc_url: str) -> None:
         from solana.rpc.api import Client
 
-        self._client = Client(rpc_url, commitment="confirmed")
+        # 30s per-request timeout: devnet routinely exceeds the 10s httpx
+        # default under load, and confirm_transaction polls through this client.
+        self._client = Client(rpc_url, commitment="confirmed", timeout=30)
 
     def get_latest_blockhash(self) -> Hash:
         return self._client.get_latest_blockhash().value.blockhash
@@ -88,7 +90,18 @@ class SolanaRpc:
         return self._client.get_account_info(pubkey).value
 
     def send_transaction(self, tx: Transaction) -> str:
-        return str(self._client.send_transaction(tx).value)
+        """Send and wait for 'confirmed' (parity with the Express
+        ``sendAndConfirmTransaction``). A fire-and-forget send lets a dependent
+        transaction's preflight simulate before this one's accounts exist
+        (Anchor 3012 AccountNotInitialized on devnet)."""
+        from solana.rpc.commitment import Confirmed
+
+        sig = self._client.send_transaction(tx).value
+        # 2s poll interval: the public devnet RPC caps each method at ~40
+        # req/10s per IP; solana-py's 0.5s default blows that budget across a
+        # multi-tx flow and the endpoint stalls the connection (ReadTimeout).
+        self._client.confirm_transaction(sig, commitment=Confirmed, sleep_seconds=2.0)
+        return str(sig)
 
     def get_balance(self, pubkey: Pubkey) -> int:
         return self._client.get_balance(pubkey).value
@@ -111,6 +124,7 @@ class SolanaRpc:
 
 _rpc: SolanaRpc | None = None
 _server_wallet: Keypair | None = None
+_platform_custodial_pubkey: Pubkey | None = None
 
 
 def get_rpc() -> SolanaRpc:
@@ -138,6 +152,21 @@ def get_server_wallet() -> Keypair:
     except Exception as exc:  # noqa: BLE001 — match JS broad catch on bad key
         raise SolanaError("Invalid HACKNYU_SERVER_WALLET_PRIVATE_KEY format") from exc
     return _server_wallet
+
+
+def get_platform_custodial_pubkey() -> Pubkey:
+    """The ONE custodial identity: the real server keypair's pubkey (E5).
+
+    Guest/custodial listings mint to, list on-chain as, and persist this pubkey
+    as their ``seller_wallet`` — so the custodial seller is a key the backend can
+    actually sign for (unlike the retired non-decodable vanity placeholder).
+    Derived from ``get_server_wallet()`` and cached; resolving it is therefore
+    gated on ``HACKNYU_SERVER_WALLET_PRIVATE_KEY`` being set (fails loud if not).
+    """
+    global _platform_custodial_pubkey
+    if _platform_custodial_pubkey is None:
+        _platform_custodial_pubkey = get_server_wallet().pubkey()
+    return _platform_custodial_pubkey
 
 
 # ──────────────────────────────────────────────────────────────────────────────

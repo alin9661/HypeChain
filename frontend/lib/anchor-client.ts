@@ -22,11 +22,40 @@ import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
 // Program ID + threshold (must mirror the on-chain constant)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID ||
-    // Anchor placeholder — replace via `anchor keys sync` + deploy.
-    'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS'
-)
+/**
+ * Anchor scaffold placeholder program ID (declare_id! default). Allowed ONLY in
+ * dev/test as a convenience; in production it is treated as "unset".
+ */
+export const PLACEHOLDER_PROGRAM_ID =
+  'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS'
+
+/**
+ * Resolve the on-chain program ID, failing loud on a misconfigured production
+ * deploy (T8). Outside dev/test, throw if `NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID` is
+ * unset OR still the Anchor scaffold placeholder, so a half-configured build
+ * crashes instead of silently targeting the wrong program. In dev/test the
+ * placeholder fallback is allowed so local work + unit tests run without a
+ * real deploy.
+ */
+export function resolveProgramId(): PublicKey {
+  const fromEnv = process.env.NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID
+  const isDevOrTest = process.env.NODE_ENV !== 'production'
+
+  if (!fromEnv || fromEnv === PLACEHOLDER_PROGRAM_ID) {
+    if (!isDevOrTest) {
+      throw new Error(
+        'NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID is unset or the Anchor scaffold ' +
+          `placeholder (${PLACEHOLDER_PROGRAM_ID}). Set it to the deployed ` +
+          'program ID before building for production (run `anchor keys sync` + ' +
+          '`anchor deploy`, then export the printed program ID).'
+      )
+    }
+    return new PublicKey(PLACEHOLDER_PROGRAM_ID)
+  }
+  return new PublicKey(fromEnv)
+}
+
+export const PROGRAM_ID = resolveProgramId()
 
 /** Mirror of `MIN_CONFIDENCE_BPS` in the program. 50 % expressed in bps. */
 export const MIN_CONFIDENCE_BPS = 5_000

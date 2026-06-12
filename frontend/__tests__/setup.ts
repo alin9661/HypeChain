@@ -5,6 +5,17 @@
 
 import '@testing-library/jest-dom';
 
+// jsdom does not provide TextEncoder/TextDecoder, which @solana/web3.js (via
+// @noble/hashes) requires at import time. Polyfill from Node's util so modules
+// that pull in web3.js (e.g. lib/anchor-client) are importable under jest.
+import { TextEncoder, TextDecoder } from 'util';
+if (typeof global.TextEncoder === 'undefined') {
+  (global as any).TextEncoder = TextEncoder;
+}
+if (typeof global.TextDecoder === 'undefined') {
+  (global as any).TextDecoder = TextDecoder;
+}
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {
@@ -30,8 +41,10 @@ jest.mock('next/navigation', () => ({
 }));
 
 // Mock window.matchMedia — guarded so suites that opt into the node
-// environment (e.g. landing-section-data.test.ts, which is DOM-free by
-// design) can still run this shared setup file without crashing.
+// environment can still run this shared setup file without crashing —
+// e.g. landing-section-data.test.ts (DOM-free by design) and the web3.js
+// transaction serialization tests (jsdom's Uint8Array realm breaks Buffer
+// instanceof checks).
 if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

@@ -40,7 +40,14 @@ class _FakeAcquire:
 
 @pytest.fixture
 def happy_pipeline(monkeypatch):
-    """Patch every service boundary for a successful create-listing."""
+    """Patch every service boundary for a successful create-listing.
+
+    Exposes ``.mint_targets`` (every ``mint_nft`` target wallet) and
+    ``.inserted`` (the last ``insert_listing`` payload) so tests can assert the
+    custodial-wallet binding (E5) without a real chain or DB.
+    """
+    captured = types.SimpleNamespace(mint_targets=[], inserted=None)
+
     monkeypatch.setattr(listings_mod, "is_valid_solana_pubkey", lambda v: True)
     monkeypatch.setattr(
         listings_mod, "validate_base64_image", lambda v: types.SimpleNamespace(valid=True, error=None)
@@ -62,16 +69,22 @@ def happy_pipeline(monkeypatch):
         return "user-1"
 
     async def fake_insert(conn, listing):
+        captured.inserted = listing
         return {"id": "listing-123", **listing}
+
+    def fake_mint(target_wallet, uri, name):
+        captured.mint_targets.append(target_wallet)
+        return "MINT_ADDR_123"
 
     monkeypatch.setattr(openrouter, "verify_product", fake_verify)
     monkeypatch.setattr(openrouter, "verify_product_with_model", fake_verify_model)
     monkeypatch.setattr(openrouter, "generate_marketing_image_with_model", fake_image)
     monkeypatch.setattr(listings_mod, "create_and_upload_nft_metadata", fake_ipfs)
-    monkeypatch.setattr(solana, "mint_nft", lambda w, uri, name: "MINT_ADDR_123")
+    monkeypatch.setattr(solana, "mint_nft", fake_mint)
     monkeypatch.setattr(queries, "get_user_id_by_wallet", fake_get_user)
     monkeypatch.setattr(queries, "insert_listing", fake_insert)
     monkeypatch.setattr(pool_module, "acquire", lambda: _FakeAcquire())
+    return captured
 
 
 async def test_happy_path_with_wallet(client, happy_pipeline):
@@ -90,21 +103,76 @@ async def test_happy_path_with_wallet(client, happy_pipeline):
     assert body["verification"]["liveness_score"] == 87
 
 
-async def test_guest_flow_pending_wallet(client, happy_pipeline):
+async def test_wallet_listing_persists_seller_wallet(client, happy_pipeline):
+    """Every listing belongs to a real user wallet — the persisted seller_wallet
+    is the user's wallet (never NULL, never the custodial server key) and all
+    guest/pending fields are off."""
+    resp = await client.post(
+        "/api/create-listing",
+        json={"userWallet": "Wallet111", "productImage": "data:image/png;base64,AAAA"},
+    )
+    assert resp.status_code == 200
+    assert happy_pipeline.mint_targets == ["Wallet111"]
+    inserted = happy_pipeline.inserted
+    assert inserted["seller_wallet"] == "Wallet111"
+    assert inserted["status"] == "active"
+    assert inserted["is_pending_claim"] is False
+    assert inserted["platform_wallet"] is None
+    assert inserted["guest_email"] is None
+
+
+async def test_onchain_listing_uses_user_wallet_as_seller(client, happy_pipeline, monkeypatch):
+    """With a program id set, the on-chain listing branch sees the USER wallet
+    as the seller. (The custodial list_item_on_marketplace flow with
+    seller == server wallet remains a service-level capability for the buy-side
+    rescue path — covered in test_solana.py — but create-listing never uses it.)"""
+    monkeypatch.setattr(
+        listings_mod.get_settings(), "hacknyu_marketplace_program_id", "PROG", raising=False
+    )
+    monkeypatch.setattr(solana, "submit_verification", lambda **k: {"signature": "sig"})
+
+    seen = {}
+
+    def fake_list(nft_mint, price, seller):
+        seen["seller"] = seller
+        return {"mode": "user_listed"}
+
+    monkeypatch.setattr(solana, "list_item_on_marketplace", fake_list)
+    resp = await client.post(
+        "/api/create-listing",
+        json={"userWallet": "Wallet111", "productImage": "data:image/png;base64,AAAA"},
+    )
+    assert resp.status_code == 200
+    assert seen["seller"] == "Wallet111"
+
+
+async def test_missing_wallet_400_account_required(client):
+    resp = await client.post("/api/create-listing", json={"productImage": "x"})
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["success"] is False
+    assert body["code"] == "ACCOUNT_REQUIRED"
+    assert body["error"] == "An account with a wallet is required to create a listing"
+
+
+async def test_empty_wallet_400_account_required(client):
+    resp = await client.post(
+        "/api/create-listing", json={"userWallet": "", "productImage": "x"}
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "ACCOUNT_REQUIRED"
+
+
+async def test_guest_email_only_400_account_required(client, happy_pipeline):
+    """Guests must create an account before listing — email-only intake is
+    rejected up front and never reaches the mint pipeline."""
     resp = await client.post(
         "/api/create-listing",
         json={"userEmail": "a@b.com", "productImage": "data:image/png;base64,AAAA"},
     )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "pending_wallet"
-    assert body["is_pending_claim"] is True
-
-
-async def test_no_wallet_no_email_400(client):
-    resp = await client.post("/api/create-listing", json={"productImage": "x"})
     assert resp.status_code == 400
-    assert "wallet" in resp.json()["error"].lower()
+    assert resp.json()["code"] == "ACCOUNT_REQUIRED"
+    assert happy_pipeline.mint_targets == []
 
 
 async def test_invalid_pubkey_400(client, monkeypatch):

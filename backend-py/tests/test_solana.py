@@ -369,3 +369,48 @@ def test_case_prefix_bytes_padding():
     assert verification.case_prefix_bytes("HC-2026-") == b"HC-2026-"
     assert len(verification.case_prefix_bytes("HC-2026-")) == 8
     assert verification.case_prefix_bytes("AB") == b"AB" + b"\x00" * 6
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SolanaRpc send semantics (parity with Express sendAndConfirmTransaction)
+# ──────────────────────────────────────────────────────────────────────────────
+def test_send_transaction_confirms_before_returning(monkeypatch):
+    """``SolanaRpc.send_transaction`` must block on confirmation.
+
+    The Express services use ``sendAndConfirmTransaction`` everywhere; a
+    fire-and-forget send lets a dependent transaction's preflight simulate
+    before the prior account exists (devnet smoke failed with Anchor 3012
+    AccountNotInitialized on list_evidence after submit_verification).
+    """
+    from solders.signature import Signature
+
+    calls: list[object] = []
+
+    class FakeClient:
+        def __init__(self, url, commitment=None, **kwargs):
+            calls.append(("init", commitment))
+
+        def send_transaction(self, tx):
+            calls.append("send")
+
+            class Resp:
+                value = Signature.default()
+
+            return Resp()
+
+        def confirm_transaction(self, sig, commitment=None, sleep_seconds=0.5):
+            calls.append(("confirm", str(sig)))
+
+            class Resp:
+                value = [object()]
+
+            return Resp()
+
+    monkeypatch.setattr("solana.rpc.api.Client", FakeClient)
+    rpc = solana.SolanaRpc("http://fake.invalid")
+    sig = rpc.send_transaction(object())
+
+    assert sig == str(Signature.default())
+    assert "send" in calls
+    assert ("confirm", sig) in calls, "send_transaction returned without confirming"
+    assert calls.index("send") < calls.index(("confirm", sig))

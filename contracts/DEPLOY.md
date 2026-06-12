@@ -22,6 +22,10 @@ turns into a 30-minute debug session later.
 - [ ] `anchor test` passes (uses the local validator that ships with Anchor).
 - [ ] The `init-if-needed` cargo feature is enabled in
       `programs/hypechain-marketplace/Cargo.toml` (already set — verify).
+- [ ] Program name is consistent: `Anchor.toml` `[programs.*]` key,
+      the `[lib] name` in Cargo.toml, and the `#[program]` module in
+      `src/lib.rs` are ALL `hypechain_evidence_locker`. (A mismatch generates
+      the IDL under the wrong key and breaks the client.)
 - [ ] The repo is committed (so you can correlate the deployed `.so` with
       a known source commit later).
 
@@ -31,13 +35,29 @@ turns into a 30-minute debug session later.
 
 Run from the `contracts/` directory.
 
+> **Toolchain note (anchor 0.30.1 on modern Rust):** the IDL build step
+> hardcodes `cargo +nightly`, and anchor-syn 0.30.1 is incompatible with
+> nightlies newer than ~2025-03 (`Span::source_file` was removed). Always
+> build through the wrapper, which pins a 2024 nightly (and installs it
+> on first use):
+>
+> ```bash
+> ./anchor.sh build        # instead of: anchor build
+> ./anchor.sh test         # instead of: anchor test
+> ```
+>
+> (Equivalent: `RUSTUP_TOOLCHAIN=nightly-2024-11-01 anchor build`.)
+> The committed `Cargo.lock` pins deps compatible with the Solana 1.18.17
+> SBF toolchain (cargo 1.75) — see the comment in the program `Cargo.toml`
+> before regenerating it.
+
 ```bash
 # 1. (One-time) Install JS deps for the Mocha test runner.
 bun install
 
 # 2. Build the program for the BPF target. Emits target/deploy/*.so and
-#    target/idl/hypechain_marketplace.json (the IDL the client decodes
-#    accounts against).
+#    target/idl/hypechain_evidence_locker.json (the IDL the client decodes
+#    accounts against — keyed on the #[program] module name).
 anchor build
 
 # 3. Sync declare_id! to the program keypair Anchor generated.
@@ -58,7 +78,7 @@ anchor deploy --provider.cluster devnet
 
 # 7. Confirm the program exists on chain.
 solana program show \
-  $(solana address -k target/deploy/hypechain_marketplace-keypair.json) \
+  $(solana address -k target/deploy/hypechain_evidence_locker-keypair.json) \
   --url devnet
 ```
 
@@ -98,6 +118,18 @@ After step 6 prints the program ID, propagate it everywhere:
 
 This is the proof-of-life ritual after every deploy. Walks the full
 Evidence Locker loop and confirms each PDA exists on chain.
+
+**Scripted versions** (no browser needed, both skip-gated on `RUN_DEVNET=1` +
+program ID + funded server key):
+
+```bash
+# Sell side: custodial mint → verify → list (leaves a live Listed listing)
+cd backend-py && RUN_DEVNET=1 uv run pytest tests/test_devnet_smoke.py -v
+
+# Buy side: co-sign → buyer-sign → send; asserts Sold + NFT moved + SOL received.
+# Pass a mint with an existing custodial listing, or omit to set one up.
+cd backend && RUN_DEVNET=1 node scripts/devnet-buy-smoke.js [nftMint]
+```
 
 ```bash
 # Backend

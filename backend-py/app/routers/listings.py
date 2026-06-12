@@ -50,9 +50,18 @@ async def create_listing(body: CreateListingRequest):
     settings = get_settings()
 
     # ---- Step 0: validate (400s, Express parity) ----
-    if not body.user_wallet and not body.user_email:
-        return _bad_request("Either a Solana wallet address or email is required")
-    if body.user_wallet and not is_valid_solana_pubkey(body.user_wallet):
+    # Every listing must belong to a real user wallet — guests must create an
+    # account (with a wallet) before listing. No custodial mint-target fallback.
+    if not body.user_wallet:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "An account with a wallet is required to create a listing",
+                "code": "ACCOUNT_REQUIRED",
+            },
+        )
+    if not is_valid_solana_pubkey(body.user_wallet):
         return _bad_request("Invalid Solana wallet address")
 
     image_check = validate_base64_image(body.product_image)
@@ -64,9 +73,11 @@ async def create_listing(body: CreateListingRequest):
     if body.image_gen_model_id and not is_valid_image_gen_model(body.image_gen_model_id):
         return _bad_request(f"Invalid image generation model ID: {body.image_gen_model_id}")
 
-    platform_wallet = settings.platform_custodial_wallet
-    target_wallet = body.user_wallet or platform_wallet
-    is_pending = body.user_wallet is None
+    # The mint target, on-chain seller, and persisted seller_wallet are all the
+    # user's own wallet. (The custodial server pubkey — see
+    # solana.get_platform_custodial_pubkey — is no longer a create-listing
+    # fallback; it remains available to the buy-side custodial rescue path.)
+    target_wallet = body.user_wallet
 
     try:
         # ---- Step 1: AI verification ----
@@ -161,15 +172,13 @@ async def create_listing(body: CreateListingRequest):
         listing_price = body.optional_price_sol if body.optional_price_sol is not None else 0
         try:
             async with pool_module.acquire() as conn:
-                seller_user_id = (
-                    await queries.get_user_id_by_wallet(conn, body.user_wallet)
-                    if body.user_wallet
-                    else None
-                )
+                seller_user_id = await queries.get_user_id_by_wallet(conn, body.user_wallet)
                 listing = await queries.insert_listing(
                     conn,
                     {
                         "nft_mint_address": nft_mint_address,
+                        # Every listing records the user's own wallet as the
+                        # seller — never NULL, never the custodial server key.
                         "seller_wallet": body.user_wallet,
                         "seller_user_id": seller_user_id,
                         "product_name": product_name,
@@ -179,12 +188,12 @@ async def create_listing(body: CreateListingRequest):
                         "image_url": image_url,
                         "metadata_uri": metadata_uri,
                         "price_sol": listing_price,
-                        "status": "pending_wallet" if is_pending else "active",
+                        "status": "active",
                         "ai_verified": True,
                         "ai_confidence_score": pid.get("confidence"),
-                        "guest_email": body.user_email if is_pending else None,
-                        "is_pending_claim": is_pending,
-                        "platform_wallet": target_wallet if is_pending else None,
+                        "guest_email": None,
+                        "is_pending_claim": False,
+                        "platform_wallet": None,
                         "is_compressed": False,
                         "merkle_tree_address": None,
                         "leaf_index": None,
@@ -213,13 +222,12 @@ async def create_listing(body: CreateListingRequest):
 
         # ---- Step 5: marketplace listing (best-effort) ----
         if proof_written:
-            seller_for_chain = target_wallet if is_pending else body.user_wallet
             try:
                 await to_thread.run_sync(
                     solana.list_item_on_marketplace,
                     nft_mint_address,
                     listing_price,
-                    seller_for_chain,
+                    body.user_wallet,
                 )
             except Exception as lerr:  # noqa: BLE001 — warn-not-fail
                 log.warning("marketplace_listing_failed", error=str(lerr))
@@ -232,13 +240,9 @@ async def create_listing(body: CreateListingRequest):
             "nft_image_url": image_url,
             "product_name": product_name,
             "listing_price_sol": listing_price,
-            "status": "pending_wallet" if is_pending else "active",
-            "is_pending_claim": is_pending,
-            "message": (
-                "Listing created! Connect your wallet anytime to claim your NFT."
-                if is_pending
-                else "NFT minted and listed successfully!"
-            ),
+            "status": "active",
+            "is_pending_claim": False,
+            "message": "NFT minted and listed successfully!",
             "verification": {
                 "brand": pid.get("brand"),
                 "model": pid.get("model"),
@@ -259,15 +263,14 @@ async def create_listing_info() -> dict[str, Any]:
         "method": "POST",
         "description": (
             "Create a new NFT listing with AI verification and NFT image generation "
-            "- wallet optional!"
+            "- account with wallet required"
         ),
         "requiredFields": {
             "productImage": "Base64 encoded image (max 5MB, JPEG/PNG)",
-            "userWallet OR userEmail": "Either Solana public key OR email (at least one required)",
+            "userWallet": "Solana public key of the seller account (required - no guest listings)",
         },
         "optionalFields": {
-            "userWallet": "Solana public key (NFT held in platform wallet until claimed)",
-            "userEmail": "Email address for notifications (required if no wallet)",
+            "userEmail": "Email address for notifications",
             "optionalPriceSol": "Price in SOL (defaults to 0)",
             "verificationModelId": "AI model for verification (defaults to zhipuai/glm-4-plus)",
             "imageGenModelId": "DEPRECATED - NFT images always use openai/gpt-5-image-mini",
