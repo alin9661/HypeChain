@@ -5,10 +5,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Upload, Loader2, CheckCircle, XCircle, Wallet } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { useCreateListing, useImageUpload } from '@/hooks/useApi';
 import { useWallet } from '@/contexts/AppContext';
 
-// Validation schema - wallet is now optional
+// Validation schema — an account wallet is required (auto-filled after sign-in)
 const listingFormSchema = z.object({
   userWallet: z
     .string()
@@ -17,28 +18,20 @@ const listingFormSchema = z.object({
       (val) => !val || (val.length >= 32 && val.length <= 44),
       'Invalid Solana wallet address'
     ),
-  userEmail: z
-    .string()
-    .email('Please enter a valid email address')
-    .optional()
-    .or(z.literal('')),
   optionalPriceSol: z
     .number()
     .min(0, 'Price must be positive')
     .optional()
     .or(z.literal('')),
-}).refine(
-  (data) => data.userWallet || data.userEmail,
-  {
-    message: 'Please provide either a wallet address or email',
-    path: ['userEmail'],
-  }
-);
+});
 
 type ListingFormData = z.infer<typeof listingFormSchema>;
 
 export function CreateListingForm() {
+  const { authenticated, login } = usePrivy();
   const { wallet, connectWallet } = useWallet();
+  // Every listing must belong to a real user wallet — guests sign in first.
+  const needsAccount = !authenticated || !wallet.address;
   const { createListing, loading, error, progress, data, reset } =
     useCreateListing();
   const { preview, handleFileChange, reset: resetImage } = useImageUpload();
@@ -49,12 +42,10 @@ export function CreateListingForm() {
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
   } = useForm<ListingFormData>({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
       userWallet: wallet.address || '',
-      userEmail: '',
       optionalPriceSol: 0,
     },
   });
@@ -67,14 +58,19 @@ export function CreateListingForm() {
   }, [wallet.address, setValue]);
 
   const onSubmit = async (formData: ListingFormData) => {
+    const sellerWallet = formData.userWallet || wallet.address;
+    if (needsAccount || !sellerWallet) {
+      login();
+      return;
+    }
+
     if (!preview) {
       alert('Please upload a product image');
       return;
     }
 
     const result = await createListing({
-      userWallet: formData.userWallet || undefined,
-      userEmail: formData.userEmail || undefined,
+      userWallet: sellerWallet,
       productImage: preview,
       optionalPriceSol:
         typeof formData.optionalPriceSol === 'number'
@@ -86,9 +82,6 @@ export function CreateListingForm() {
       // Reset form after successful creation
       resetImage();
       setValue('optionalPriceSol', 0);
-      if (!wallet.connected) {
-        setValue('userEmail', '');
-      }
     }
   };
 
@@ -153,14 +146,14 @@ export function CreateListingForm() {
             style={{ color: 'var(--hc-text-muted)', fontWeight: 500 }}
           >
             Solana Wallet Address{' '}
-            <span style={{ color: 'var(--hc-accent)', fontWeight: 400 }}>(Optional)</span>
+            <span style={{ color: 'var(--hc-accent)', fontWeight: 400 }}>(Required)</span>
           </label>
           <p
             className="mb-3 font-mono text-[11px]"
             style={{ color: 'var(--hc-text-muted)', letterSpacing: '0.04em' }}
-            title="You can add your wallet later to mint the NFT"
+            title="An account with a wallet is required to create a listing"
           >
-            Connect now or add later to mint your NFT on Solana blockchain
+            Sign in with your account to mint your NFT on Solana blockchain
           </p>
           {wallet.connected && (
             <div
@@ -190,50 +183,11 @@ export function CreateListingForm() {
             }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--hc-accent)')}
             onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--hc-border)')}
-            placeholder="Enter Solana wallet address (optional)"
+            placeholder="Sign in to use your account wallet"
           />
           {errors.userWallet && (
             <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.1em]" style={{ color: 'var(--hc-verify-low)' }}>
               {errors.userWallet.message}
-            </p>
-          )}
-        </div>
-
-        {/* Email for Guest Users */}
-        <div>
-          <label
-            className="block mb-2 font-mono text-[11px] uppercase tracking-[0.16em]"
-            style={{ color: 'var(--hc-text-muted)', fontWeight: 500 }}
-          >
-            Email Address{' '}
-            {!watch('userWallet') && (
-              <span style={{ color: 'var(--hc-verify-low)' }}>*</span>
-            )}
-          </label>
-          <p
-            className="mb-3 font-mono text-[11px]"
-            style={{ color: 'var(--hc-text-muted)', letterSpacing: '0.04em' }}
-            title="Required if no wallet provided"
-          >
-            We'll notify you when your listing is ready{' '}
-            {watch('userWallet') ? '(optional if wallet provided)' : '(required)'}
-          </p>
-          <input
-            type="email"
-            {...register('userEmail')}
-            className="w-full px-4 py-2.5 font-mono text-sm transition-colors focus:outline-none"
-            style={{
-              background: 'var(--hc-bg)',
-              border: '1px solid var(--hc-border)',
-              color: 'var(--hc-text)',
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--hc-accent)')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--hc-border)')}
-            placeholder="your@email.com"
-          />
-          {errors.userEmail && (
-            <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.1em]" style={{ color: 'var(--hc-verify-low)' }}>
-              {errors.userEmail.message}
             </p>
           )}
         </div>
@@ -407,10 +361,11 @@ export function CreateListingForm() {
           </div>
         )}
 
-        {/* Submit Button */}
+        {/* Submit Button — guests are routed to sign-in before they can file */}
         <button
-          type="submit"
-          disabled={loading || !preview}
+          type={needsAccount ? 'button' : 'submit'}
+          onClick={needsAccount ? () => login() : undefined}
+          disabled={loading || (!needsAccount && !preview)}
           className="w-full px-6 h-14 font-mono text-sm uppercase tracking-[0.14em] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: 'var(--hc-bg)',
@@ -439,6 +394,8 @@ export function CreateListingForm() {
               <Loader2 className="w-5 h-5 animate-spin" />
               Filing Intake…
             </>
+          ) : needsAccount ? (
+            'Sign In to File Intake →'
           ) : (
             'File Intake →'
           )}

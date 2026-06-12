@@ -11,7 +11,7 @@ import {
 } from '../services/openrouter.js';
 import { isValidVisionModel, isValidImageGenModel } from '../config/ai-models.js';
 import { createAndUploadNFTMetadata } from '../services/ipfs.js';
-import { mintNFT, listItemOnMarketplace, getServerWallet } from '../services/solana.js';
+import { mintNFT, listItemOnMarketplace } from '../services/solana.js';
 import { mintCompressedNFT } from '../services/compressed-nft.js';
 import { submitVerification, confidenceToBps } from '../services/verification.js';
 
@@ -48,34 +48,21 @@ router.post('/create-listing', async (req, res) => {
     // ========================================
     console.log('📋 Step 0: Validating request...');
 
-    // Validate that either wallet or email is provided
-    if (!userWallet && !userEmail) {
+    // Every listing must belong to a real user wallet — guests must create an
+    // account (with a wallet) before listing. No custodial mint-target fallback.
+    if (!userWallet) {
       return res.status(400).json({
         success: false,
-        error: 'Either a Solana wallet address or email is required'
+        error: 'An account with a wallet is required to create a listing',
+        code: 'ACCOUNT_REQUIRED'
       });
     }
 
-    // Validate wallet if provided
-    if (userWallet && !isValidSolanaPublicKey(userWallet)) {
+    if (!isValidSolanaPublicKey(userWallet)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid Solana wallet address'
       });
-    }
-
-    // Guest listings use the platform custodial wallet — derived from the
-    // server keypair so it is always a wallet the server can sign for (E5
-    // parity with backend-py). The old PLATFORM_CUSTODIAL_WALLET env var
-    // with its non-decodable placeholder fallback minted to an address
-    // nobody could sign for, which would make every custodial co-sign 409.
-    const targetWallet = userWallet || getServerWallet().publicKey.toBase58();
-    const isPendingWallet = !userWallet;
-
-    if (isPendingWallet) {
-      console.log('📧 Guest user detected - using platform custodial wallet');
-      console.log('   Email:', JSON.stringify(String(userEmail)));
-      console.log('   NFT will be held until user connects wallet');
     }
 
     const imageValidation = validateBase64Image(productImage);
@@ -265,12 +252,12 @@ router.post('/create-listing', async (req, res) => {
         console.warn('   Falling back to standard NFT minting.');
         console.warn('   To enable compressed NFTs: Run "pnpm setup-tree" and add the tree address to .env');
 
-        nftMintAddress = await mintNFT(targetWallet, metadataUri, productName);
+        nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
         isCompressed = false;
       } else {
         try {
           const result = await mintCompressedNFT(
-            targetWallet,
+            userWallet,
             metadataUri,
             productName,
             treeAddress
@@ -288,19 +275,19 @@ router.post('/create-listing', async (req, res) => {
           console.error('⚠️  Compressed NFT minting failed:', cNFTError.message);
           console.warn('   Falling back to standard NFT minting...');
 
-          nftMintAddress = await mintNFT(targetWallet, metadataUri, productName);
+          nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
           isCompressed = false;
         }
       }
     } else {
       console.log('📦 Minting as Standard NFT...');
-      nftMintAddress = await mintNFT(targetWallet, metadataUri, productName);
+      nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
       isCompressed = false;
     }
 
     console.log('NFT minted:', nftMintAddress);
     console.log(`   Type: ${isCompressed ? 'Compressed NFT (cNFT)' : 'Standard NFT'}`);
-    console.log(`✅ NFT minted successfully to ${isPendingWallet ? 'platform wallet (pending claim)' : 'user wallet'}`);
+    console.log('✅ NFT minted successfully to user wallet');
 
     // ========================================
     // STEP 4: Save Listing to Database
@@ -309,20 +296,16 @@ router.post('/create-listing', async (req, res) => {
 
     const listingPrice = optionalPriceSol ?? 0;
 
-    // Get user ID from wallet address (if exists and provided)
-    let userData = null;
-    if (userWallet) {
-      const { data } = await supabase
-        .from('users')
-        .select('id')
-        .eq('wallet_address', userWallet)
-        .single();
-      userData = data;
-    }
+    // Get user ID from wallet address (if registered)
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id')
+      .eq('wallet_address', userWallet)
+      .single();
 
     const listingData = {
       nft_mint_address: nftMintAddress,
-      seller_wallet: userWallet || null,
+      seller_wallet: userWallet,
       seller_user_id: userData?.id || null,
       product_name: productName,
       description: description,
@@ -331,13 +314,13 @@ router.post('/create-listing', async (req, res) => {
       image_url: imageUrl,
       metadata_uri: metadataUri,
       price_sol: listingPrice,
-      status: isPendingWallet ? 'pending_wallet' : 'active',
+      status: 'active',
       ai_verified: true,
       ai_confidence_score: verificationResult.product_identification.confidence,
-      // Add guest user fields
-      guest_email: isPendingWallet ? userEmail : null,
-      is_pending_claim: isPendingWallet,
-      platform_wallet: isPendingWallet ? targetWallet : null,
+      // Guest fields retired — every listing belongs to a real user wallet
+      guest_email: null,
+      is_pending_claim: false,
+      platform_wallet: null,
       // Add compressed NFT fields
       is_compressed: isCompressed,
       merkle_tree_address: merkleTreeAddress,
@@ -393,18 +376,18 @@ router.post('/create-listing', async (req, res) => {
     // ========================================
     // STEP 5: List on Marketplace
     // ========================================
-    // Two modes — fully-signed if the seller is the custodial server wallet
-    // (guest flow); prepared-but-unsigned if the seller is a user wallet
-    // (the frontend signs `list_evidence` itself using anchor-client.ts).
+    // The seller is always the user's wallet — the transaction is prepared
+    // but unsigned (the frontend signs `list_evidence` itself using
+    // anchor-client.ts). Custodial fully-signed listings remain available to
+    // the buy-side rescue path via listItemOnMarketplace directly.
     let marketplaceResult = null;
     if (verificationResult2 && !isCompressed) {
       console.log('🏪 Step 5: Listing on marketplace...');
-      const sellerForChain = isPendingWallet ? targetWallet : userWallet;
       try {
         marketplaceResult = await listItemOnMarketplace(
           nftMintAddress,
           listingPrice,
-          sellerForChain
+          userWallet
         );
         console.log('Marketplace result:', marketplaceResult);
       } catch (listingError) {
@@ -426,11 +409,9 @@ router.post('/create-listing', async (req, res) => {
       nft_image_url: imageUrl,
       product_name: productName,
       listing_price_sol: listingPrice,
-      status: isPendingWallet ? 'pending_wallet' : 'active',
-      is_pending_claim: isPendingWallet,
-      message: isPendingWallet
-        ? 'Listing created! Connect your wallet anytime to claim your NFT.'
-        : 'NFT minted and listed successfully!',
+      status: 'active',
+      is_pending_claim: false,
+      message: 'NFT minted and listed successfully!',
       verification: {
         brand: verificationResult.product_identification.brand,
         model: verificationResult.product_identification.model,
@@ -530,14 +511,13 @@ router.get('/create-listing', (req, res) => {
   res.json({
     endpoint: '/api/create-listing',
     method: 'POST',
-    description: 'Create a new NFT listing with AI verification and NFT image generation - wallet optional!',
+    description: 'Create a new NFT listing with AI verification and NFT image generation - account with wallet required',
     requiredFields: {
       productImage: 'Base64 encoded image (max 5MB, JPEG/PNG)',
-      'userWallet OR userEmail': 'Either Solana public key OR email address (at least one required)'
+      userWallet: 'Solana public key of the seller account (required - no guest listings)'
     },
     optionalFields: {
-      userWallet: 'Solana public key (optional - NFT held in platform wallet until claimed)',
-      userEmail: 'Email address for notifications (required if no wallet)',
+      userEmail: 'Email address for notifications',
       optionalPriceSol: 'Price in USDC (defaults to 0)',
       verificationModelId: 'AI model for verification (defaults to zhipuai/glm-4-plus)',
       imageGenModelId: 'DEPRECATED - NFT images always generated with openai/gpt-5-image-mini'
@@ -550,17 +530,11 @@ router.get('/create-listing', (req, res) => {
     ],
     imageGenerationModel: 'openai/gpt-5-image-mini (fixed - generates NFTified artwork from item name)',
     imageGenerationStyle: 'Digital NFT artwork with blockchain aesthetic, 3D rendered, holographic elements',
-    exampleWithWallet: {
+    example: {
       userWallet: 'ABC123...',
       productImage: 'data:image/jpeg;base64,...',
       optionalPriceSol: 0.5,
       verificationModelId: 'openai/gpt-4-vision-preview'
-    },
-    exampleWithoutWallet: {
-      userEmail: 'user@example.com',
-      productImage: 'data:image/jpeg;base64,...',
-      optionalPriceSol: 0.5,
-      note: 'NFT will be held in platform wallet until user connects their wallet'
     }
   });
 });
