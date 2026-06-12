@@ -7,7 +7,7 @@
  */
 
 import './helpers/env-setup.js';
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'bun:test';
 import express from 'express';
 import { Keypair } from '@solana/web3.js';
 
@@ -17,6 +17,12 @@ import { CosignError } from '../src/services/cosign-purchase.js';
 let server;
 let baseUrl;
 let behavior = {};
+
+// Shared mutable stub config — reset per test so no test inherits another's
+// failure injections (bun runs files sequentially, but order-dependence bites).
+beforeEach(() => {
+  behavior = {};
+});
 
 beforeAll(async () => {
   const app = express();

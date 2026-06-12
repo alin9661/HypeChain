@@ -67,6 +67,7 @@ app.get('/', (req, res) => {
       createListing: 'POST /api/create-listing',
       listingInfo: 'GET /api/create-listing',
       createPayment: 'POST /api/payments/create',
+      cosignPurchase: 'POST /api/payments/cosign-purchase',
       verifyPayment: 'POST /api/payments/verify',
       paymentHistory: 'GET /api/payments/history/:walletAddress',
       walletBalance: 'GET /api/payments/balance/:walletAddress',

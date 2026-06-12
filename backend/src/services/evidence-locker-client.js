@@ -15,10 +15,26 @@ import {
 } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
-export const PROGRAM_ID = new PublicKey(
-  process.env.HACKNYU_MARKETPLACE_PROGRAM_ID ||
-    'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS'
-);
+// Anchor scaffold placeholder — allowed only outside production (T8 parity
+// with backend-py's require_marketplace_program_id: a half-configured deploy
+// must fail loud, not silently build instructions against the wrong program).
+const PLACEHOLDER_PROGRAM_ID = 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS';
+
+function resolveProgramId() {
+  const configured = process.env.HACKNYU_MARKETPLACE_PROGRAM_ID;
+  if (!configured || configured === PLACEHOLDER_PROGRAM_ID) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'HACKNYU_MARKETPLACE_PROGRAM_ID is unset or still the Anchor scaffold ' +
+          'placeholder — set it to the deployed program ID before starting in production'
+      );
+    }
+    return new PublicKey(PLACEHOLDER_PROGRAM_ID);
+  }
+  return new PublicKey(configured);
+}
+
+export const PROGRAM_ID = resolveProgramId();
 
 export const MIN_CONFIDENCE_BPS = 5000;
 

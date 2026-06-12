@@ -9,7 +9,7 @@ skip-lint = false
 hypechain_evidence_locker = "2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF"
 
 [programs.localnet]
-hypechain_evidence_locker = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+hypechain_evidence_locker = "2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF"
 
 [registry]
 url = "https://api.apr.dev"

@@ -2,6 +2,36 @@
 
 ## Solana / Evidence Locker
 
+### Server-driven purchase finalization (full reconciler)
+**Priority:** P1
+**Files:** `backend/src/services/cosign-purchase.js`, planned V2 write service
+**Found:** v0.4.x pre-landing review + ACID research (2026-06-11)
+DB finalization of Anchor purchases rides on the buyer's browser calling `verifyPayment`. The land adds idempotent verify + read-repair as outbox-lite, but the real fix is a server-side reconciler (poll/webhook keyed on listingPda) that converges DB rows from chain state. Belongs in the V2 TypeScript write service.
+
+### Rate-limit + authenticate the co-sign endpoint
+**Priority:** P1
+**File:** `backend/src/routes/payment.js` (`POST /api/payments/cosign-purchase`)
+**Found:** v0.4.x pre-landing review (security + red team)
+Unauthenticated callers can drive unlimited custodial signing ops (3 RPC reads each) — an anonymous loop exhausts the shared devnet RPC budget (~40 req/10s/method) and stalls mint/verify/list for everyone. Fix: per-IP + per-listing rate limit; optionally require an existing pending payment record for the buyer.
+
+### create-listing blocking confirms vs API-gateway timeouts
+**Priority:** P1
+**File:** `backend-py/app/services/solana.py:send_transaction`
+**Found:** red team (2026-06-11)
+Confirmed sends are correct (Anchor 3012 fix) but serialize 3-4 devnet confirmations inside one HTTP request; under congestion this exceeds the 29s API-gateway cap, and a retry double-mints (no idempotency key). Fix in V2: respond after mint, anchor verify+list async, or add an idempotency key to create-listing.
+
+### Cluster consistency check (genesis hash)
+**Priority:** P2
+**Files:** `backend/src/services/cosign-purchase.js`, `frontend/components/purchase-button.tsx`
+**Found:** red team (2026-06-11)
+Nothing asserts the frontend and backends point at the same cluster; mismatch fails after wallet approval with "Blockhash not found". Fix: cosign response includes the backend's genesis hash; client compares before the wallet popup.
+
+### Purchase-button Frame primitive + inset-glow hover
+**Priority:** P3
+**File:** `frontend/components/purchase-button.tsx`
+**Found:** design review (2026-06-11)
+Token cleanup landed (accent/disabled/muted/spinner/emoji); remaining DESIGN.md gaps: clip-path `<Frame>` button tier and the signature yellow inset-glow pulse on CTA hover.
+
 ### `marketplaceResult` not persisted to Supabase or returned to client
 **Priority:** P1
 **File:** `backend/src/routes/listing.js:396-414`
