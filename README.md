@@ -54,23 +54,25 @@ bun install
 
 ```bash
 PORT=3001
-FRONTEND_URL=http://localhost:3000
+HACKNYU_FRONTEND_URL=http://localhost:3000
 
 # OpenRouter API (for AI verification & image generation)
-OPENROUTER_API_KEY=your_key_here
+HACKNYU_OPENROUTER_API_KEY=your_key_here
 
 # NFT.Storage (for IPFS uploads)
-NFT_STORAGE_API_KEY=your_key_here
+HACKNYU_NFT_STORAGE_API_KEY=your_key_here
 
 # Solana Configuration
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_NETWORK=devnet
+HACKNYU_SOLANA_RPC_URL=https://api.devnet.solana.com
 
 # Server Wallet (for paying transaction fees)
-SERVER_WALLET_PRIVATE_KEY=your_base58_private_key
+HACKNYU_SERVER_WALLET_PRIVATE_KEY=your_base58_private_key
 
-# Smart Contract (deploy first, then add)
-MARKETPLACE_PROGRAM_ID=your_program_id
+# Smart Contract (deploy first, then add). Required in production —
+# the server refuses to start with NODE_ENV=production if this is unset
+# or still the Anchor scaffold placeholder.
+HACKNYU_MARKETPLACE_PROGRAM_ID=your_program_id
+HACKNYU_CASE_PREFIX=HC-2026-
 ```
 
 **Frontend** (`frontend/.env.local`):
@@ -81,15 +83,27 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 # Privy wallet auth — required in production builds (the app throws at
 # startup without it); local dev/test fall back to a placeholder.
 NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+
+# Evidence Locker program — required in production builds (the app throws
+# at import when unset or still the scaffold placeholder).
+NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID=your_program_id
+
+# Optional: flip on the on-chain Anchor co-sign purchase flow
+NEXT_PUBLIC_USE_ANCHOR_PURCHASE=1
 ```
 
 ### 3. Deploy Smart Contract
 
+The Evidence Locker program is deployed to devnet as
+`2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF`. To redeploy yourself,
+follow [`contracts/DEPLOY.md`](contracts/DEPLOY.md):
+
 ```bash
 cd contracts
 
-# Build the program
-anchor build
+# Build the program — ALWAYS via the wrapper, which pins the
+# nightly-2024-11-01 toolchain Anchor 0.30.1 needs
+./anchor.sh build
 
 # Deploy to devnet
 anchor deploy --provider.cluster devnet
@@ -117,7 +131,9 @@ App runs on `http://localhost:3000`
 
 ### POST `/api/create-listing`
 
-Creates a new NFT listing with AI verification.
+Creates a new NFT listing with AI verification. `userWallet` is required —
+requests without it are rejected with `400 ACCOUNT_REQUIRED` (guests must
+create an account with a wallet before listing).
 
 **Request Body:**
 
@@ -151,6 +167,30 @@ Creates a new NFT listing with AI verification.
 4. **IPFS Upload**: Uploads image and metadata
 5. **NFT Minting**: Mints NFT to user's wallet via Metaplex
 6. **Marketplace Listing**: Lists on-chain at specified price
+
+### POST `/api/payments/cosign-purchase`
+
+Builds and custodially co-signs an on-chain `purchase_evidence` transaction
+for a custodial listing. The server constructs the full transaction itself,
+validates it against the on-chain listing PDA, partial-signs as the custodial
+seller, and returns it base64-encoded for the buyer to sign and send.
+
+**Request Body:**
+
+```json
+{
+  "listingId": "uuid",
+  "buyerWallet": "SOLANA_PUBLIC_KEY"
+}
+```
+
+**Response:** `{ success, transaction, priceLamports, priceSol, blockhash, lastValidBlockHeight, nftMint, listingPda, seller }`
+
+Errors use `{ success: false, error, code }` with codes such as
+`INVALID_BUYER_WALLET`, `SELF_PURCHASE`, `SELLER_NOT_CUSTODIAL`,
+`LISTING_NOT_ON_CHAIN`, `LISTING_NOT_PURCHASABLE`, `PRICE_MISMATCH`,
+`NFT_NOT_IN_CUSTODY`, `CUSTODIAL_KEY_DRIFT`, and
+`COSIGN_FAILED` — see [`backend/README.md`](backend/README.md) for the full table.
 
 ## Architecture
 
@@ -198,21 +238,23 @@ Creates a new NFT listing with AI verification.
 ```
 HackNYU 2025/
 ├── frontend/                             # Next.js frontend
-│   ├── src/
-│   │   ├── app/                         # Next.js pages
-│   │   ├── components/                  # React components
-│   │   └── lib/                         # Utilities
+│   ├── app/                             # Next.js pages
+│   ├── components/                      # React components
+│   ├── lib/                             # Utilities
 │   └── package.json
 │
 ├── backend/                              # Express.js API server
 │   ├── src/
 │   │   ├── index.js                     # Server entry point
 │   │   ├── routes/
-│   │   │   └── listing.js               # API routes
+│   │   │   ├── listing.js               # Listing routes
+│   │   │   └── payment.js               # Payment routes (incl. cosign-purchase)
 │   │   ├── services/
 │   │   │   ├── openrouter.js            # AI services
 │   │   │   ├── ipfs.js                  # IPFS uploads
-│   │   │   └── solana.js                # NFT minting
+│   │   │   ├── solana.js                # NFT minting
+│   │   │   ├── cosign-purchase.js       # Custodial co-sign tx builder
+│   │   │   └── evidence-locker-client.js # Anchor program client
 │   │   └── utils/
 │   │       └── validation.js            # Input validation
 │   ├── package.json
@@ -238,57 +280,69 @@ HackNYU 2025/
 
 ## Smart Contract
 
+The Anchor program (`hypechain_evidence_locker`) is deployed to devnet as
+`2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF`.
+
 ### Instructions
 
-#### 1. `list_item`
-Lists an NFT for sale.
+#### 1. `init_dossier`
+One-time per server wallet: opens the Dossier that issues case numbers.
+
+#### 2. `submit_verification`
+Anchors an AI verification proof (confidence, model, liveness) for a mint.
+
+#### 3. `list_evidence`
+Lists a verified NFT for sale.
 
 ```rust
-pub fn list_item(ctx: Context<ListItem>, price_sol: u64) -> Result<()>
+pub fn list_evidence(ctx: Context<ListEvidence>, price_lamports: u64) -> Result<()>
 ```
 
-**Accounts:**
-- `seller`: Signer
-- `nft_mint`: NFT mint address
-- `product_listing`: PDA storing listing data
-
-#### 2. `delist_item`
+#### 4. `delist_evidence`
 Removes a listing (seller only).
 
-```rust
-pub fn delist_item(ctx: Context<DelistItem>) -> Result<()>
-```
-
-#### 3. `buy_item`
-Purchases an NFT.
+#### 5. `purchase_evidence`
+Purchases an NFT (buyer + seller co-sign).
 
 ```rust
-pub fn buy_item(ctx: Context<BuyItem>) -> Result<()>
+pub fn purchase_evidence(ctx: Context<PurchaseEvidence>) -> Result<()>
 ```
 
 **Actions:**
 - Transfers SOL to seller
 - Transfers NFT to buyer
-- Marks listing as sold
+- Marks listing as `Sold`
+
+#### 6. `flag_dispute`
+Examiner flags a listing as disputed.
 
 ### Account Structure
 
 ```rust
-pub struct ProductListing {
+pub struct EvidenceListing {
     pub seller: Pubkey,
     pub nft_mint: Pubkey,
-    pub price_sol: u64,
-    pub is_listed: bool,
+    pub dossier: Pubkey,
+    pub verification_proof: Pubkey,
+    pub examiner: Pubkey,
+    pub custodian: Option<Pubkey>, // Some(server_wallet) for custodial sellers
+    pub case_number: u32,
+    pub price_lamports: u64,
+    pub status: ListingStatus, // Pending/Verified/Listed/Sold/Delisted/Disputed
+    pub created_at: i64,
     pub bump: u8,
 }
 ```
+
+The program also stores `Dossier` (per server wallet) and `VerificationProof`
+(per mint) accounts — see `contracts/programs/hypechain-marketplace/src/lib.rs`.
 
 ## Testing
 
 ### Test API Endpoint
 
 ```bash
-curl -X POST http://localhost:3000/api/create-listing \
+curl -X POST http://localhost:3001/api/create-listing \
   -H "Content-Type: application/json" \
   -d '{
     "userWallet": "YOUR_SOLANA_ADDRESS",
@@ -301,7 +355,7 @@ curl -X POST http://localhost:3000/api/create-listing \
 
 ```bash
 cd contracts
-anchor test
+./anchor.sh test
 ```
 
 ## Development
@@ -310,7 +364,7 @@ anchor test
 
 ```bash
 cd contracts
-anchor build
+./anchor.sh build   # wrapper pins nightly-2024-11-01 (required for Anchor 0.30.1)
 ```
 
 ### Deploy to Devnet

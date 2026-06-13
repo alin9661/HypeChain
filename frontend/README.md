@@ -10,7 +10,7 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 ## Features
 
 ### Complete Backend API Integration
-- **All 4 backend endpoints integrated** (Health, API Info, Listing Info, Create Listing)
+- **All backend endpoints integrated** (Health, API Info, Listing Info, Create Listing, payments incl. co-sign purchase)
 - **Centralized API client** with error handling and request interceptors
 - **Custom React hooks** for all API operations
 - **TypeScript interfaces** for all request/response types
@@ -31,7 +31,7 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 **Listings & purchase**
 - **CreateListingForm** (`create-listing-form.tsx`): NFT creation with image upload, validation, wallet
 - **NFTCard & NFTGrid**: Responsive grid with skeleton loaders
-- **PurchaseButton** (`purchase-button.tsx`): Buy flow with on-chain transaction state
+- **PurchaseButton** (`purchase-button.tsx`): Buy flow with on-chain transaction state. With `NEXT_PUBLIC_USE_ANCHOR_PURCHASE=1`, runs the Anchor co-sign path: fetches a server-co-signed `purchase_evidence` transaction from `/api/payments/cosign-purchase`, verifies the tx bytes client-side (`assertCosignedInstructions` in `lib/purchase-helpers.ts`), then buyer-signs and sends
 
 **Global**
 - **ToastContainer** (`toast.tsx`): Notification system with auto-dismiss
@@ -134,10 +134,10 @@ All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it be
 
 ### Testing
 - **Jest** with React Testing Library
-- Unit tests for API client and landing scrub-math helpers
-- Component tests for NFTCard, the theme provider (including the pre-paint init script), and the Privy provider config
+- Unit tests for API client (incl. cosign-purchase), purchase helpers, anchor-client program-ID guard, and landing scrub-math helpers
+- Component tests for NFTCard, PurchaseButton, the theme provider (including the pre-paint init script), and the Privy provider config
 - Mock setup for Next.js environment
-- 5 suites / 59 passing tests
+- 9 suites / 80 passing tests
 
 ## Tech Stack
 
@@ -164,14 +164,25 @@ bun install
 Create `.env.local` in the frontend directory:
 
 ```bash
-# Backend API
+# Backend API (trailing slashes are normalized away)
 NEXT_PUBLIC_API_URL=http://localhost:3001
 
-# WebSocket URL
-NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
+# Solana RPC endpoint (purchase send + transaction reads)
+NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
 
-# Solana Network
-NEXT_PUBLIC_SOLANA_NETWORK=devnet
+# Supabase (client-side reads)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+
+# Evidence Locker program ID — required in production builds (throws at
+# import when unset or still the scaffold placeholder)
+NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID=2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF
+
+# Optional: enable the Anchor co-sign purchase flow
+NEXT_PUBLIC_USE_ANCHOR_PURCHASE=1
+
+# Optional: route the co-sign request only to a separately deployed write service
+# NEXT_PUBLIC_WRITE_API_URL=https://write.example.com
 ```
 
 **Note:** Make sure the backend is running on port 3001 before starting the frontend.
@@ -247,7 +258,9 @@ frontend/
 │   └── useScrollProgress.ts       # 0..1 progress for sticky-pinned scrub sections
 │
 ├── lib/
-│   ├── api-client.ts              # HTTP API client
+│   ├── api-client.ts              # HTTP API client (cosign endpoint, write-URL override)
+│   ├── anchor-client.ts           # Evidence Locker Anchor client (fail-closed program ID)
+│   ├── purchase-helpers.ts        # Co-signed tx verification (assertCosignedInstructions)
 │   ├── solana.ts                  # Solana blockchain service
 │   ├── websocket.ts               # WebSocket service
 │   └── utils.ts                   # Utilities
@@ -255,6 +268,10 @@ frontend/
 ├── __tests__/
 │   ├── setup.ts                   # Jest configuration
 │   ├── api-client.test.ts         # API client tests
+│   ├── api-client-cosign.test.ts  # Cosign-purchase API client tests
+│   ├── anchor-client-program-id.test.ts # Production program-ID guard
+│   ├── purchase-button.test.tsx   # Buy flow incl. Anchor co-sign path
+│   ├── purchase-helpers.test.ts   # Co-signed tx byte verification
 │   ├── nft-card.test.tsx          # Component tests
 │   ├── theme-provider.test.tsx    # Theme provider + header toggle (init script, resolvedTheme, cross-tab sync)
 │   ├── privy-provider-wrapper.test.tsx # Privy config memoization + production appId guard
@@ -428,8 +445,9 @@ bun test api-client.test.ts
 
 ### Test Coverage
 
-Current test coverage (5 suites / 59 tests):
-- API Client (healthCheck, createListing, validation)
+Current test coverage (9 suites / 80 tests):
+- API Client (healthCheck, createListing, validation, cosign-purchase)
+- Purchase flow (PurchaseButton Anchor co-sign path, purchase-helpers tx verification, anchor-client program-ID guard)
 - NFTCard component (rendering, interactions, IPFS links)
 - Theme provider (pre-paint init script execution, `resolvedTheme`, system-preference tracking, cross-tab sync) and the header theme toggle
 - Privy provider (config identity across re-renders, per-chain embedded-wallet shape, production app-ID guard)
@@ -442,10 +460,14 @@ More tests in `__tests__/` directory.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:3001` |
-| `NEXT_PUBLIC_WS_URL` | WebSocket server URL | `ws://localhost:3001/ws` |
-| `NEXT_PUBLIC_SOLANA_NETWORK` | Solana network (devnet/mainnet-beta) | `devnet` |
+| `NEXT_PUBLIC_API_URL` | Backend API URL (trailing slashes normalized) | `http://localhost:3001` |
+| `NEXT_PUBLIC_SOLANA_RPC_URL` | Solana RPC endpoint (used by `components/purchase-button.tsx` to send the purchase transaction, and by `lib/solana.ts`) | `https://api.devnet.solana.com` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (`lib/supabase.ts`) | none (throws if unset) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (`lib/supabase.ts`) | none (throws if unset) |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID for wallet auth. **Required in production** — production builds throw at startup if unset. | dev/test placeholder |
+| `NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID` | Evidence Locker program ID. **Required in production** — production builds throw at import if unset or still the scaffold placeholder. | dev/test placeholder |
+| `NEXT_PUBLIC_USE_ANCHOR_PURCHASE` | Set to `1` to enable the on-chain Anchor co-sign purchase flow (default: legacy SOL-transfer flow) | off |
+| `NEXT_PUBLIC_WRITE_API_URL` | Optional override: base URL for the co-sign request only (`apiClient.cosignPurchase`); all other payment calls use `NEXT_PUBLIC_API_URL` | falls back to `NEXT_PUBLIC_API_URL` |
 
 ## Browser Support
 

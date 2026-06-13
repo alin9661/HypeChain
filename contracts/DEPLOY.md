@@ -2,6 +2,9 @@
 
 Generated via the `solana-program` skill (DEPLOY mode). Anchor 0.30.1.
 
+**Current devnet deployment:** `2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF`
+(matches `Anchor.toml` `[programs.devnet]` and the `declare_id!` in `lib.rs`).
+
 **Target: devnet.** Mainnet is out of scope for the hackathon — when you
 do reach for it, this checklist needs an additional explicit confirmation
 and a committed-and-tagged source state. Deploying spends SOL and is
@@ -18,8 +21,8 @@ turns into a 30-minute debug session later.
 - [ ] `solana --version` is 1.18.x or newer.
 - [ ] You can run `solana balance --url devnet`. Wallet has at least 2 SOL —
       `solana airdrop 2 --url devnet` if not.
-- [ ] `cd contracts && anchor build` succeeds clean (warnings OK, no errors).
-- [ ] `anchor test` passes (uses the local validator that ships with Anchor).
+- [ ] `cd contracts && ./anchor.sh build` succeeds clean (warnings OK, no errors).
+- [ ] `./anchor.sh test` passes (uses the local validator that ships with Anchor).
 - [ ] The `init-if-needed` cargo feature is enabled in
       `programs/hypechain-marketplace/Cargo.toml` (already set — verify).
 - [ ] Program name is consistent: `Anchor.toml` `[programs.*]` key,
@@ -58,18 +61,18 @@ bun install
 # 2. Build the program for the BPF target. Emits target/deploy/*.so and
 #    target/idl/hypechain_evidence_locker.json (the IDL the client decodes
 #    accounts against — keyed on the #[program] module name).
-anchor build
+./anchor.sh build
 
 # 3. Sync declare_id! to the program keypair Anchor generated.
 #    Rewrites both lib.rs and Anchor.toml. Commit the resulting diff.
-anchor keys sync
+./anchor.sh keys sync
 
 # 4. REBUILD after the sync so the new program ID is baked into the .so.
 #    Skipping this is the #1 source of "Program ID mismatch" on deploy.
-anchor build
+./anchor.sh build
 
 # 5. (Sanity) Run tests against the local validator one more time.
-anchor test
+./anchor.sh test
 
 # 6. Deploy to devnet. ≈30s — emits the program ID it deployed under.
 #    That ID must match Anchor.toml's [programs.devnet] entry (it does
@@ -97,7 +100,9 @@ After step 6 prints the program ID, propagate it everywhere:
    HACKNYU_CASE_PREFIX=HC-2026-
    ```
 
-3. **`frontend/.env.local`**:
+3. **`frontend/.env.local`** (the program ID is required in production
+   builds — the frontend throws at import when it's unset or still the
+   scaffold placeholder):
    ```bash
    NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID=<the new program id>
    # Optional — flip on to use the Anchor purchase flow:
@@ -172,7 +177,7 @@ Solana has no automatic rollback. If a deploy regresses devnet:
 # Redeploy the previous .so (keep the prior build artifact alongside
 # the commit hash it was built from).
 git checkout <prior-commit>
-anchor build
+./anchor.sh build
 anchor deploy --provider.cluster devnet  # same program ID, new bytes
 ```
 

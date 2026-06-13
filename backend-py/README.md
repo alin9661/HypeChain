@@ -53,9 +53,19 @@ Built and merged across the refactor (see spec §7):
 5. **Integration** — `listings` + `payments` routers, schemas, HTTP-parity harness.
 6. **Activities + provenance** — `activities` feed router and per-mint
    `/api/nft/{mint}/history`, fed by a fail-closed Helius `webhooks` ingest endpoint.
+7. **Buy-loop hardening (v0.5.0.0)** — `/api/create-listing` now requires
+   `user_wallet` (`400 ACCOUNT_REQUIRED`, Express parity; the guest/custodial
+   intake path is removed, so `seller_wallet` is never NULL);
+   `send_transaction` confirms before returning (commitment `confirmed`,
+   2s polling, 30s timeout — devnet caps each RPC method at ~40 req/10s);
+   startup fails closed via `require_marketplace_program_id()` when
+   `HACKNYU_MARKETPLACE_PROGRAM_ID` is unset or still the scaffold
+   placeholder outside dev/test.
 
 Routes: `/`, `/health`, `/api/create-listing`, `/api/payments/*` (6),
 `/api/activities`, `/api/nft/{mint}/history`, `/api/webhooks/helius`.
+(The custodial co-sign purchase endpoint, `POST /api/payments/cosign-purchase`,
+ships in the Express backend only — see [`../backend/README.md`](../backend/README.md).)
 
 ## Deploy
 

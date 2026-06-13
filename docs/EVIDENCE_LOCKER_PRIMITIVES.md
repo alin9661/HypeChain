@@ -38,9 +38,10 @@ All token names live under the `--hc-*` namespace so they never collide with the
 --hc-text-body:  #E5E5E5;
 --hc-text-muted: #6B6B6B;
 
-/* Brand */
---hc-accent:      #FFC700;   /* Verified Yellow */
---hc-accent-deep: #EBB800;
+/* Brand — retoned to evidence-locker brass on 2026-05-19 (see DESIGN.md Decisions Log) */
+--hc-accent:      #EBC658;   /* Evidence-locker brass (formerly Verified Yellow #FFC700) */
+--hc-accent-deep: #C9A436;
+--hc-accent-tint: rgba(235, 198, 88, 0.10);
 
 /* Verification semantics */
 --hc-verify-high: #00E5A0;   /* mint — AI confidence HIGH, VERIFIED */
@@ -189,7 +190,7 @@ The rewrite preserves every data-flow concern from the previous implementation:
 
 These two components are the spine of the Evidence Chrome surfaces. They should appear in:
 
-- [ ] `frontend/app/marketplace/page.tsx` — `<CaseFileRibbon caseId={null} />` at top; `<RedactedField>` on pending-listing rows.
+- [x] `frontend/app/marketplace/page.tsx` — `<CaseFileRibbon caseId={null} />` at top; `<RedactedField>` on pending-listing rows.
 - [ ] `frontend/app/collections/page.tsx` — Same ribbon pattern.
 - [ ] `frontend/app/activities/page.tsx` — Ribbon + redacted rows on in-progress transactions.
 - [ ] `frontend/app/settings/page.tsx` — Ribbon only; no redactions.
