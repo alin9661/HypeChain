@@ -15,12 +15,21 @@ import listingRoutes from './routes/listing.js';
 import paymentRoutes from './routes/payment.js';
 import activitiesRoutes from './routes/activities.js';
 import webhookRoutes from './routes/webhooks.js';
+import { requestId } from './middleware/request-id.js';
+import { createListingLimiter, paymentsLimiter } from './middleware/rate-limit.js';
 
 const app = express();
+
+// Behind the Lambda Function URL / ALB — trust the proxy so req.ip (used for
+// rate-limit keying) is the real client IP, not the proxy's.
+app.set('trust proxy', 1);
 
 // ========================================
 // Middleware
 // ========================================
+
+// Correlate every request (X-Request-Id) before anything else logs.
+app.use(requestId);
 
 // Security headers
 app.use(helmet());
@@ -54,7 +63,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
+// API routes. Rate limits guard the expensive (create-listing) and
+// fund-mutating (payments) surfaces; the webhook is auth-gated, not IP-limited
+// (Helius's IPs vary and it self-throttles on 2xx).
+app.use('/api/create-listing', createListingLimiter);
+app.use('/api/payments', paymentsLimiter);
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
 // Activity feed + provenance live at /api/activities and /api/nft/:mint/history.
