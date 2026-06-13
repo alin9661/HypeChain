@@ -3,6 +3,59 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0.0] - 2026-06-13
+
+Backend consolidated onto a single Express service on Aurora DSQL; the FastAPI
+service and Supabase are retired. New web3-product surfaces and on-chain
+correctness fixes round out the marketplace.
+
+### Added
+
+- **Express is the single backend, on Aurora DSQL.** Ported the FastAPI DSQL
+  data layer to Node (`backend/src/db/{pool,queries,occ,index}.js`):
+  node-postgres pool with DSQL IAM-token auth + TLS, no cached prepared
+  statements, OCC retry on serialization failures, and a fail-closed local-PG
+  escape hatch. `listing.js` + `payment.js` now read/write DSQL via a shared
+  `db` facade (Supabase client removed).
+- **Activities feed, provenance & Helius webhook ported to Express** —
+  `GET /api/activities` (keyset-paginated), `GET /api/nft/:mint/history`, and
+  `POST /api/webhooks/helius` (fail-closed constant-time HMAC, idempotent insert).
+- **Custodial guest listings** — `create-listing` accepts `custodial: true`,
+  unifying mint target + on-chain seller + co-sign signer on one real server
+  keypair so a guest's item is actually sellable (P0 fix).
+- **On-chain references persisted** — `listing_pubkey` + `verification_proof_pubkey`
+  columns; the create-listing response now returns `marketplace_mode` + both PDAs.
+- **Portfolio** (`/portfolio`) and **transaction history** (`/transactions`)
+  pages; both added to the sidebar.
+- **Rate limiting** (per-IP, fail-closed) on create-listing + payments, and an
+  **X-Request-Id** correlation middleware.
+
+### Changed
+
+- `flag_dispute` no longer permits `Delisted → Disputed` (would lock a listing
+  forever); blocks both `Sold` and `Delisted` (new `DisputeNotAllowed`).
+- Purchase button: DESIGN.md compliance — inset-glow instead of `hover:scale`,
+  caret reveal instead of the pulse spinner.
+
+### Removed
+
+- **`backend-py/` (FastAPI) and Supabase** — superseded by Express-on-DSQL.
+  Removed the `@supabase/supabase-js` backend dependency and the root
+  `supabase_marketplace_schema.sql` (DSQL schema lives in `backend/schema/`).
+
+### Tests
+
+- Backend suite 89/89 pass (DSQL data layer, activities/webhook, custodial
+  branching, on-chain refs, rate-limit/request-id). New contract regression
+  tests (SelfPurchase, Delisted-cannot-dispute) added as source.
+
+### Deferred (follow-ups)
+
+- Privy JWT auth middleware, Sentry, and server-key → AWS Secrets Manager.
+- Frontend collections backend, notifications, share/SEO, USD display.
+- Frontend `app/api/users/*` still use Supabase directly — migrate to Express
+  user endpoints before fully decommissioning Supabase.
+
 ## [0.5.0.0] - 2026-06-12
 
 The buy loop is live on-chain. The Evidence Locker program is deployed to
