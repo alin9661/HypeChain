@@ -11,7 +11,7 @@ import {
 } from '../services/openrouter.js';
 import { isValidVisionModel, isValidImageGenModel } from '../config/ai-models.js';
 import { createAndUploadNFTMetadata } from '../services/ipfs.js';
-import { mintNFT, listItemOnMarketplace } from '../services/solana.js';
+import { mintNFT, listItemOnMarketplace, getServerWalletPublicKey } from '../services/solana.js';
 import { mintCompressedNFT } from '../services/compressed-nft.js';
 import { submitVerification, confidenceToBps } from '../services/verification.js';
 
@@ -32,8 +32,15 @@ router.post('/create-listing', async (req, res) => {
       optionalPriceSol,
       verificationModelId,  // Optional: AI model for verification
       imageGenModelId,       // Optional: AI model for image generation
-      useCompressedNFT = true  // NEW: Default to compressed NFTs for cost savings
+      useCompressedNFT = true,  // Default to compressed NFTs for cost savings
+      custodial: custodialFlag = false  // Guest/custodial listing (server holds the NFT)
     } = req.body;
+
+    // A custodial (guest) listing has the platform server wallet as the seller:
+    // the NFT mints to it, it signs `list_evidence`, and `cosign-purchase`
+    // co-signs `purchase_evidence` as it — the only path where a guest's item is
+    // actually sellable (the buyer can't get a missing seller signature).
+    const isCustodial = custodialFlag === true || custodialFlag === 'true';
 
     console.log('🚀 Starting listing creation process...');
 
@@ -42,22 +49,39 @@ router.post('/create-listing', async (req, res) => {
     // ========================================
     console.log('📋 Step 0: Validating request...');
 
-    // Every listing must belong to a real user wallet — guests must create an
-    // account (with a wallet) before listing. No custodial mint-target fallback.
-    if (!userWallet) {
-      return res.status(400).json({
-        success: false,
-        error: 'An account with a wallet is required to create a listing',
-        code: 'ACCOUNT_REQUIRED'
-      });
+    // A self-custody listing must belong to a real user wallet. A custodial
+    // (guest) listing instead uses the platform server wallet, so no userWallet
+    // is required — but the server keypair must be configured.
+    let serverPubkey = null;
+    if (isCustodial) {
+      try {
+        serverPubkey = getServerWalletPublicKey();
+      } catch (err) {
+        return res.status(503).json({
+          success: false,
+          error: 'Custodial listings are unavailable: server wallet is not configured',
+          code: 'CUSTODIAL_UNAVAILABLE'
+        });
+      }
+    } else {
+      if (!userWallet) {
+        return res.status(400).json({
+          success: false,
+          error: 'An account with a wallet is required to create a listing',
+          code: 'ACCOUNT_REQUIRED'
+        });
+      }
+      if (!isValidSolanaPublicKey(userWallet)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid Solana wallet address'
+        });
+      }
     }
 
-    if (!isValidSolanaPublicKey(userWallet)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid Solana wallet address'
-      });
-    }
+    // The single identity that owns the minted NFT and is the on-chain seller.
+    // Custodial → the server wallet (sellable via cosign); self-custody → the user.
+    const sellerWallet = isCustodial ? serverPubkey : userWallet;
 
     const imageValidation = validateBase64Image(productImage);
     if (!imageValidation.valid) {
@@ -237,21 +261,25 @@ router.post('/create-listing', async (req, res) => {
     let merkleTreeAddress = null;
     let leafIndex = null;
 
-    if (useCompressedNFT) {
+    // Custodial listings MUST be standard NFTs: the cosign-purchase flow
+    // transfers a standard SPL token out of the server wallet's ATA, which a
+    // compressed NFT (no per-asset mint/ATA) cannot satisfy. Force standard.
+    const wantCompressed = useCompressedNFT && !isCustodial;
+
+    if (wantCompressed) {
       console.log('📦 Attempting to mint as Compressed NFT (cNFT)...');
       const treeAddress = process.env.HACKNYU_MERKLE_TREE_ADDRESS;
 
       if (!treeAddress || treeAddress === 'your_merkle_tree_address_here') {
         console.warn('⚠️  HACKNYU_MERKLE_TREE_ADDRESS not configured.');
         console.warn('   Falling back to standard NFT minting.');
-        console.warn('   To enable compressed NFTs: Run "pnpm setup-tree" and add the tree address to .env');
 
-        nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
+        nftMintAddress = await mintNFT(sellerWallet, metadataUri, productName);
         isCompressed = false;
       } else {
         try {
           const result = await mintCompressedNFT(
-            userWallet,
+            sellerWallet,
             metadataUri,
             productName,
             treeAddress
@@ -269,19 +297,19 @@ router.post('/create-listing', async (req, res) => {
           console.error('⚠️  Compressed NFT minting failed:', cNFTError.message);
           console.warn('   Falling back to standard NFT minting...');
 
-          nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
+          nftMintAddress = await mintNFT(sellerWallet, metadataUri, productName);
           isCompressed = false;
         }
       }
     } else {
-      console.log('📦 Minting as Standard NFT...');
-      nftMintAddress = await mintNFT(userWallet, metadataUri, productName);
+      console.log(`📦 Minting as Standard NFT${isCustodial ? ' (custodial)' : ''}...`);
+      nftMintAddress = await mintNFT(sellerWallet, metadataUri, productName);
       isCompressed = false;
     }
 
     console.log('NFT minted:', nftMintAddress);
     console.log(`   Type: ${isCompressed ? 'Compressed NFT (cNFT)' : 'Standard NFT'}`);
-    console.log('✅ NFT minted successfully to user wallet');
+    console.log(`✅ NFT minted successfully to ${isCustodial ? 'custodial server wallet' : 'user wallet'}`);
 
     // ========================================
     // STEP 4: Save Listing to Database
@@ -290,12 +318,12 @@ router.post('/create-listing', async (req, res) => {
 
     const listingPrice = optionalPriceSol ?? 0;
 
-    // Get user ID from wallet address (if registered; null for an orphan seller)
-    const sellerUserId = await db.getUserIdByWallet(userWallet);
+    // Resolve the seller's user id (null for a custodial/guest or orphan seller).
+    const sellerUserId = isCustodial ? null : await db.getUserIdByWallet(userWallet);
 
     const listingData = {
       nft_mint_address: nftMintAddress,
-      seller_wallet: userWallet,
+      seller_wallet: sellerWallet,
       seller_user_id: sellerUserId,
       product_name: productName,
       description: description,
@@ -307,10 +335,11 @@ router.post('/create-listing', async (req, res) => {
       status: 'active',
       ai_verified: true,
       ai_confidence_score: verificationResult.product_identification.confidence,
-      // Guest fields retired — every listing belongs to a real user wallet
-      guest_email: null,
-      is_pending_claim: false,
-      platform_wallet: null,
+      // Custodial/guest listings record the claim email + the custodial wallet so
+      // the buyer flow uses cosign and a guest can later claim the proceeds.
+      guest_email: isCustodial ? (userEmail || null) : null,
+      is_pending_claim: isCustodial,
+      platform_wallet: isCustodial ? serverPubkey : null,
       // Add compressed NFT fields
       is_compressed: isCompressed,
       merkle_tree_address: merkleTreeAddress,
@@ -363,10 +392,10 @@ router.post('/create-listing', async (req, res) => {
     // ========================================
     // STEP 5: List on Marketplace
     // ========================================
-    // The seller is always the user's wallet — the transaction is prepared
-    // but unsigned (the frontend signs `list_evidence` itself using
-    // anchor-client.ts). Custodial fully-signed listings remain available to
-    // the buy-side rescue path via listItemOnMarketplace directly.
+    // listItemOnMarketplace detects mode by comparing sellerWallet to the
+    // server wallet: a CUSTODIAL listing (sellerWallet === server) is fully
+    // signed server-side here and is immediately purchasable via cosign; a
+    // self-custody listing returns an unsigned hint the frontend signs itself.
     let marketplaceResult = null;
     if (verificationResult2 && !isCompressed) {
       console.log('🏪 Step 5: Listing on marketplace...');
@@ -374,7 +403,7 @@ router.post('/create-listing', async (req, res) => {
         marketplaceResult = await listItemOnMarketplace(
           nftMintAddress,
           listingPrice,
-          userWallet
+          sellerWallet
         );
         console.log('Marketplace result:', marketplaceResult);
       } catch (listingError) {
