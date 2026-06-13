@@ -54,20 +54,19 @@ bun install
 
 ```bash
 PORT=3001
-FRONTEND_URL=http://localhost:3000
+HACKNYU_FRONTEND_URL=http://localhost:3000
 
 # OpenRouter API (for AI verification & image generation)
-OPENROUTER_API_KEY=your_key_here
+HACKNYU_OPENROUTER_API_KEY=your_key_here
 
 # NFT.Storage (for IPFS uploads)
-NFT_STORAGE_API_KEY=your_key_here
+HACKNYU_NFT_STORAGE_API_KEY=your_key_here
 
 # Solana Configuration
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_NETWORK=devnet
+HACKNYU_SOLANA_RPC_URL=https://api.devnet.solana.com
 
 # Server Wallet (for paying transaction fees)
-SERVER_WALLET_PRIVATE_KEY=your_base58_private_key
+HACKNYU_SERVER_WALLET_PRIVATE_KEY=your_base58_private_key
 
 # Smart Contract (deploy first, then add). Required in production —
 # the server refuses to start with NODE_ENV=production if this is unset
@@ -188,8 +187,9 @@ seller, and returns it base64-encoded for the buyer to sign and send.
 **Response:** `{ success, transaction, priceLamports, priceSol, blockhash, lastValidBlockHeight, nftMint, listingPda, seller }`
 
 Errors use `{ success: false, error, code }` with codes such as
-`SELLER_NOT_CUSTODIAL`, `LISTING_NOT_ON_CHAIN`, `LISTING_NOT_PURCHASABLE`,
-`PRICE_MISMATCH`, `NFT_NOT_IN_CUSTODY`, `CUSTODIAL_KEY_DRIFT`, and
+`INVALID_BUYER_WALLET`, `SELF_PURCHASE`, `SELLER_NOT_CUSTODIAL`,
+`LISTING_NOT_ON_CHAIN`, `LISTING_NOT_PURCHASABLE`, `PRICE_MISMATCH`,
+`NFT_NOT_IN_CUSTODY`, `CUSTODIAL_KEY_DRIFT`, and
 `COSIGN_FAILED` — see [`backend/README.md`](backend/README.md) for the full table.
 
 ## Architecture
@@ -238,10 +238,9 @@ Errors use `{ success: false, error, code }` with codes such as
 ```
 HackNYU 2025/
 ├── frontend/                             # Next.js frontend
-│   ├── src/
-│   │   ├── app/                         # Next.js pages
-│   │   ├── components/                  # React components
-│   │   └── lib/                         # Utilities
+│   ├── app/                             # Next.js pages
+│   ├── components/                      # React components
+│   ├── lib/                             # Utilities
 │   └── package.json
 │
 ├── backend/                              # Express.js API server

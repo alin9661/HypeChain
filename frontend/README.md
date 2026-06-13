@@ -167,11 +167,12 @@ Create `.env.local` in the frontend directory:
 # Backend API (trailing slashes are normalized away)
 NEXT_PUBLIC_API_URL=http://localhost:3001
 
-# WebSocket URL
-NEXT_PUBLIC_WS_URL=ws://localhost:3001/ws
+# Solana RPC endpoint (purchase send + transaction reads)
+NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
 
-# Solana Network
-NEXT_PUBLIC_SOLANA_NETWORK=devnet
+# Supabase (client-side reads)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 
 # Evidence Locker program ID — required in production builds (throws at
 # import when unset or still the scaffold placeholder)
@@ -180,7 +181,7 @@ NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID=2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF
 # Optional: enable the Anchor co-sign purchase flow
 NEXT_PUBLIC_USE_ANCHOR_PURCHASE=1
 
-# Optional: route payment writes to a separately deployed write service
+# Optional: route the co-sign request only to a separately deployed write service
 # NEXT_PUBLIC_WRITE_API_URL=https://write.example.com
 ```
 
@@ -460,12 +461,13 @@ More tests in `__tests__/` directory.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_API_URL` | Backend API URL (trailing slashes normalized) | `http://localhost:3001` |
-| `NEXT_PUBLIC_WS_URL` | WebSocket server URL | `ws://localhost:3001/ws` |
-| `NEXT_PUBLIC_SOLANA_NETWORK` | Solana network (devnet/mainnet-beta) | `devnet` |
+| `NEXT_PUBLIC_SOLANA_RPC_URL` | Solana RPC endpoint (used by `components/purchase-button.tsx` to send the purchase transaction, and by `lib/solana.ts`) | `https://api.devnet.solana.com` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (`lib/supabase.ts`) | none (throws if unset) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (`lib/supabase.ts`) | none (throws if unset) |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID for wallet auth. **Required in production** — production builds throw at startup if unset. | dev/test placeholder |
 | `NEXT_PUBLIC_HYPECHAIN_PROGRAM_ID` | Evidence Locker program ID. **Required in production** — production builds throw at import if unset or still the scaffold placeholder. | dev/test placeholder |
 | `NEXT_PUBLIC_USE_ANCHOR_PURCHASE` | Set to `1` to enable the on-chain Anchor co-sign purchase flow (default: legacy SOL-transfer flow) | off |
-| `NEXT_PUBLIC_WRITE_API_URL` | Optional override: base URL for payment writes when the write service is deployed separately | falls back to `NEXT_PUBLIC_API_URL` |
+| `NEXT_PUBLIC_WRITE_API_URL` | Optional override: base URL for the co-sign request only (`apiClient.cosignPurchase`); all other payment calls use `NEXT_PUBLIC_API_URL` | falls back to `NEXT_PUBLIC_API_URL` |
 
 ## Browser Support
 

@@ -20,10 +20,12 @@ cp .env.example .env
 
 # Edit with your values
 PORT=3001
-OPENROUTER_API_KEY=sk-or-your-key
-NFT_STORAGE_API_KEY=your-token
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SERVER_WALLET_PRIVATE_KEY=your_base58_key
+HACKNYU_OPENROUTER_API_KEY=sk-or-your-key
+HACKNYU_NFT_STORAGE_API_KEY=your-token
+HACKNYU_SOLANA_RPC_URL=https://api.devnet.solana.com
+HACKNYU_SERVER_WALLET_PRIVATE_KEY=your_base58_key
+HACKNYU_SUPABASE_URL=https://your-project.supabase.co
+HACKNYU_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 HACKNYU_MARKETPLACE_PROGRAM_ID=your_program_id
 HACKNYU_CASE_PREFIX=HC-2026-
 ```
@@ -106,6 +108,8 @@ signs transactions it built itself).
 | Code | Meaning |
 |------|---------|
 | MISSING_FIELDS | `listingId` or `buyerWallet` missing |
+| INVALID_BUYER_WALLET | `buyerWallet` is not a valid public key (400) |
+| SELF_PURCHASE | Buyer is the custodial seller wallet (400) |
 | LISTING_NOT_FOUND / LISTING_NOT_ACTIVE | DB row missing or not purchasable |
 | SELLER_NOT_CUSTODIAL | Listing's seller is not the custodial server wallet |
 | LISTING_NOT_ON_CHAIN | No on-chain listing PDA for the mint |
@@ -165,13 +169,16 @@ backend/
 | Variable | Description | Required |
 |----------|-------------|----------|
 | PORT | Server port | No (default: 3001) |
-| FRONTEND_URL | Frontend URL for CORS | No |
-| OPENROUTER_API_KEY | OpenRouter API key | Yes |
-| NFT_STORAGE_API_KEY | NFT.Storage API key | Yes |
-| SOLANA_RPC_URL | Solana RPC endpoint | Yes |
-| SERVER_WALLET_PRIVATE_KEY | Server wallet (base58) | Yes |
+| HACKNYU_FRONTEND_URL | Frontend URL for CORS | No |
+| HACKNYU_OPENROUTER_API_KEY | OpenRouter API key | Yes |
+| HACKNYU_NFT_STORAGE_API_KEY | NFT.Storage API key | Yes |
+| HACKNYU_SOLANA_RPC_URL | Solana RPC endpoint | Yes |
+| HACKNYU_SERVER_WALLET_PRIVATE_KEY | Server wallet (base58) | Yes |
+| HACKNYU_SUPABASE_URL | Supabase project URL (DB behind payments/listings) | Yes |
+| HACKNYU_SUPABASE_SERVICE_ROLE_KEY | Supabase service-role key (DB behind payments/listings) | Yes |
 | HACKNYU_MARKETPLACE_PROGRAM_ID | Evidence Locker program ID | In production (startup fails closed if unset/placeholder) |
 | HACKNYU_CASE_PREFIX | Case-number prefix (e.g. `HC-2026-`) | No |
+| HACKNYU_REDIS_ENABLED / HACKNYU_REDIS_URL, HACKNYU_DAS_RPC_URL, HACKNYU_MERKLE_TREE_ADDRESS (deprecated cNFT compat), HACKNYU_DEFAULT_VISION_MODEL / HACKNYU_DEFAULT_IMAGE_GEN_MODEL | Optional: caching, DAS RPC, legacy cNFT minting, AI model overrides | No |
 
 ## Testing
 
