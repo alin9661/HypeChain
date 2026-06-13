@@ -415,6 +415,22 @@ router.post('/create-listing', async (req, res) => {
       );
     }
 
+    // Persist the on-chain PDA references so the row carries the same proof the
+    // chain does (Solscan links + tamper-evident verification). Best-effort: a
+    // persistence failure must not fail a listing that already succeeded on-chain.
+    const listingPubkey = marketplaceResult?.listingPda ?? null;
+    const verificationProofPubkey = verificationResult2?.verificationPda ?? null;
+    if (listingPubkey || verificationProofPubkey) {
+      try {
+        await db.updateListingOnChainRefs(listing.id, {
+          listingPubkey,
+          verificationProofPubkey,
+        });
+      } catch (refErr) {
+        console.warn(`Failed to persist on-chain refs for ${listing.id}: ${refErr.message}`);
+      }
+    }
+
     // ========================================
     // Return Success Response
     // ========================================
@@ -426,8 +442,14 @@ router.post('/create-listing', async (req, res) => {
       product_name: productName,
       listing_price_sol: listingPrice,
       status: 'active',
-      is_pending_claim: false,
+      is_pending_claim: isCustodial,
       message: 'NFT minted and listed successfully!',
+      // On-chain references + marketplace mode (custodial_listed | pending_user_signature
+      // | skipped) so the client knows whether the listing is live or needs the
+      // seller to sign list_evidence, and can link the PDAs to Solscan.
+      marketplace_mode: marketplaceResult?.mode ?? 'skipped',
+      listing_pubkey: listingPubkey,
+      verification_proof_pubkey: verificationProofPubkey,
       verification: {
         brand: verificationResult.product_identification.brand,
         model: verificationResult.product_identification.model,

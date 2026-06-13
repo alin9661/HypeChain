@@ -31,7 +31,7 @@ export const LISTING_COLUMNS = [
   'created_at', 'updated_at', 'sold_at', 'buyer_wallet', 'buyer_user_id',
   'transaction_signature', 'views', 'favorites', 'is_compressed',
   'merkle_tree_address', 'leaf_index', 'guest_email', 'is_pending_claim',
-  'platform_wallet', 'storage_type',
+  'platform_wallet', 'storage_type', 'listing_pubkey', 'verification_proof_pubkey',
 ];
 
 export const TRANSACTION_COLUMNS = [
@@ -100,6 +100,15 @@ export const GET_TRANSACTION_ID_BY_SIGNATURE_SQL =
 
 export const GET_TRANSACTION_BY_SIGNATURE_SQL =
   `SELECT ${TX_RETURNING} FROM transactions WHERE signature = $1`;
+
+// Persist the on-chain PDA references after the listing is anchored on-chain
+// (best-effort — a NULL ref just means "not yet/never anchored"). updated_at
+// set explicitly (no trigger on DSQL).
+export const UPDATE_LISTING_ONCHAIN_REFS_SQL =
+  'UPDATE listings ' +
+  'SET listing_pubkey = $2, verification_proof_pubkey = $3, updated_at = NOW() ' +
+  'WHERE id = $1 ' +
+  `RETURNING ${selectList(LISTING_COLUMNS)}`;
 
 // Read-repair: converge a stale 'active' projection to 'sold' when the chain
 // (source of truth) already says Sold. The status filter makes it a no-op on
@@ -184,6 +193,14 @@ export async function getTransactionIdBySignature(conn, signature) {
 /** Return the full transaction row for a signature, or null (replay detection). */
 export async function getTransactionBySignature(conn, signature) {
   const { rows } = await conn.query(GET_TRANSACTION_BY_SIGNATURE_SQL, [signature]);
+  return rows.length ? rows[0] : null;
+}
+
+/** Persist the on-chain EvidenceListing + VerificationProof PDAs for a listing. */
+export async function updateListingOnChainRefs(conn, listingId, { listingPubkey = null, verificationProofPubkey = null } = {}) {
+  const { rows } = await conn.query(UPDATE_LISTING_ONCHAIN_REFS_SQL, [
+    listingId, listingPubkey, verificationProofPubkey,
+  ]);
   return rows.length ? rows[0] : null;
 }
 

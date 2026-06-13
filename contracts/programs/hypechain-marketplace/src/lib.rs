@@ -225,10 +225,14 @@ pub mod hypechain_evidence_locker {
     }
 
     /// Either the seller or the examiner can flag a dispute. Disputed
-    /// listings can no longer be purchased; they can still be delisted by
-    /// the seller (escape hatch) but cannot be relisted while disputed.
-    /// `reason` is a free-form u8 — the meaning is defined off-chain so
-    /// the program stays minimal.
+    /// listings can no longer be purchased. `reason` is a free-form u8 — the
+    /// meaning is defined off-chain so the program stays minimal.
+    ///
+    /// Disputes are only meaningful for an active/relistable listing. A `Sold`
+    /// listing is terminal, and a `Delisted` listing must NOT be disputable:
+    /// relisting requires status `Delisted`, and there is no instruction to
+    /// clear `Disputed`, so flipping `Delisted -> Disputed` would lock the
+    /// listing forever. Block both terminal/parked states.
     pub fn flag_dispute(ctx: Context<FlagDispute>, reason: u8) -> Result<()> {
         let listing = &mut ctx.accounts.listing;
         let signer_key = ctx.accounts.signer.key();
@@ -237,8 +241,11 @@ pub mod hypechain_evidence_locker {
             MarketplaceError::DisputeUnauthorized
         );
         require!(
-            !matches!(listing.status, ListingStatus::Sold),
-            MarketplaceError::ListingAlreadySold
+            !matches!(
+                listing.status,
+                ListingStatus::Sold | ListingStatus::Delisted
+            ),
+            MarketplaceError::DisputeNotAllowed
         );
         listing.status = ListingStatus::Disputed;
 
@@ -504,6 +511,8 @@ pub enum MarketplaceError {
     DossierAuthorityMismatch,
     #[msg("Only the seller or examiner may flag a dispute")]
     DisputeUnauthorized,
+    #[msg("Listing cannot be disputed in its current state (sold or delisted)")]
+    DisputeNotAllowed,
     #[msg("Token account is not owned by the expected wallet")]
     TokenAccountOwnerMismatch,
     #[msg("NFT mint does not match the listing or token account")]
