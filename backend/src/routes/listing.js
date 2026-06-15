@@ -1,7 +1,7 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { isValidSolanaPublicKey, validateBase64Image } from '../utils/validation.js';
+import { db } from '../db/index.js';
 import {
   verifyProduct,
   verifyProductWithModel,
@@ -16,12 +16,6 @@ import { mintCompressedNFT } from '../services/compressed-nft.js';
 import { submitVerification, confidenceToBps } from '../services/verification.js';
 
 dotenv.config();
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.HACKNYU_SUPABASE_URL,
-  process.env.HACKNYU_SUPABASE_SERVICE_ROLE_KEY
-);
 
 const router = express.Router();
 
@@ -296,17 +290,13 @@ router.post('/create-listing', async (req, res) => {
 
     const listingPrice = optionalPriceSol ?? 0;
 
-    // Get user ID from wallet address (if registered)
-    const { data: userData } = await supabase
-      .from('users')
-      .select('id')
-      .eq('wallet_address', userWallet)
-      .single();
+    // Get user ID from wallet address (if registered; null for an orphan seller)
+    const sellerUserId = await db.getUserIdByWallet(userWallet);
 
     const listingData = {
       nft_mint_address: nftMintAddress,
       seller_wallet: userWallet,
-      seller_user_id: userData?.id || null,
+      seller_user_id: sellerUserId,
       product_name: productName,
       description: description,
       category: verificationResult.product_identification.brand || 'Luxury Goods',
@@ -327,13 +317,10 @@ router.post('/create-listing', async (req, res) => {
       leaf_index: leafIndex
     };
 
-    const { data: listing, error: dbError } = await supabase
-      .from('listings')
-      .insert(listingData)
-      .select()
-      .single();
-
-    if (dbError) {
+    let listing;
+    try {
+      listing = await db.insertListing(listingData);
+    } catch (dbError) {
       console.error('Database error:', dbError);
       throw new Error(`Failed to save listing to database: ${dbError.message}`);
     }

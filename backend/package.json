@@ -22,6 +22,7 @@
   "author": "HypeChain Team",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/dsql-signer": "^3.1068.0",
     "@metaplex-foundation/mpl-bubblegum": "^5.0.2",
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
     "@metaplex-foundation/umi": "^1.1.0",
@@ -40,6 +41,7 @@
     "morgan": "^1.10.0",
     "nft.storage": "^7.2.0",
     "openai": "^4.72.0",
+    "pg": "^8.21.0",
     "serverless-http": "^4.0.0"
   },
   "devDependencies": {

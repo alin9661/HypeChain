@@ -7,9 +7,9 @@
  * window). The same signature pointed at a DIFFERENT listing or buyer is
  * fraud and must still be rejected.
  *
- * Services accept injected { supabaseClient, conn } deps; the route handler
- * factory wires the real service functions over an in-memory Supabase fake
- * and a stub Solana connection.
+ * Services accept injected { db, conn } deps; the route handler factory wires
+ * the real service functions over an in-memory `db` fake (the DSQL data-access
+ * facade) and a stub Solana connection.
  */
 
 import './helpers/env-setup.js';
@@ -20,69 +20,54 @@ import { Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { verifyPayment, completePurchase } from '../src/services/payment.js';
 import { createVerifyPaymentHandler } from '../src/routes/payment.js';
 
-// ─── In-memory Supabase fake (just the call chains payment.js uses) ────────
+// ─── In-memory `db` fake (the DSQL facade methods payment.js calls) ────────
 
-function makeFakeSupabase(state) {
-  function rowsFor(table) {
-    return table === 'listings' ? state.listings : state.transactions;
-  }
-
+function makeFakeDb(state) {
   return {
-    from(table) {
-      return {
-        select() {
-          return {
-            eq(col, val) {
-              const matches = rowsFor(table).filter((r) => r[col] === val);
-              return {
-                async single() {
-                  return matches.length === 1
-                    ? { data: matches[0], error: null }
-                    : { data: null, error: { message: 'Row not found' } };
-                },
-                async maybeSingle() {
-                  return { data: matches[0] ?? null, error: null };
-                },
-              };
-            },
-          };
-        },
-        insert(row) {
-          return {
-            select() {
-              return {
-                async single() {
-                  if (
-                    table === 'transactions' &&
-                    state.transactions.some((t) => t.signature === row.signature)
-                  ) {
-                    // Mirror the DB unique constraint on signature.
-                    return { data: null, error: { message: 'duplicate key value (signature)' } };
-                  }
-                  const record = { id: `row-${rowsFor(table).length + 1}`, ...row };
-                  rowsFor(table).push(record);
-                  return { data: record, error: null };
-                },
-              };
-            },
-          };
-        },
-        update(patch) {
-          return {
-            async eq(col, val) {
-              state.updates.push({ table, col, val, patch });
-              rowsFor(table)
-                .filter((r) => r[col] === val)
-                .forEach((r) => Object.assign(r, patch));
-              return { error: null };
-            },
-          };
-        },
-      };
+    async fetchListingById(id) {
+      return state.listings.find((l) => l.id === id) ?? null;
     },
-    async rpc(fn, args) {
-      state.rpcCalls.push({ fn, args });
-      return { error: null };
+    async getTransactionBySignature(signature) {
+      return state.transactions.find((t) => t.signature === signature) ?? null;
+    },
+    async insertTransaction(tx) {
+      if (state.transactions.some((t) => t.signature === tx.signature)) {
+        // Mirror the DB unique constraint on signature.
+        throw new Error('duplicate key value (signature)');
+      }
+      const record = { id: `row-${state.transactions.length + 1}`, ...tx };
+      state.transactions.push(record);
+      return record;
+    },
+    async updateListingStatus(id, patch) {
+      state.updates.push({ id, patch });
+      const row = state.listings.find((l) => l.id === id);
+      if (row) {
+        if (patch.status !== undefined) row.status = patch.status;
+        if (patch.soldAt !== undefined) row.sold_at = patch.soldAt;
+        if (patch.buyerWallet !== undefined) row.buyer_wallet = patch.buyerWallet;
+        if (patch.buyerUserId !== undefined) row.buyer_user_id = patch.buyerUserId;
+        if (patch.transactionSignature !== undefined) {
+          row.transaction_signature = patch.transactionSignature;
+        }
+      }
+      return row ?? null;
+    },
+    async markListingSoldIfActive(id) {
+      const row = state.listings.find((l) => l.id === id);
+      if (row && row.status === 'active') {
+        row.status = 'sold';
+        row.sold_at = new Date().toISOString();
+        return 1;
+      }
+      return 0;
+    },
+    async incrementUserVolume(userId, amount) {
+      state.rpcCalls.push({ userId, amount });
+      return { id: userId, total_volume: amount };
+    },
+    async getTransactionHistory() {
+      return [];
     },
   };
 }
@@ -120,7 +105,7 @@ const LISTING_ID = 'listing-aaa';
 const OTHER_LISTING_ID = 'listing-bbb';
 
 let state;
-let supabaseClient;
+let fakeDb;
 let conn;
 let seller;
 let buyerWallet;
@@ -153,7 +138,7 @@ beforeEach(() => {
     updates: [],
     rpcCalls: [],
   };
-  supabaseClient = makeFakeSupabase(state);
+  fakeDb = makeFakeDb(state);
   conn = makeStubConnection({
     signature: SIGNATURE,
     recipient: seller,
@@ -174,7 +159,7 @@ function recordCompletedTransaction(overrides = {}) {
   });
 }
 
-const deps = () => ({ supabaseClient, conn });
+const deps = () => ({ db: fakeDb, conn });
 
 // ─── verifyPayment ─────────────────────────────────────────────────────────
 
