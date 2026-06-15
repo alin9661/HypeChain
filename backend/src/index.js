@@ -13,6 +13,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import listingRoutes from './routes/listing.js';
 import paymentRoutes from './routes/payment.js';
+import activitiesRoutes from './routes/activities.js';
+import webhookRoutes from './routes/webhooks.js';
 
 const app = express();
 
@@ -55,6 +57,10 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
+// Activity feed + provenance live at /api/activities and /api/nft/:mint/history.
+app.use('/api', activitiesRoutes);
+// Helius enhanced-webhook ingest (fail-closed HMAC auth).
+app.use('/api/webhooks', webhookRoutes);
 
 // Root endpoint — kept for API discoverability.
 app.get('/', (req, res) => {
@@ -71,7 +77,10 @@ app.get('/', (req, res) => {
       verifyPayment: 'POST /api/payments/verify',
       paymentHistory: 'GET /api/payments/history/:walletAddress',
       walletBalance: 'GET /api/payments/balance/:walletAddress',
-      getListingDetails: 'GET /api/payments/listing/:listingId'
+      getListingDetails: 'GET /api/payments/listing/:listingId',
+      activities: 'GET /api/activities',
+      nftHistory: 'GET /api/nft/:mint/history',
+      heliusWebhook: 'POST /api/webhooks/helius'
     },
     documentation: 'https://github.com/alin9661/HypeChain'
   });
