@@ -228,45 +228,42 @@ Errors use `{ success: false, error, code }` with codes such as
 
 ## Project Structure
 
-> **FastAPI backend (shipped):** a Python 3.13 / FastAPI port of the Express backend lives
-> in [`backend-py/`](backend-py/README.md), with full docs at
-> [`backend-py/docs/`](backend-py/docs/README.md). It runs as an AWS Lambda container, keeps
-> HTTP parity with the Express API, and adds an on-chain activities / provenance feed plus a
-> Helius transfer-ingest webhook. Deploy scripts live in [`backend-py/deploy/`](backend-py/deploy).
-> The frontend cuts over by flipping `BACKEND_URL`; `backend/` (Express) stays until the cutover lands.
+> **Single backend on Aurora DSQL (v0.6.0.0):** `backend/` (Express, AWS Lambda) is the
+> sole backend. It reads/writes Amazon Aurora DSQL via node-postgres (IAM-token auth, TLS),
+> and serves the full API: listings, payments + custodial co-sign, the activities/provenance
+> feed, and the Helius transfer-ingest webhook. The earlier FastAPI port (`backend-py/`) and
+> Supabase were retired once Express reached parity — see CHANGELOG `0.6.0.0`.
 
 ```
 HackNYU 2025/
 ├── frontend/                             # Next.js frontend
-│   ├── app/                             # Next.js pages
+│   ├── app/                             # Next.js pages (incl. /portfolio, /transactions)
 │   ├── components/                      # React components
 │   ├── lib/                             # Utilities
 │   └── package.json
 │
-├── backend/                              # Express.js API server
+├── backend/                              # Express.js API server (sole backend)
 │   ├── src/
 │   │   ├── index.js                     # Server entry point
+│   │   ├── db/                          # Aurora DSQL data layer (pool/queries/occ/facade)
+│   │   ├── middleware/                  # request-id, rate-limit
 │   │   ├── routes/
-│   │   │   ├── listing.js               # Listing routes
-│   │   │   └── payment.js               # Payment routes (incl. cosign-purchase)
+│   │   │   ├── listing.js               # Listing routes (self-custody + custodial)
+│   │   │   ├── payment.js               # Payment routes (incl. cosign-purchase)
+│   │   │   ├── activities.js            # Activity feed + per-NFT provenance
+│   │   │   └── webhooks.js              # Helius transfer-ingest (HMAC)
 │   │   ├── services/
 │   │   │   ├── openrouter.js            # AI services
 │   │   │   ├── ipfs.js                  # IPFS uploads
 │   │   │   ├── solana.js                # NFT minting
+│   │   │   ├── activity.js              # Activity feed service + cursor codec
 │   │   │   ├── cosign-purchase.js       # Custodial co-sign tx builder
 │   │   │   └── evidence-locker-client.js # Anchor program client
 │   │   └── utils/
 │   │       └── validation.js            # Input validation
+│   ├── schema/001_dsql_schema.sql       # Aurora DSQL schema (owned by Express)
 │   ├── package.json
 │   └── .env
-│
-├── backend-py/                           # FastAPI backend (Python 3.13, AWS Lambda)
-│   ├── app/                              # routers, services, db, config
-│   ├── deploy/                           # deploy.sh, smoke-test, SECRETS/CUTOVER/THROTTLING
-│   ├── docs/                             # Diataxis docs (tutorial/how-to/reference/explanation)
-│   ├── schema/                           # Aurora DSQL schema
-│   ├── tests/                            # pytest suite
-│   └── pyproject.toml
 │
 └── contracts/                            # Solana smart contracts
     ├── programs/
