@@ -69,6 +69,25 @@ describe('insertListing', () => {
   });
 });
 
+describe('updateListingOnChainRefs', () => {
+  test('passes id + both PDA refs and returns the row', async () => {
+    const conn = fakeConn([{ id: 'L1', listing_pubkey: 'P', verification_proof_pubkey: 'V' }]);
+    const row = await q.updateListingOnChainRefs(conn, 'L1', {
+      listingPubkey: 'P', verificationProofPubkey: 'V',
+    });
+    expect(row).toEqual({ id: 'L1', listing_pubkey: 'P', verification_proof_pubkey: 'V' });
+    expect(conn.calls[0].params).toEqual(['L1', 'P', 'V']);
+    expect(conn.calls[0].text).toContain('updated_at = NOW()');
+    expect(conn.calls[0].text).not.toContain('*');
+  });
+
+  test('defaults missing refs to null', async () => {
+    const conn = fakeConn([{ id: 'L1' }]);
+    await q.updateListingOnChainRefs(conn, 'L1', {});
+    expect(conn.calls[0].params).toEqual(['L1', null, null]);
+  });
+});
+
 describe('getTransactionHistory — WHERE per type', () => {
   test('buyer / seller / all build the right predicate', async () => {
     for (const [type, frag] of [

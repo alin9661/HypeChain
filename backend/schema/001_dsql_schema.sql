@@ -149,7 +149,12 @@ CREATE TABLE IF NOT EXISTS listings (
   platform_wallet TEXT,
   -- storage tracking
   storage_type TEXT DEFAULT 'ipfs'
-    CHECK (storage_type IN ('ipfs', 'arweave', 'shadow', 'on-chain'))
+    CHECK (storage_type IN ('ipfs', 'arweave', 'shadow', 'on-chain')),
+  -- on-chain references (set best-effort after the marketplace-list step so the
+  -- UI can link the EvidenceListing + VerificationProof PDAs to Solscan and prove
+  -- the verification verdict wasn't tampered with). NULL until anchored.
+  listing_pubkey TEXT,
+  verification_proof_pubkey TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_listings_seller_wallet  ON listings(seller_wallet);
