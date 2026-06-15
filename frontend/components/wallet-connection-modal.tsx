@@ -80,7 +80,7 @@ export function WalletConnectionModal({ open, onOpenChange }: WalletConnectionMo
                 Connect Your Wallet
               </Dialog.Title>
               <Dialog.Description className="text-sm text-muted-foreground">
-                Connect your wallet to progress through courses and earn NFT rewards!
+                Connect your wallet to buy, sell, and mint verified listings.
               </Dialog.Description>
             </div>
 
