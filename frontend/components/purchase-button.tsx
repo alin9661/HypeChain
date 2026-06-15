@@ -252,19 +252,20 @@ export function PurchaseButton({
         onClick={handlePurchase}
         disabled={isDisabled}
         className={`
-          w-full px-6 py-3 rounded font-mono uppercase font-bold
+          w-full px-6 py-3 font-mono uppercase font-bold
           transition-all duration-200
           ${
             isDisabled
               ? 'bg-[var(--hc-surface-2)] text-[var(--hc-text-muted)] cursor-not-allowed'
-              : 'bg-[var(--hc-accent)] text-black hover:bg-[var(--hc-accent-deep)] hover:scale-[1.02] active:scale-[0.98]'
+              : 'bg-[var(--hc-accent)] text-black hover:bg-[var(--hc-accent-deep)] hover:shadow-[inset_0_0_0_1.5px_var(--hc-accent-deep),0_0_18px_rgba(235,198,88,0.35)]'
           }
           ${className}
         `}
       >
         {loading ? (
-          <span className="font-mono uppercase tracking-widest animate-pulse">
-            {status || 'Processing...'}
+          // DESIGN.md Move 2: no spinner — a mono caret marks the live step.
+          <span className="font-mono uppercase tracking-widest">
+            {status || 'Processing'}<span className="animate-pulse">▋</span>
           </span>
         ) : (
           `Buy for ${price} SOL`
@@ -278,8 +279,8 @@ export function PurchaseButton({
       )}
 
       {loading && status && (
-        <p className="text-sm text-[var(--hc-accent)] text-center font-mono animate-pulse">
-          {status}
+        <p className="text-sm text-[var(--hc-accent)] text-center font-mono">
+          {status}<span className="animate-pulse">▋</span>
         </p>
       )}
     </div>
