@@ -3,6 +3,39 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.1.0] - 2026-06-16
+
+QA pass on the production site: the wallet-connect and listing flows now work
+end to end on Solana, and a status-bar timestamp no longer breaks page
+hydration.
+
+### Fixed
+
+- **Connecting a wallet and creating a listing now work on Solana.** Connecting
+  Phantom no longer fails with "Missing required fields," and filing a listing
+  no longer returns a 400. The app now reads your connected wallet from Privy's
+  Solana hook (it had been reading the Ethereum-only hook), so your Solana
+  address and account registration go through correctly.
+- **A failed registration now retries instead of getting stuck.** A transient
+  network or server error during account registration no longer permanently
+  blocks reconnecting that wallet until a full page reload.
+- **The status ribbon no longer triggers a hydration error on load.** The live
+  INTAKE clock renders a stable placeholder on first paint and then fills in,
+  removing the React hydration mismatch on listing pages.
+- **Wallet modal copy** — replaced leftover course-platform text ("progress
+  through courses and earn NFT rewards") with marketplace-accurate wording.
+
+### Changed
+
+- **Connect Wallet now opens Privy's built-in modal**, restricted to Phantom /
+  Solana to match the Solana-only backend — so you can't connect a wallet that
+  can't transact.
+
+### Removed
+
+- The bespoke custom wallet modal whose wallet-option rows were non-functional
+  (only its single button worked); the built-in modal above replaces it.
+
 ## [0.6.0.0] - 2026-06-13
 
 Backend consolidated onto a single Express service on Aurora DSQL; the FastAPI
