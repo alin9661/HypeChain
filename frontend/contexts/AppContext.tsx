@@ -1,7 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
+// HypeChain is a Solana app — wallet identity must come from Privy's Solana
+// hook. The base `useWallets()` only surfaces EVM wallets, so a Phantom
+// sign-in yields no usable address (see fix: register/create-listing 400s).
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { CreateListingResponse, UserProfile, apiClient } from '@/lib/api-client';
 
 // Types
@@ -94,16 +98,23 @@ const initialState: AppState = {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
   const { authenticated, user } = usePrivy();
-  const { wallets } = useWallets();
+  const { ready: walletsReady, wallets } = useSolanaWallets();
   const registrationAttempted = useRef<Set<string>>(new Set());
 
   // Sync Privy wallet state and register user
   useEffect(() => {
     const registerUserAccount = async () => {
-      if (authenticated && user && wallets.length > 0) {
+      if (authenticated && walletsReady && user && wallets.length > 0) {
         const primaryWallet = wallets[0];
         const address = primaryWallet.address;
-        const chainType = primaryWallet.chainType as 'ethereum' | 'solana';
+        const chainType = 'solana' as const;
+
+        // Guard against a partial/early Privy state: never POST registration
+        // with missing fields (the backend rejects with "Missing required
+        // fields", which is exactly the 400 this fix targets).
+        if (!address || !user.id) {
+          return;
+        }
 
         // Update wallet state immediately for UI responsiveness
         setState((prev) => ({
@@ -189,7 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     registerUserAccount();
-  }, [authenticated, user, wallets]);
+  }, [authenticated, walletsReady, user, wallets]);
 
   // Listings actions
   const addListing = useCallback((listing: NFTListing) => {

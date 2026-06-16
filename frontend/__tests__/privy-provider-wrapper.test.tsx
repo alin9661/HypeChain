@@ -90,7 +90,10 @@ describe('PrivyProviderWrapper', () => {
       solana: { createOnLogin: 'off' },
     });
     expect(config.loginMethods).toEqual(['wallet']);
-    expect(config.appearance.walletChainType).toBe('ethereum-and-solana');
+    // Solana-only: the backend validates Solana keys, so the built-in modal
+    // must not offer an EVM wallet that can never list or buy.
+    expect(config.appearance.walletChainType).toBe('solana-only');
+    expect(config.appearance.walletList).toEqual(['phantom']);
   });
 
   it('passes the env appId through, with a placeholder fallback outside production', () => {
