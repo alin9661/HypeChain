@@ -170,6 +170,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('[User Registration] Error:', error);
 
+          // Roll back the dedupe marker so a transient failure (network/500)
+          // can be retried on the next render. Without this, a single failed
+          // POST would permanently block re-registration for this wallet until
+          // a full page reload.
+          registrationAttempted.current.delete(address);
+
           const errorMsg = error instanceof Error ? error.message : 'Failed to register user';
 
           setState((prev) => ({

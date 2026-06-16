@@ -131,4 +131,27 @@ describe('AppProvider wallet registration', () => {
     });
     expect(apiClient.registerUser).not.toHaveBeenCalled();
   });
+
+  it('retries after a failed POST (dedupe marker rolled back on error)', async () => {
+    mockState({});
+    // First attempt fails; the dedupe marker must be rolled back so a later
+    // effect run re-attempts instead of being permanently skipped.
+    apiClient.registerUser.mockResolvedValueOnce({ success: false, error: 'boom' });
+
+    const { rerender } = renderProvider();
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(1));
+
+    // Re-run the effect with a fresh wallets array reference (same address).
+    useSolanaWallets.mockReturnValue({
+      ready: true,
+      wallets: [{ address: SOLANA_ADDRESS }],
+    });
+    rerender(
+      <AppProvider>
+        <div data-testid="child" />
+      </AppProvider>
+    );
+
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(2));
+  });
 });
