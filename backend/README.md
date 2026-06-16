@@ -24,10 +24,16 @@ HACKNYU_OPENROUTER_API_KEY=sk-or-your-key
 HACKNYU_NFT_STORAGE_API_KEY=your-token
 HACKNYU_SOLANA_RPC_URL=https://api.devnet.solana.com
 HACKNYU_SERVER_WALLET_PRIVATE_KEY=your_base58_key
-HACKNYU_SUPABASE_URL=https://your-project.supabase.co
-HACKNYU_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# Database — Amazon Aurora DSQL (IAM-token auth; Lambda role needs dsql:DbConnectAdmin)
+HACKNYU_DSQL_ENDPOINT=your-cluster-id.dsql.us-east-1.on.aws
+HACKNYU_DSQL_REGION=us-east-1
+HACKNYU_DSQL_DATABASE=postgres
+# Local/CI only (NODE_ENV=development; fail-closed otherwise):
+# HACKNYU_DATABASE_URL=postgres://postgres:postgres@localhost:5432/hypechain
 HACKNYU_MARKETPLACE_PROGRAM_ID=your_program_id
 HACKNYU_CASE_PREFIX=HC-2026-
+# Helius enhanced-webhook shared secret (fail-closed; required to ingest transfers)
+HACKNYU_HELIUS_WEBHOOK_SECRET=your_webhook_secret
 ```
 
 ### Run Server
@@ -173,9 +179,11 @@ backend/
 | HACKNYU_OPENROUTER_API_KEY | OpenRouter API key | Yes |
 | HACKNYU_NFT_STORAGE_API_KEY | NFT.Storage API key | Yes |
 | HACKNYU_SOLANA_RPC_URL | Solana RPC endpoint | Yes |
-| HACKNYU_SERVER_WALLET_PRIVATE_KEY | Server wallet (base58) | Yes |
-| HACKNYU_SUPABASE_URL | Supabase project URL (DB behind payments/listings) | Yes |
-| HACKNYU_SUPABASE_SERVICE_ROLE_KEY | Supabase service-role key (DB behind payments/listings) | Yes |
+| HACKNYU_SERVER_WALLET_PRIVATE_KEY | Server wallet (base58); custodial seller / examiner / co-signer | Yes |
+| HACKNYU_DSQL_ENDPOINT | Aurora DSQL cluster endpoint (IAM-token auth + TLS) | Yes (prod) |
+| HACKNYU_DSQL_REGION / HACKNYU_DSQL_DATABASE | DSQL region (default us-east-1) / database (default postgres) | No |
+| HACKNYU_DATABASE_URL | Local Postgres DSN — honored ONLY when NODE_ENV=development (fail-closed otherwise) | Dev only |
+| HACKNYU_HELIUS_WEBHOOK_SECRET | Shared secret for the Helius transfer-ingest webhook (fail-closed) | For webhook |
 | HACKNYU_MARKETPLACE_PROGRAM_ID | Evidence Locker program ID | In production (startup fails closed if unset/placeholder) |
 | HACKNYU_CASE_PREFIX | Case-number prefix (e.g. `HC-2026-`) | No |
 | HACKNYU_REDIS_ENABLED / HACKNYU_REDIS_URL, HACKNYU_DAS_RPC_URL, HACKNYU_MERKLE_TREE_ADDRESS (deprecated cNFT compat), HACKNYU_DEFAULT_VISION_MODEL / HACKNYU_DEFAULT_IMAGE_GEN_MODEL | Optional: caching, DAS RPC, legacy cNFT minting, AI model overrides | No |

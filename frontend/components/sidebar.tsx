@@ -6,6 +6,8 @@ import {
   Store,
   FolderOpen,
   Activity,
+  Briefcase,
+  Receipt,
   Menu,
   X,
   ChevronLeft
@@ -17,6 +19,8 @@ const navigation = [
   { name: 'Marketplace', href: '/marketplace', icon: Store },
   { name: 'Collections', href: '/collections', icon: FolderOpen },
   { name: 'Activities', href: '/activities', icon: Activity },
+  { name: 'Portfolio', href: '/portfolio', icon: Briefcase },
+  { name: 'Transactions', href: '/transactions', icon: Receipt },
 ]
 
 interface SidebarProps {

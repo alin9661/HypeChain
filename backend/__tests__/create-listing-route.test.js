@@ -1,11 +1,12 @@
 /**
  * Route-level tests for POST /api/create-listing wallet enforcement.
  *
- * Every listing must belong to a real user wallet (no NULL seller_wallet):
- * guests must create an account before listing, so a missing/empty userWallet
- * is rejected up front with the standard error envelope and ACCOUNT_REQUIRED.
- * All assertions hit only Step 0 validation, so no Supabase/OpenRouter/RPC
- * access ever happens — env vars are dummied by helpers/env-setup.js.
+ * A SELF-CUSTODY listing must belong to a real user wallet, so a missing/empty/
+ * invalid userWallet is rejected up front with ACCOUNT_REQUIRED. (CUSTODIAL
+ * guest listings — `custodial: true` — are the documented exception and are
+ * covered in test/custodial-listing.test.js.) All assertions here hit only
+ * Step 0 validation, so no OpenRouter/RPC/DB access happens — env vars are
+ * dummied by helpers/env-setup.js.
  */
 
 import './helpers/env-setup.js';

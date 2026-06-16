@@ -9,16 +9,11 @@ import {
   LAMPORTS_PER_SOL,
   clusterApiUrl
 } from '@solana/web3.js';
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
-dotenv.config();
+import { db as defaultDb } from '../db/index.js';
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.HACKNYU_SUPABASE_URL,
-  process.env.HACKNYU_SUPABASE_SERVICE_ROLE_KEY // Use service key for backend operations
-);
+dotenv.config();
 
 // Initialize Solana connection
 const connection = new Connection(
@@ -34,16 +29,8 @@ const connection = new Connection(
  * @param {Object} [deps] - optional injected deps for tests
  * @returns {Promise<Object>} Listing data
  */
-export async function fetchListingRow(listingId, { supabaseClient = supabase } = {}) {
-  const { data, error } = await supabaseClient
-    .from('listings')
-    .select('*')
-    .eq('id', listingId)
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to fetch listing: ${error.message}`);
-  }
+export async function fetchListingRow(listingId, { db = defaultDb } = {}) {
+  const data = await db.fetchListingById(listingId);
 
   if (!data) {
     throw new Error('Listing not found');
@@ -57,8 +44,8 @@ export async function fetchListingRow(listingId, { supabaseClient = supabase } =
  * @param {string} listingId - UUID of the listing
  * @returns {Promise<Object>} Listing data
  */
-export async function fetchListing(listingId) {
-  const data = await fetchListingRow(listingId);
+export async function fetchListing(listingId, { db = defaultDb } = {}) {
+  const data = await fetchListingRow(listingId, { db });
 
   if (data.status !== 'active') {
     throw new Error(`Listing is not available for purchase. Status: ${data.status}`);
@@ -73,19 +60,8 @@ export async function fetchListing(listingId) {
  * The status filter makes the update a no-op on already-repaired rows.
  * @param {string} listingId - UUID of the listing
  */
-export async function markListingSold(listingId) {
-  const { error } = await supabase
-    .from('listings')
-    .update({
-      status: 'sold',
-      sold_at: new Date().toISOString()
-    })
-    .eq('id', listingId)
-    .eq('status', 'active');
-
-  if (error) {
-    throw new Error(`Failed to mark listing sold: ${error.message}`);
-  }
+export async function markListingSold(listingId, { db = defaultDb } = {}) {
+  await db.markListingSoldIfActive(listingId);
 }
 
 /**
@@ -171,7 +147,7 @@ export async function verifyPayment(
   expectedAmount,
   listingId,
   buyerWallet,
-  { supabaseClient = supabase, conn = connection } = {}
+  { db = defaultDb, conn = connection } = {}
 ) {
   try {
     console.log(`[Payment] Verifying transaction ${signature}`);
@@ -255,11 +231,7 @@ export async function verifyPayment(
     // SAME listing + buyer means the purchase already completed — verifying
     // it again is an idempotent replay and must succeed. Only a signature
     // reused for a DIFFERENT listing or buyer is fraudulent.
-    const { data: existingTransaction } = await supabaseClient
-      .from('transactions')
-      .select('id, listing_id, buyer_wallet')
-      .eq('signature', signature)
-      .maybeSingle();
+    const existingTransaction = await db.getTransactionBySignature(signature);
 
     if (existingTransaction) {
       const isSamePurchase =
@@ -326,23 +298,15 @@ export async function completePurchase(
   buyerUserId,
   signature,
   amountSol,
-  { supabaseClient = supabase } = {}
+  { db = defaultDb } = {}
 ) {
   try {
     // 1. Fetch listing row WITHOUT the active-status gate — replays of a
     // completed purchase legitimately arrive after the row flipped to sold.
-    const listing = await fetchListingRow(listingId, { supabaseClient });
+    const listing = await fetchListingRow(listingId, { db });
 
     // 2. Idempotency check: has this signature already been recorded?
-    const { data: existingTransaction, error: existingError } = await supabaseClient
-      .from('transactions')
-      .select('*')
-      .eq('signature', signature)
-      .maybeSingle();
-
-    if (existingError) {
-      throw new Error(`Failed to check existing transaction: ${existingError.message}`);
-    }
+    const existingTransaction = await db.getTransactionBySignature(signature);
 
     if (
       existingTransaction &&
@@ -363,59 +327,40 @@ export async function completePurchase(
       }
 
       // 3. Create transaction record
-      const { data: insertedRecord, error: txError } = await supabaseClient
-        .from('transactions')
-        .insert({
-          listing_id: listingId,
-          buyer_wallet: buyerWallet,
-          seller_wallet: listing.seller_wallet,
-          buyer_user_id: buyerUserId || null,
-          seller_user_id: listing.seller_user_id || null,
-          amount_sol: amountSol,
-          signature: signature,
-          status: 'confirmed',
-          payment_method: 'SOL',
-          blockchain_confirmed: true,
-          confirmed_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (txError) {
-        throw new Error(`Failed to create transaction record: ${txError.message}`);
-      }
-      transactionRecord = insertedRecord;
+      transactionRecord = await db.insertTransaction({
+        listing_id: listingId,
+        buyer_wallet: buyerWallet,
+        seller_wallet: listing.seller_wallet,
+        buyer_user_id: buyerUserId || null,
+        seller_user_id: listing.seller_user_id || null,
+        amount_sol: amountSol,
+        signature: signature,
+        status: 'confirmed',
+        payment_method: 'SOL',
+        blockchain_confirmed: true,
+        confirmed_at: new Date().toISOString()
+      });
     }
 
     // 4. Converge listing status to sold. Runs for fresh purchases AND for
     // replays where the transactions row exists but the listing update was
     // lost in a crash window (idempotent convergence).
     if (listing.status !== 'sold') {
-      const { error: updateError } = await supabaseClient
-        .from('listings')
-        .update({
-          status: 'sold',
-          sold_at: new Date().toISOString(),
-          buyer_wallet: buyerWallet,
-          buyer_user_id: buyerUserId || null,
-          transaction_signature: signature
-        })
-        .eq('id', listingId);
-
-      if (updateError) {
-        throw new Error(`Failed to update listing: ${updateError.message}`);
-      }
+      await db.updateListingStatus(listingId, {
+        status: 'sold',
+        soldAt: new Date().toISOString(),
+        buyerWallet: buyerWallet,
+        buyerUserId: buyerUserId || null,
+        transactionSignature: signature
+      });
     }
 
     // 5. Update seller's total volume (fresh purchases only — replays must
-    // not double-count volume)
+    // not double-count volume). OCC-safe; non-fatal on failure.
     if (!isReplay && listing.seller_user_id) {
-      const { error: volumeError } = await supabaseClient.rpc('increment_user_volume', {
-        user_id: listing.seller_user_id,
-        amount: amountSol
-      });
-
-      if (volumeError) {
+      try {
+        await db.incrementUserVolume(listing.seller_user_id, amountSol);
+      } catch (volumeError) {
         console.warn(`[Payment] Failed to update seller volume: ${volumeError.message}`);
         // Don't fail the purchase if this fails
       }
@@ -447,35 +392,9 @@ export async function completePurchase(
  * @param {string} type - 'buyer' | 'seller' | 'all'
  * @returns {Promise<Array>} Transaction history
  */
-export async function getTransactionHistory(walletAddress, type = 'all') {
+export async function getTransactionHistory(walletAddress, type = 'all', { db = defaultDb } = {}) {
   try {
-    let query = supabase
-      .from('transactions')
-      .select(`
-        *,
-        listing:listings(
-          product_name,
-          image_url,
-          nft_mint_address
-        )
-      `)
-      .order('created_at', { ascending: false });
-
-    if (type === 'buyer') {
-      query = query.eq('buyer_wallet', walletAddress);
-    } else if (type === 'seller') {
-      query = query.eq('seller_wallet', walletAddress);
-    } else {
-      query = query.or(`buyer_wallet.eq.${walletAddress},seller_wallet.eq.${walletAddress}`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to fetch transaction history: ${error.message}`);
-    }
-
-    return data || [];
+    return await db.getTransactionHistory(walletAddress, { type });
   } catch (error) {
     console.error('[Payment] Error fetching transaction history:', error);
     throw error;

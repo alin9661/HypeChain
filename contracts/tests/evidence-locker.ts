@@ -466,6 +466,65 @@ describe("hypechain-evidence-locker", () => {
         expect(String(err)).to.match(/ListingNotListed/);
       }
     });
+
+    it("rejects a self-purchase (buyer == seller)", async () => {
+      // Fresh Listed listing owned by the seller, so this is order-independent.
+      const selfMint = await createMint(connection, seller, seller.publicKey, null, 0);
+      const selfAta = await createAssociatedTokenAccount(
+        connection, seller, selfMint, seller.publicKey
+      );
+      await mintTo(connection, seller, selfMint, selfAta, seller, 1);
+      const [selfVerify] = PublicKey.findProgramAddressSync(
+        [Buffer.from("verification"), selfMint.toBuffer()], program.programId
+      );
+      const [selfListing] = PublicKey.findProgramAddressSync(
+        [Buffer.from("evidence"), selfMint.toBuffer()], program.programId
+      );
+      await program.methods
+        .submitVerification(8800, Array.from(MODEL_NAME) as any, true)
+        .accounts({
+          examiner: examiner.publicKey,
+          nftMint: selfMint,
+          dossier: dossierPda,
+          verificationProof: selfVerify,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([examiner])
+        .rpc();
+      await program.methods
+        .listEvidence(new BN(LAMPORTS_PER_SOL))
+        .accounts({
+          seller: seller.publicKey,
+          nftMint: selfMint,
+          dossier: dossierPda,
+          authority: seller.publicKey,
+          verificationProof: selfVerify,
+          listing: selfListing,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([seller])
+        .rpc();
+
+      try {
+        // buyer === seller: the `seller.key() != buyer.key()` constraint must reject.
+        await program.methods
+          .purchaseEvidence()
+          .accounts({
+            buyer: seller.publicKey,
+            seller: seller.publicKey,
+            listing: selfListing,
+            sellerTokenAccount: selfAta,
+            buyerTokenAccount: selfAta,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([seller])
+          .rpc();
+        expect.fail("expected SelfPurchase");
+      } catch (err: any) {
+        expect(String(err)).to.match(/SelfPurchase/);
+      }
+    });
   });
 
   // ──────────────────────────────────────────────────────── flag_dispute ───
@@ -547,6 +606,62 @@ describe("hypechain-evidence-locker", () => {
       } catch (err: any) {
         expect(String(err)).to.match(/DisputeUnauthorized/);
       }
+    });
+
+    it("cannot dispute a Delisted listing (no permanent lock)", async () => {
+      // A Delisted listing must stay relistable. Disputing it would lock it
+      // forever (relist requires Delisted; there is no clear_dispute). Block it.
+      const dMint = await createMint(connection, seller, seller.publicKey, null, 0);
+      const [dVerify] = PublicKey.findProgramAddressSync(
+        [Buffer.from("verification"), dMint.toBuffer()], program.programId
+      );
+      const [dListing] = PublicKey.findProgramAddressSync(
+        [Buffer.from("evidence"), dMint.toBuffer()], program.programId
+      );
+      await program.methods
+        .submitVerification(8800, Array.from(MODEL_NAME) as any, true)
+        .accounts({
+          examiner: examiner.publicKey,
+          nftMint: dMint,
+          dossier: dossierPda,
+          verificationProof: dVerify,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([examiner])
+        .rpc();
+      await program.methods
+        .listEvidence(new BN(LAMPORTS_PER_SOL))
+        .accounts({
+          seller: seller.publicKey,
+          nftMint: dMint,
+          dossier: dossierPda,
+          authority: seller.publicKey,
+          verificationProof: dVerify,
+          listing: dListing,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([seller])
+        .rpc();
+      await program.methods
+        .delistEvidence()
+        .accounts({ seller: seller.publicKey, listing: dListing })
+        .signers([seller])
+        .rpc();
+
+      try {
+        await program.methods
+          .flagDispute(1)
+          .accounts({ signer: examiner.publicKey, listing: dListing })
+          .signers([examiner])
+          .rpc();
+        expect.fail("expected DisputeNotAllowed");
+      } catch (err: any) {
+        expect(String(err)).to.match(/DisputeNotAllowed/);
+      }
+
+      // Proof it's not locked: still Delisted (hence still relistable).
+      const l = await program.account.evidenceListing.fetch(dListing);
+      expect(l.status).to.deep.equal({ delisted: {} });
     });
   });
 });
