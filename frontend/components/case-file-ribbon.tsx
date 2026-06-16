@@ -12,6 +12,8 @@
  */
 'use client';
 
+import { useEffect, useState } from 'react';
+
 type CaseFileRibbonProps = {
   /** Listing ID — converted to HC–YYYY–NNNNNN format. Pass null on non-listing pages. */
   caseId: string | null;
@@ -50,7 +52,17 @@ export function CaseFileRibbon({
   chain = 'SOL',
 }: CaseFileRibbonProps) {
   const caseLabel = caseId ? formatCaseNumber(caseId) : null;
-  const intakeLabel = formatIntake(intake);
+
+  // When no `intake` is supplied we fall back to "now", which differs between
+  // the SSR render and the client render and breaks hydration. Defer that
+  // current-time value to a client-only effect so the server and first client
+  // paint agree on a stable placeholder. A supplied `intake` is deterministic
+  // (fixed timestamp + explicit timeZone) and renders directly.
+  const [clientNow, setClientNow] = useState<string | null>(null);
+  useEffect(() => {
+    if (!intake) setClientNow(formatIntake(undefined));
+  }, [intake]);
+  const intakeLabel = intake ? formatIntake(intake) : clientNow ?? '--:--:--';
 
   return (
     <div
