@@ -14,12 +14,10 @@
 
 import {
   Connection,
-  Keypair,
   PublicKey,
   Transaction,
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
-import bs58 from 'bs58';
 
 import {
   PROGRAM_ID,
@@ -30,6 +28,8 @@ import {
   casePrefixBytes,
   modelNameBytes,
 } from './evidence-locker-client.js';
+// Custodial keypair loading is centralized in the signer abstraction.
+import { getServerWallet } from './signer.js';
 
 const SOLANA_RPC_URL = process.env.HACKNYU_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const CASE_PREFIX = process.env.HACKNYU_CASE_PREFIX || 'HC-2026-';
@@ -38,19 +38,6 @@ function getConnection() {
   return new Connection(SOLANA_RPC_URL, 'confirmed');
 }
 
-// Module-level keypair cache — decoded once per process to avoid redundant
-// bs58.decode + Keypair construction on every request (and to keep the
-// secret in heap for a shorter aggregate lifetime).
-let _cachedServerWallet = null;
-function getServerWallet() {
-  if (_cachedServerWallet) return _cachedServerWallet;
-  const privateKeyString = process.env.HACKNYU_SERVER_WALLET_PRIVATE_KEY;
-  if (!privateKeyString) {
-    throw new Error('HACKNYU_SERVER_WALLET_PRIVATE_KEY not set');
-  }
-  _cachedServerWallet = Keypair.fromSecretKey(bs58.decode(privateKeyString));
-  return _cachedServerWallet;
-}
 
 // Promise cache so two concurrent listing requests at cold start do not both
 // fire `init_dossier` and have one fail with "account already in use".
