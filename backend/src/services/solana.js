@@ -1,7 +1,6 @@
 import {
   Connection,
   PublicKey,
-  Keypair,
   LAMPORTS_PER_SOL,
   Transaction,
   sendAndConfirmTransaction,
@@ -12,51 +11,24 @@ import { generateSigner, keypairIdentity, percentAmount, publicKey as umiPublicK
 import bs58 from 'bs58';
 
 import { buildListEvidenceIx, findListingPda } from './evidence-locker-client.js';
+// Custodial keypair loading lives in the signer abstraction (env | secretsmanager).
+// Re-exported here so existing importers (routes/payment.js, tests) keep working.
+import {
+  getServerWallet,
+  getServerWalletPublicKey,
+  _resetSignerForTests,
+} from './signer.js';
+
+export { getServerWallet, getServerWalletPublicKey };
+
+/** Back-compat test hook (renamed to _resetSignerForTests in signer.js). */
+export const _resetServerWalletForTests = _resetSignerForTests;
 
 const SOLANA_RPC_URL = process.env.HACKNYU_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const MARKETPLACE_PROGRAM_ID = process.env.HACKNYU_MARKETPLACE_PROGRAM_ID;
 
 export function getConnection() {
   return new Connection(SOLANA_RPC_URL, 'confirmed');
-}
-
-// Cache the decoded server keypair after first use. The custodial co-sign loop
-// requires ONE real server keypair to be the mint target, the on-chain seller,
-// AND the co-sign signer; caching it keeps that identity stable and avoids
-// re-decoding the secret on every request.
-let _serverWallet = null;
-
-export function getServerWallet() {
-  if (_serverWallet) return _serverWallet;
-  const privateKeyString = process.env.HACKNYU_SERVER_WALLET_PRIVATE_KEY;
-  if (!privateKeyString) {
-    throw new Error('SERVER_WALLET_PRIVATE_KEY not set in environment');
-  }
-
-  try {
-    const privateKeyBytes = bs58.decode(privateKeyString);
-    _serverWallet = Keypair.fromSecretKey(privateKeyBytes);
-    return _serverWallet;
-  } catch (error) {
-    throw new Error('Invalid SERVER_WALLET_PRIVATE_KEY format');
-  }
-}
-
-/** Test hook: clear the cached server keypair so env changes take effect. */
-export function _resetServerWalletForTests() {
-  _serverWallet = null;
-}
-
-/**
- * Base58 public key of the custodial server wallet.
- *
- * This is the single identity used for custodial (guest) listings: NFTs mint
- * to it, on-chain `list_evidence` is signed by it, and `cosign-purchase` co-signs
- * `purchase_evidence` as it. Unifying all three on one real keypair is what makes
- * a guest listing actually sellable (the keyless-placeholder bug, fixed in B1).
- */
-export function getServerWalletPublicKey() {
-  return getServerWallet().publicKey.toBase58();
 }
 
 export async function mintNFT(userWalletAddress, metadataUri, productName) {
