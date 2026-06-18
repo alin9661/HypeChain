@@ -19,6 +19,7 @@ function saveEnv() {
     'HACKNYU_CUSTODIAL_KEY_SOURCE',
     'HACKNYU_SERVER_WALLET_PRIVATE_KEY',
     'HACKNYU_CUSTODIAL_SECRET_ID',
+    'AWS_REGION',
   ]) {
     SAVED[k] = process.env[k];
     delete process.env[k];
@@ -113,6 +114,43 @@ describe('signer — secretsmanager backend', () => {
     const kp = await initServerWallet({ fetchSecret });
     expect(kp.publicKey.toBase58()).toBe(TEST_KP.publicKey.toBase58());
     expect(calls).toBe(2);
+  });
+
+  it('de-dupes concurrent init: two parallel callers share ONE fetch', async () => {
+    let calls = 0;
+    const fetchSecret = async () => {
+      calls += 1;
+      await new Promise((r) => setTimeout(r, 5)); // hold the in-flight promise open
+      return TEST_BS58;
+    };
+    const [a, b] = await Promise.all([
+      initServerWallet({ fetchSecret }),
+      initServerWallet({ fetchSecret }),
+    ]);
+    expect(a).toBe(b);
+    expect(calls).toBe(1);
+  });
+
+  it('throws on a malformed JSON-envelope SecretString', async () => {
+    const fetchSecret = async () => '{ not valid json';
+    await expect(initServerWallet({ fetchSecret })).rejects.toThrow(/not valid JSON/);
+  });
+
+  it('throws when the JSON envelope is missing a privateKey field', async () => {
+    const fetchSecret = async () => JSON.stringify({ note: 'no key here' });
+    await expect(initServerWallet({ fetchSecret })).rejects.toThrow(/missing a privateKey field/);
+  });
+
+  it('throws when the SecretString is empty', async () => {
+    const fetchSecret = async () => '';
+    await expect(initServerWallet({ fetchSecret })).rejects.toThrow(/no SecretString returned/);
+  });
+
+  it('throws a clear error when AWS_REGION is unset (default fetch path)', async () => {
+    // No injected fetchSecret → defaultFetchSecret runs and must guard AWS_REGION
+    // before constructing the SDK client (fails fast at startup, not opaquely).
+    delete process.env.AWS_REGION;
+    await expect(initServerWallet()).rejects.toThrow(/AWS_REGION not set/);
   });
 });
 
