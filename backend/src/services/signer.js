@@ -72,10 +72,14 @@ function loadFromEnv() {
 // Default Secrets Manager fetch. Imported lazily so the AWS SDK is only loaded
 // when the secretsmanager backend is actually used (env/dev pays no cost).
 async function defaultFetchSecret(secretId) {
+  const region = process.env.AWS_REGION;
+  if (!region) {
+    throw new Error('AWS_REGION not set for secretsmanager key source');
+  }
   const { SecretsManagerClient, GetSecretValueCommand } = await import(
     '@aws-sdk/client-secrets-manager'
   );
-  const client = new SecretsManagerClient({ region: process.env.AWS_REGION });
+  const client = new SecretsManagerClient({ region });
   const res = await client.send(new GetSecretValueCommand({ SecretId: secretId }));
   return res.SecretString;
 }

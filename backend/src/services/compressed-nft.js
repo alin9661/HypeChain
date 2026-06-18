@@ -13,27 +13,12 @@ import {
   publicKey as umiPublicKey,
   none
 } from '@metaplex-foundation/umi';
-import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
+// Custodial keypair loading is centralized in the signer abstraction
+// (env | secretsmanager). Never re-decode the env key here.
+import { getServerWallet } from './signer.js';
 
 const SOLANA_RPC_URL = process.env.HACKNYU_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-
-/**
- * Gets the server wallet from environment variables
- */
-function getServerWallet() {
-  const privateKeyString = process.env.HACKNYU_SERVER_WALLET_PRIVATE_KEY;
-  if (!privateKeyString) {
-    throw new Error('HACKNYU_SERVER_WALLET_PRIVATE_KEY is not set in environment variables');
-  }
-
-  try {
-    const privateKeyBytes = bs58.decode(privateKeyString);
-    return Keypair.fromSecretKey(privateKeyBytes);
-  } catch (error) {
-    throw new Error(`Invalid SERVER_WALLET_PRIVATE_KEY format: ${error.message}`);
-  }
-}
 
 /**
  * Creates a new Merkle tree for compressed NFTs
