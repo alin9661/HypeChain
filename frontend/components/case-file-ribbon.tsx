@@ -60,7 +60,12 @@ export function CaseFileRibbon({
   // (fixed timestamp + explicit timeZone) and renders directly.
   const [clientNow, setClientNow] = useState<string | null>(null);
   useEffect(() => {
-    if (!intake) setClientNow(formatIntake(undefined));
+    if (intake) return;
+    // No `intake` => "now". Set on mount (post-hydration) and tick every second
+    // so the ● LIVE clock actually advances instead of freezing at first paint.
+    setClientNow(formatIntake(undefined));
+    const id = setInterval(() => setClientNow(formatIntake(undefined)), 1000);
+    return () => clearInterval(id);
   }, [intake]);
   const intakeLabel = intake ? formatIntake(intake) : clientNow ?? '--:--:--';
 

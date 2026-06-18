@@ -22,8 +22,6 @@ hydration.
 - **The status ribbon no longer triggers a hydration error on load.** The live
   INTAKE clock renders a stable placeholder on first paint and then fills in,
   removing the React hydration mismatch on listing pages.
-- **Wallet modal copy** — replaced leftover course-platform text ("progress
-  through courses and earn NFT rewards") with marketplace-accurate wording.
 
 ### Changed
 
