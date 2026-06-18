@@ -46,7 +46,7 @@
 | Component | Choice | Rationale |
 |---|---|---|
 | Backend | Express on **Lambda** (container image, Function URL) | `backend/template.yaml` + `backend/Dockerfile` already target this. Function URL (not API Gateway) avoids the 29 s gateway timeout that would break the 30–90 s `create-listing` flow. |
-| Database | **Aurora DSQL** | Serverless, IAM-token auth (no password to leak), scales to zero. Express **now** ships a DSQL data layer (`backend/src/db/`, schema `backend/schema/001_dsql_schema.sql`); Supabase is fully removed — see [§2.1](#21-migrate-the-express-backend-from-supabase-to-aurora-dsql--done). |
+| Database | **Aurora DSQL** | Serverless, IAM-token auth (no password to leak), scales to zero. Express **now** ships a DSQL data layer (`backend/src/db/`, schema `backend/schema/001_dsql_schema.sql`); Supabase is removed from `backend/src/` (`.env.example`/`template.yaml` cleanup still pending) — see [§2.1](#21-migrate-the-express-backend-from-supabase-to-aurora-dsql--done). |
 | Frontend | **Amplify Hosting** | Native Next.js 16 App Router + SSR support. CloudFront+S3 alone only works for static export — this app uses `next start`. |
 | Network | **Solana devnet** | No real funds. Existing program `2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF`. |
 | Secrets | **Secrets Manager + KMS** | Custodial key + API keys never live in plaintext env or CloudFormation. |
@@ -60,7 +60,7 @@ These are engineering changes the codebase needs before a clean AWS deploy. Each
 > **Status (2026-06-15):** §2.1 (DSQL migration) and the rate-limit half of §2.3 have **landed on `main`** (v0.6.0.0, PRs #44/#46–#51). Remaining pre-deploy code: §2.2 (KMS signer), the Privy-auth half of §2.3, §2.4 correctness items, and §2.5 frontend hygiene. These are tracked as follow-up PRs.
 
 ### 2.1 Migrate the Express backend from Supabase to Aurora DSQL ✅ DONE
-**Landed (v0.6.0.0).** Express now ships a full DSQL data layer and Supabase is removed:
+**Landed (v0.6.0.0).** Express now ships a full DSQL data layer and Supabase is removed from `backend/src/` (the `backend/.env.example` and `backend/template.yaml` Supabase params are stale and still need cleanup):
 - [x] DSQL data layer for Express: `backend/src/db/{pool.js, occ.js, queries.js, index.js}` (lazy singleton pool, OCC retry on SQLSTATE 40001, explicit column-enumerated queries, data-access facade). Ported from `backend-py/app/db/`.
 - [x] Added `pg` + `@aws-sdk/dsql-signer` with **bun**; `@supabase/supabase-js` removed.
 - [x] `listing.js` + `payment.js` route every DB call through the facade; no `supabase` / `HACKNYU_POSTGRES_*` left under `backend/src/`.
@@ -141,8 +141,8 @@ The Lambda execution role gets `secretsmanager:GetSecretValue` + `kms:Decrypt` s
 aws dsql create-cluster --tags app=hypechain   # note the cluster endpoint
 ```
 
-- Apply the schema `backend-py/schema/001_dsql_schema.sql` (no FKs/triggers/RLS, adds the `activities` table) via a one-off bootstrap script or a throwaway Lambda.
-- Grant the Lambda execution role `dsql:DbConnect` scoped to the cluster. **No DB password anywhere.**
+- Apply the schema `backend/schema/001_dsql_schema.sql` (no FKs/triggers/RLS, adds the `activities` table) via a one-off bootstrap script or a throwaway Lambda.
+- Grant the Lambda execution role `dsql:DbConnectAdmin` scoped to the cluster (the pool connects as the `admin` DSQL user). **No DB password anywhere.**
 - Verify the pool spec: lazy singleton, statement cache disabled, IAM token minted per connection.
 
 ### 4.3 Paid devnet RPC
@@ -158,12 +158,14 @@ The SAM template (`backend/template.yaml`) and Dockerfile (`backend/Dockerfile`)
 **Template changes needed:**
 - Drop the Supabase parameters; add DSQL endpoint + region.
 - Switch secret parameters from `NoEcho` plaintext to **runtime Secrets Manager reads** (preferred — keeps secrets out of CloudFormation) or `{{resolve:secretsmanager:...}}` dynamic references.
-- Attach execution-role policies: `secretsmanager:GetSecretValue`, `kms:Decrypt`, `dsql:DbConnect`, CloudWatch Logs.
+- Attach execution-role policies: `secretsmanager:GetSecretValue`, `kms:Decrypt`, `dsql:DbConnectAdmin`, CloudWatch Logs.
 
 **Environment (devnet):**
 ```
 HACKNYU_SOLANA_NETWORK=devnet
 HACKNYU_MARKETPLACE_PROGRAM_ID=2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF
+HACKNYU_DSQL_ENDPOINT=<cluster-id>.dsql.<region>.on.aws   # pool.js throws if unset
+HACKNYU_DSQL_REGION=us-east-1
 HACKNYU_SOLANA_RPC_URL=<paid devnet RPC>
 HACKNYU_DAS_RPC_URL=<paid devnet DAS RPC>
 HACKNYU_REDIS_ENABLED=false          # ioredis leaks across warm Lambda invocations
@@ -257,8 +259,8 @@ These are mandatory operational concepts the repo never addresses. Apply all of 
 
 Each stage gates the next.
 
-- [ ] **DSQL port (§2.1):** `cd backend && bun test` green (incl. new DSQL guard tests in `backend/__tests__/`); `grep -rE 'supabase|HACKNYU_POSTGRES' backend/src` returns nothing live, and `@supabase/supabase-js` is gone from `backend/package.json`.
-- [ ] **Backend hardening (§2.2–2.4):** full buy loop runs on devnet (`RUN_DEVNET=1 backend/scripts/devnet-buy-smoke.js`) with the key loaded from Secrets Manager, the cosign endpoint auth-gated + rate-limited, and a retried `create-listing` producing exactly one mint.
+- [ ] **DSQL port (§2.1):** `cd backend && bun test` green (incl. the DSQL guard tests in `backend/test/db.test.js`); `grep -rE 'supabase|HACKNYU_POSTGRES' backend/src` returns nothing live, and `@supabase/supabase-js` is gone from `backend/package.json`.
+- [ ] **Backend hardening (§2.2–2.4):** full buy loop runs on devnet (`cd backend && RUN_DEVNET=1 node scripts/devnet-buy-smoke.js`) with the key loaded from Secrets Manager, the cosign endpoint auth-gated + rate-limited, and a retried `create-listing` producing exactly one mint.
 - [ ] **DSQL (§4.2):** a Lambda using only the execution role (no password) runs `SELECT 1` against the cluster.
 - [ ] **Backend (§5):** `curl <FunctionURL>/health` → `{status, environment:"production"}`; cosign without a valid Privy token → 401; with one → builds a tx.
 - [ ] **Frontend (§6):** Amplify build succeeds with `ignoreBuildErrors` off; site loads, Privy wallet connect works, the program-id guard did not throw.
