@@ -3,7 +3,7 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.6.1.0] - 2026-06-18
+## [0.6.1.1] - 2026-06-19
 
 The Collections and Activities pages now match the rest of the app — the same
 Case-File Ribbon, financial-terminal layout, and Verified Yellow palette as the
