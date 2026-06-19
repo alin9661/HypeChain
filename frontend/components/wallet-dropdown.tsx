@@ -36,7 +36,8 @@ export function WalletDropdown({ address }: WalletDropdownProps) {
       await logout()
       disconnectWallet()
       setOpen(false)
-      // After disconnecting, the navigation will automatically show the WalletConnectionModal
+      // After disconnecting, the navigation falls back to the Connect Wallet
+      // button, which opens Privy's built-in wallet modal.
     } catch (error) {
       console.error('Error changing wallet:', error)
     }
