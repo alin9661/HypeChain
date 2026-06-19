@@ -16,9 +16,11 @@ hydration.
   no longer returns a 400. The app now reads your connected wallet from Privy's
   Solana hook (it had been reading the Ethereum-only hook), so your Solana
   address and account registration go through correctly.
-- **A failed registration now retries instead of getting stuck.** A transient
-  network or server error during account registration no longer permanently
-  blocks reconnecting that wallet until a full page reload.
+- **A failed registration now retries a few times, then stops cleanly.** A
+  transient network or server error during account registration is retried a
+  bounded number of times instead of either getting stuck until a page reload
+  or hammering a down backend on every re-render. Reconnecting a wallet always
+  re-registers it, so you can't get stranded connected-but-without-a-profile.
 - **The status ribbon no longer triggers a hydration error on load.** The live
   INTAKE clock renders a stable placeholder on first paint and then fills in,
   removing the React hydration mismatch on listing pages.

@@ -99,7 +99,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
   const { authenticated, user } = usePrivy();
   const { ready: walletsReady, wallets } = useSolanaWallets();
-  const registrationAttempted = useRef<Set<string>>(new Set());
+  // Per-wallet registration progress. Replaces a bare Set so we can (a) dedupe
+  // a successful registration, (b) block a concurrent in-flight POST, and
+  // (c) cap retries — useSolanaWallets() returns a fresh `wallets` array
+  // reference on many re-renders, each re-running the effect below, so an
+  // uncapped retry-on-failure turns a hard-down backend into a POST storm.
+  const MAX_REGISTRATION_ATTEMPTS = 3;
+  const registrationProgress = useRef<
+    Map<string, { status: 'in-flight' | 'success' | 'failed'; attempts: number }>
+  >(new Map());
+
+  // Notifications — defined before the registration effect so that effect can
+  // list `addNotification` in its deps without a temporal-dead-zone reference.
+  const removeNotification = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      notifications: prev.notifications.filter((n) => n.id !== id),
+    }));
+  }, []);
+
+  const addNotification = useCallback(
+    (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+      const newNotification: Notification = {
+        ...notification,
+        id: `${Date.now()}-${Math.random()}`,
+        timestamp: new Date().toISOString(),
+      };
+
+      setState((prev) => ({
+        ...prev,
+        notifications: [...prev.notifications, newNotification],
+      }));
+
+      // Auto-remove after 5 seconds
+      setTimeout(() => {
+        removeNotification(newNotification.id);
+      }, 5000);
+    },
+    [removeNotification]
+  );
 
   // Sync Privy wallet state and register user
   useEffect(() => {
@@ -126,14 +164,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
           },
         }));
 
-        // Check if user is already registered (avoid duplicate API calls)
-        if (registrationAttempted.current.has(address)) {
-          console.log('[User Registration] User already registered, skipping...');
+        // Skip when this wallet is already registered, a POST is in flight, or
+        // we've exhausted the retry budget. This is what bounds the effect:
+        // without it, a fresh `wallets` ref on every re-render would re-POST.
+        const progress = registrationProgress.current.get(address);
+        if (
+          progress &&
+          (progress.status === 'success' ||
+            progress.status === 'in-flight' ||
+            (progress.status === 'failed' &&
+              progress.attempts >= MAX_REGISTRATION_ATTEMPTS))
+        ) {
           return;
         }
 
-        // Mark as attempted to prevent duplicate registrations
-        registrationAttempted.current.add(address);
+        // Mark in-flight (and count the attempt) before awaiting so a re-render
+        // mid-request can't fire a second concurrent POST.
+        const attempts = (progress?.attempts ?? 0) + 1;
+        registrationProgress.current.set(address, { status: 'in-flight', attempts });
 
         // Register user with backend
         console.log('[User Registration] Starting registration for:', address);
@@ -149,6 +197,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
           if (response.success && response.data) {
             console.log('[User Registration] Success:', response.data.user);
+            registrationProgress.current.set(address, { status: 'success', attempts });
 
             setState((prev) => ({
               ...prev,
@@ -170,11 +219,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('[User Registration] Error:', error);
 
-          // Roll back the dedupe marker so a transient failure (network/500)
-          // can be retried on the next render. Without this, a single failed
-          // POST would permanently block re-registration for this wallet until
-          // a full page reload.
-          registrationAttempted.current.delete(address);
+          // Record the failure but keep the attempt count, so the guard above
+          // retries up to MAX_REGISTRATION_ATTEMPTS and then stops — instead of
+          // re-POSTing on every subsequent re-render (a hard-down backend would
+          // otherwise drive an unbounded request storm).
+          registrationProgress.current.set(address, { status: 'failed', attempts });
 
           const errorMsg = error instanceof Error ? error.message : 'Failed to register user';
 
@@ -190,7 +239,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           });
         }
       } else {
-        // Clear user when disconnected
+        // Clear user when disconnected. Also drop all registration progress so
+        // a same-session reconnect re-registers and repopulates userProfile —
+        // otherwise the dedupe guard would strand the wallet connected-but-
+        // without-a-profile.
+        registrationProgress.current.clear();
         setState((prev) => ({
           ...prev,
           wallet: {
@@ -206,7 +259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     registerUserAccount();
-  }, [authenticated, walletsReady, user, wallets]);
+  }, [authenticated, walletsReady, user, wallets, addNotification]);
 
   // Listings actions
   const addListing = useCallback((listing: NFTListing) => {
@@ -292,35 +345,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  // Notification actions
-  const addNotification = useCallback(
-    (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-      const newNotification: Notification = {
-        ...notification,
-        id: `${Date.now()}-${Math.random()}`,
-        timestamp: new Date().toISOString(),
-      };
-
-      setState((prev) => ({
-        ...prev,
-        notifications: [...prev.notifications, newNotification],
-      }));
-
-      // Auto-remove after 5 seconds
-      setTimeout(() => {
-        removeNotification(newNotification.id);
-      }, 5000);
-    },
-    []
-  );
-
-  const removeNotification = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      notifications: prev.notifications.filter((n) => n.id !== id),
-    }));
-  }, []);
-
+  // Notification actions (addNotification + removeNotification are defined
+  // above, before the registration effect).
   const clearNotifications = useCallback(() => {
     setState((prev) => ({
       ...prev,
