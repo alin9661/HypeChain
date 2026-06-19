@@ -22,6 +22,7 @@
   "author": "HypeChain Team",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1069.0",
     "@aws-sdk/dsql-signer": "^3.1068.0",
     "@metaplex-foundation/mpl-bubblegum": "^5.0.2",
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",

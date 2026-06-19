@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy } from '@privy-io/react-auth'
+// Solana app: read the connected wallet from Privy's Solana hook, not the
+// base (EVM-only) `useWallets()`.
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana'
 import { Menu, X } from 'lucide-react'
-import { WalletConnectionModal } from './wallet-connection-modal'
 import { WalletConnectButton } from './wallet-connect-button'
 import { WalletDropdown } from './wallet-dropdown'
 import { useWallet } from '@/contexts/AppContext'
@@ -25,9 +27,8 @@ interface NavigationProps {
 export function Navigation({ items, showConnectWallet = true, onConnectWalletClick }: NavigationProps) {
   const pathname = usePathname()
   const { wallet } = useWallet()
-  const { authenticated } = usePrivy()
-  const { wallets } = useWallets()
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false)
+  const { authenticated, login } = usePrivy()
+  const { wallets } = useSolanaWallets()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   // Read wallet state directly from Privy (source of truth)
@@ -87,7 +88,8 @@ export function Navigation({ items, showConnectWallet = true, onConnectWalletCli
             ) : (
               <WalletConnectButton
                 onClick={() => {
-                  setIsWalletModalOpen(true)
+                  // Open Privy's built-in wallet modal directly.
+                  login()
                   onConnectWalletClick?.()
                 }}
               />
@@ -154,12 +156,6 @@ export function Navigation({ items, showConnectWallet = true, onConnectWalletCli
           </ul>
         </nav>
       )}
-
-      {/* Wallet Connection Modal */}
-      <WalletConnectionModal
-        open={isWalletModalOpen}
-        onOpenChange={setIsWalletModalOpen}
-      />
     </div>
   )
 }

@@ -27,8 +27,11 @@ export function PrivyProviderWrapper({ children }: { children: ReactNode }) {
   const config = useMemo<PrivyClientConfig>(
     () => ({
       appearance: {
-        walletChainType: 'ethereum-and-solana',
-        walletList: ['metamask', 'phantom'],
+        // Solana-only: the backend validates Solana public keys, so offering an
+        // EVM wallet (MetaMask) would let users connect a wallet that can never
+        // list or buy. Restrict the built-in modal to Phantom / Solana.
+        walletChainType: 'solana-only',
+        walletList: ['phantom'],
         theme: 'dark',
         accentColor: '#EBC658',
         logo: '/icon.svg',
