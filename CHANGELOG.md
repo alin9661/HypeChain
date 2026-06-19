@@ -3,6 +3,36 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.1.1] - 2026-06-19
+
+The Collections and Activities pages now match the rest of the app — the same
+Case-File Ribbon, financial-terminal layout, and Verified Yellow palette as the
+marketplace and listings, instead of the old slate/rounded card style.
+
+### Changed
+
+- **Collections page restyled to the design system.** Adopts the Navigation +
+  Case-File Ribbon chassis, polygon clip-path corners, `--hc-*` tokens, an
+  Instrument Serif header, a KPI strip, and forensic collection cards (grid +
+  list). Search, sort, and the grid/list toggle are preserved; the sort menu now
+  dismisses on Escape and outside-click.
+- **Activities feed restyled to the design system.** Same chassis, with a stats
+  strip, per-type status chips (sale / listed / transfer / mint), and restyled
+  loading, empty, and error states. The live `getActivities` data flow is
+  unchanged.
+
+### Fixed
+
+- The Activities feed now shows a real error state when the feed request fails,
+  instead of silently rendering an empty feed.
+- Below-the-fold images on both pages load lazily; the activity filter chips
+  report `aria-pressed` instead of an unfulfilled tablist role.
+
+### Added
+
+- Unit tests covering both pages (render states, search, sort, filters, and the
+  formatting helpers) — the frontend suite is now 95 tests.
+
 ## [0.6.1.0] - 2026-06-16
 
 QA pass on the production site: the wallet-connect and listing flows now work

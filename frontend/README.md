@@ -74,11 +74,11 @@ A comprehensive Next.js frontend fully integrated with the HypeChain backend API
 - Environment variables guide
 
 #### 4. Recent Activities (`/activities`)
-- **Live Solana DevNet transactions**
-- Real-time auto-refresh (every 30 seconds)
-- Advanced filtering (All, Success, Failed)
+- **Live Solana DevNet activity feed** (`getActivities`)
+- Design-system chassis: Case-File Ribbon, stats strip, per-type status chips
+- Filter by type (All / Sale / Listed / Transfer / Mint), filtered server-side
 - Search by signature or address
-- Transaction explorer links
+- Real error, empty, and loading states; transaction explorer links
 
 #### 5. Chat (`/chat`)
 - Real-time messaging interface
@@ -136,8 +136,9 @@ All UI decisions are sourced from [`frontend/DESIGN.md`](./DESIGN.md). See it be
 - **Jest** with React Testing Library
 - Unit tests for API client (incl. cosign-purchase), purchase helpers, anchor-client program-ID guard, and landing scrub-math helpers
 - Component tests for NFTCard, PurchaseButton, the theme provider (including the pre-paint init script), and the Privy provider config
+- Page tests for the Collections and Activities pages (render states, search, sort, filters, formatting helpers)
 - Mock setup for Next.js environment
-- 9 suites / 80 passing tests
+- 11 suites / 95 passing tests
 
 ## Tech Stack
 
@@ -273,6 +274,8 @@ frontend/
 │   ├── purchase-button.test.tsx   # Buy flow incl. Anchor co-sign path
 │   ├── purchase-helpers.test.ts   # Co-signed tx byte verification
 │   ├── nft-card.test.tsx          # Component tests
+│   ├── collections-page.test.tsx  # Collections page (render, search, sort, grid/list toggle)
+│   ├── activities-page.test.tsx   # Activities page (render, status chips, filters, error/empty states)
 │   ├── theme-provider.test.tsx    # Theme provider + header toggle (init script, resolvedTheme, cross-tab sync)
 │   ├── privy-provider-wrapper.test.tsx # Privy config memoization + production appId guard
 │   └── landing-section-data.test.ts # Pure scrub-math helpers (clamp01, progressToStep, subProgress)
@@ -445,10 +448,12 @@ bun test api-client.test.ts
 
 ### Test Coverage
 
-Current test coverage (9 suites / 80 tests):
+Current test coverage (11 suites / 95 tests):
 - API Client (healthCheck, createListing, validation, cosign-purchase)
 - Purchase flow (PurchaseButton Anchor co-sign path, purchase-helpers tx verification, anchor-client program-ID guard)
 - NFTCard component (rendering, interactions, IPFS links)
+- Collections page (render states, search, sort, grid/list toggle, verified/unverified marking)
+- Activities page (render states, per-type status chips, filters, error/empty states, formatting helpers)
 - Theme provider (pre-paint init script execution, `resolvedTheme`, system-preference tracking, cross-tab sync) and the header theme toggle
 - Privy provider (config identity across re-renders, per-chain embedded-wallet shape, production app-ID guard)
 - Landing scrub-math helpers (clamp01, progressToStep, subProgress)
