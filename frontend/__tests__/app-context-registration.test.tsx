@@ -154,4 +154,86 @@ describe('AppProvider wallet registration', () => {
 
     await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(2));
   });
+
+  it('STOPS retrying after the attempt cap (no unbounded POST storm)', async () => {
+    mockState({});
+    // Backend is hard-down: every POST fails. Privy hands back a fresh wallets
+    // array reference on each re-render, re-running the effect every time.
+    apiClient.registerUser.mockResolvedValue({ success: false, error: 'down' });
+
+    const { rerender } = renderProvider();
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(1));
+
+    // Re-run the effect far more times than the cap allows.
+    for (let i = 0; i < 8; i++) {
+      useSolanaWallets.mockReturnValue({
+        ready: true,
+        wallets: [{ address: SOLANA_ADDRESS }],
+      });
+      rerender(
+        <AppProvider>
+          <div data-testid="child" />
+        </AppProvider>
+      );
+      // Let the in-flight POST settle to 'failed' before the next re-render.
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    }
+
+    // Capped at MAX_REGISTRATION_ATTEMPTS (3) — not once per re-render.
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(3));
+    expect(apiClient.registerUser).toHaveBeenCalledTimes(3);
+  });
+
+  it('does NOT re-POST after a successful registration (dedupe on success)', async () => {
+    mockState({});
+    const { rerender } = renderProvider();
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(1));
+
+    // Fresh wallets array ref, same address — must be skipped, not re-POSTed.
+    useSolanaWallets.mockReturnValue({
+      ready: true,
+      wallets: [{ address: SOLANA_ADDRESS }],
+    });
+    rerender(
+      <AppProvider>
+        <div data-testid="child" />
+      </AppProvider>
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiClient.registerUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-registers after disconnect + reconnect (progress cleared on disconnect)', async () => {
+    mockState({});
+    const { rerender } = renderProvider();
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(1));
+
+    // Disconnect: not authenticated, no wallets. This must clear progress so a
+    // later reconnect isn't stranded connected-but-without-a-profile.
+    usePrivy.mockReturnValue({ authenticated: false, user: undefined });
+    useSolanaWallets.mockReturnValue({ ready: true, wallets: [] });
+    rerender(
+      <AppProvider>
+        <div data-testid="child" />
+      </AppProvider>
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Reconnect the same wallet — registration must run again.
+    mockState({});
+    rerender(
+      <AppProvider>
+        <div data-testid="child" />
+      </AppProvider>
+    );
+    await waitFor(() => expect(apiClient.registerUser).toHaveBeenCalledTimes(2));
+  });
 });
