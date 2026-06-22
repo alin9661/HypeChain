@@ -254,13 +254,13 @@ const result = await apiClient.createListing({
                 <td className="p-2">NEXT_PUBLIC_API_URL</td>
                 <td className="p-2">string</td>
                 <td className="p-2">No</td>
-                <td className="p-2">Backend API URL (default: http://localhost:3001)</td>
+                <td className="p-2">Backend API URL (dev default: http://localhost:3001; unset in production falls back to same-origin)</td>
               </tr>
               <tr className="border-b border-border">
                 <td className="p-2">NEXT_PUBLIC_WS_URL</td>
                 <td className="p-2">string</td>
                 <td className="p-2">No</td>
-                <td className="p-2">WebSocket URL (default: ws://localhost:3001/ws)</td>
+                <td className="p-2">WebSocket URL (dev default: ws://localhost:3001/ws; derived from NEXT_PUBLIC_API_URL when set, disabled in production if neither is configured)</td>
               </tr>
             </tbody>
           </table>
