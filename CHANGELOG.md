@@ -3,6 +3,20 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.1.2] - 2026-06-22
+
+Fixes the production frontend so it stops trying to reach a `localhost` backend.
+
+### Fixed
+
+- **The deployed site no longer fails every API call against `localhost`.** In a
+  production build with no `NEXT_PUBLIC_API_URL` set, the API client now targets
+  the same origin (so the app's own Vercel API routes resolve) instead of an
+  unreachable `http://localhost:3001`, which was throwing `ERR_CONNECTION_CLOSED`
+  in the browser console. The WebSocket client follows the same rule and stays
+  idle in production unless a URL is configured. Development is unchanged
+  (`localhost:3001`), and an explicit `NEXT_PUBLIC_API_URL` always wins.
+
 ## [0.6.1.1] - 2026-06-19
 
 The Collections and Activities pages now match the rest of the app — the same

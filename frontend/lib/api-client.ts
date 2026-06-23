@@ -259,7 +259,17 @@ class ApiClient {
   constructor() {
     // Use environment variable with fallback. Strip trailing slashes so a
     // configured "https://host/" + "/api/..." doesn't become "host//api/...".
-    this.baseURL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
+    //
+    // Fallback differs by environment: in dev the Express API runs at
+    // localhost:3001, but in a production browser that host is unreachable —
+    // and worse, prefixing it onto endpoints that exist same-origin on Vercel
+    // (e.g. /api/listings, /api/users/register) breaks calls that would
+    // otherwise succeed. So when NEXT_PUBLIC_API_URL is unset in production we
+    // fall back to same-origin ('') and let the co-located Next.js API routes
+    // resolve; Express-only endpoints fail cleanly into their error states.
+    const fallbackBase =
+      process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
+    this.baseURL = (process.env.NEXT_PUBLIC_API_URL || fallbackBase)
       .replace(/\/+$/, '');
     this.defaultHeaders = {
       'Content-Type': 'application/json',

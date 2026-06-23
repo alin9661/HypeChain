@@ -34,15 +34,32 @@ class WebSocketService {
   private url: string
 
   constructor(url?: string) {
-    // For demo purposes, we'll use a placeholder URL
-    // Replace with your actual WebSocket server URL
-    this.url = url || (typeof window !== 'undefined'
-      ? `ws://${window.location.hostname}:3001/ws`
-      : 'ws://localhost:3001/ws')
+    // Prefer an explicitly configured URL, then derive one from the HTTP API
+    // base (http(s):// -> ws(s)://) so prod points at the same backend as the
+    // REST client. Only fall back to the localhost dev server outside
+    // production — in a prod browser ws://<host>:3001 is unreachable and would
+    // just spew failed-connection / reconnect noise.
+    this.url = url || WebSocketService.resolveUrl()
+  }
+
+  private static resolveUrl(): string {
+    const explicit = process.env.NEXT_PUBLIC_WS_URL
+    if (explicit) return explicit
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL
+    if (apiBase) return `${apiBase.replace(/^http/, 'ws').replace(/\/+$/, '')}/ws`
+
+    // No backend configured: only the local dev server is a sane default.
+    return process.env.NODE_ENV === 'production'
+      ? ''
+      : 'ws://localhost:3001/ws'
   }
 
   connect() {
     if (typeof window === 'undefined') return
+    // No backend WS configured (prod without NEXT_PUBLIC_WS_URL/API_URL):
+    // skip instead of throwing on `new WebSocket('')`.
+    if (!this.url) return
 
     try {
       this.ws = new WebSocket(this.url)
