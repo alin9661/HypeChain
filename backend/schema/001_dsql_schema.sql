@@ -258,3 +258,36 @@ CREATE INDEX ASYNC IF NOT EXISTS idx_activities_feed     ON activities(block_tim
 CREATE INDEX ASYNC IF NOT EXISTS idx_activities_type     ON activities(event_type, block_time, id);
 -- Provenance: full chain of custody for one NFT.
 CREATE INDEX ASYNC IF NOT EXISTS idx_activities_nft_mint ON activities(nft_mint_address, block_time, id);
+
+
+-- =====================================================================
+-- WAITLIST TABLE  (NEW — pre-production signup capture)
+-- =====================================================================
+-- Backs POST /api/waitlist (the public signup form at /waitlist) and the
+-- admin export at GET /api/waitlist/export. Captures who wants access while
+-- HypeChain is pre-production.
+--
+-- DSQL notes (same constraints as the tables above): no triggers (updated_at
+-- set explicitly in any future UPDATE), no FKs, gen_random_uuid()/NOW()
+-- defaults. `email` is UNIQUE so a re-signup is a no-op — the route inserts
+-- with `ON CONFLICT (email) DO NOTHING`, so a duplicate returns no row and is
+-- reported as "already on the list" without raising (and without re-sending
+-- the confirmation email). Email is stored normalized (lower-cased, trimmed)
+-- by the route so the UNIQUE guard is effectively case-insensitive.
+CREATE TABLE IF NOT EXISTS waitlist (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  wallet_address TEXT,                          -- optional; speeds first-listing verification
+  intent TEXT NOT NULL DEFAULT 'collect'
+    CHECK (intent IN ('collect', 'trade', 'verify', 'build')),
+  source TEXT NOT NULL DEFAULT 'web',
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'invited', 'converted')),
+  confirmation_sent_at TIMESTAMPTZ,             -- set when the SES confirmation is dispatched
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ASYNC IF NOT EXISTS idx_waitlist_email      ON waitlist(email);
+CREATE INDEX ASYNC IF NOT EXISTS idx_waitlist_created_at ON waitlist(created_at);

@@ -209,6 +209,31 @@ The app's production guards throw if the Privy app id or program id are unset/pl
 - Apex/subdomain → Amplify; optionally `api.` → the Function URL (front it with CloudFront if you want one domain + WAF on the API).
 - **AWS WAF** on the public edge: managed rule sets, **rate-based rules on `/api/payments/*`**, bot control. This is the enforcement layer behind [§2.3](#23-authenticate--rate-limit-the-cosign-endpoint--blocker).
 
+### 6.4 Waitlist signup (Amazon SES + admin export)
+
+The pre-production waitlist (`/waitlist` form → `POST /api/waitlist`) persists signups to the DSQL `waitlist` table (source of truth) and, **best-effort**, sends two emails via **Amazon SES**: a confirmation to the signup and a notification to the operator. A send failure never fails the signup. An admin-only `GET /api/waitlist/export` (Bearer token) returns the list as CSV (or `?format=json`).
+
+**SES setup (one-time):**
+1. In the **same region** as the Lambda, verify the sender — `aws ses verify-email-identity --email-address waitlist@yourdomain.com` (or verify the whole domain via DKIM, recommended for deliverability).
+2. New SES accounts are in the **sandbox**: you can only send *to* verified addresses, and at low rate. Verify your admin/test recipients, then **request production access** (SES console → "Request production access") before opening signups to the public.
+3. The Lambda's execution role already grants `ses:SendEmail` / `ses:SendRawEmail` (added to `template.yaml`). Scope the policy `Resource` to your verified identity ARN for least privilege.
+
+**Config (SAM parameters / env):**
+| Variable | Purpose |
+|---|---|
+| `HACKNYU_WAITLIST_EMAILS_ENABLED` | `true` to send via SES; `false` (default) stores signups without email — fine for staging. |
+| `HACKNYU_SES_SENDER` | Verified SES "From" identity. Required when emails are enabled. |
+| `HACKNYU_WAITLIST_ADMIN_EMAIL` | Address notified on each new signup. |
+| `HACKNYU_WAITLIST_EXPORT_TOKEN` | Bearer token for the export endpoint. Generate with `openssl rand -hex 32`. Unset = export fails closed (500). |
+
+`AWS_REGION` is injected by the Lambda runtime; SES uses it automatically. Apply `backend/schema/001_dsql_schema.sql` (now including the `waitlist` table) to the cluster as in [§4.2](#42-aurora-dsql).
+
+**Pull the list:**
+```bash
+curl -fsS https://<api-host>/api/waitlist/export \
+  -H "Authorization: Bearer $HACKNYU_WAITLIST_EXPORT_TOKEN" -o waitlist.csv
+```
+
 ---
 
 ## 7. Observability, staging, and runbooks

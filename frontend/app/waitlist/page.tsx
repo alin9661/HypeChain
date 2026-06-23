@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
+import { apiClient } from '@/lib/api-client'
 
 type Intent = 'collect' | 'trade' | 'verify' | 'build'
 
@@ -60,6 +61,7 @@ export default function WaitlistPage() {
     intake: string
     email: string
     intent: Intent
+    alreadyOnList: boolean
   } | null>(null)
   const [error, setError] = useState('')
 
@@ -79,15 +81,28 @@ export default function WaitlistPage() {
 
     setIsSubmitting(true)
     try {
-      // Simulated backend — matches existing stub in this file's prior version.
-      // Replace with real /api/waitlist call when the endpoint is live.
-      await new Promise((resolve) => setTimeout(resolve, 900))
-      setSubmission({
-        id: buildSubmissionId(),
-        intake: nowIntakeStamp(),
-        email: formData.email,
-        intent: formData.interest,
+      const result = await apiClient.joinWaitlist({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        walletAddress: formData.walletAddress.trim() || undefined,
+        interest: formData.interest,
       })
+
+      if (result.success && result.data) {
+        const data = result.data
+        // Drive the receipt off the server response (server-issued submission
+        // id + intake timestamp); fall back to client stubs only if the rare
+        // race path omitted them.
+        setSubmission({
+          id: data.id ?? buildSubmissionId(),
+          intake: data.intake ?? nowIntakeStamp(),
+          email: data.email ?? formData.email.trim(),
+          intent: (data.intent ?? formData.interest) as Intent,
+          alreadyOnList: Boolean(data.alreadyOnList),
+        })
+      } else {
+        setError(result.error || 'Submission failed. Please try again.')
+      }
     } catch {
       setError('Submission failed. Please try again.')
     } finally {
@@ -339,7 +354,7 @@ function Receipt({
   onBackHome,
   onReset,
 }: {
-  submission: { id: string; intake: string; email: string; intent: Intent }
+  submission: { id: string; intake: string; email: string; intent: Intent; alreadyOnList: boolean }
   onBackHome: () => void
   onReset: () => void
 }) {
@@ -363,14 +378,14 @@ function Receipt({
     >
       <div className="mb-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--hc-verify-high)]">
         <span className="size-1.5 animate-pulse rounded-full bg-[var(--hc-verify-high)]" />
-        Status: Queued — Verified
+        {submission.alreadyOnList ? 'Status: Already Queued — Verified' : 'Status: Queued — Verified'}
       </div>
 
       <h2
         className="mb-6 font-sentient italic font-extralight leading-[1.05] text-white"
         style={{ fontSize: '36px' }}
       >
-        your intake is filed.
+        {submission.alreadyOnList ? "you're already on the list." : 'your intake is filed.'}
       </h2>
 
       <dl className="grid gap-1">
