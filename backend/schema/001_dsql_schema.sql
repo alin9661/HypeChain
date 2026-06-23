@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_wallet_address ON users(wallet_address);
+CREATE INDEX ASYNC IF NOT EXISTS idx_users_wallet_address ON users(wallet_address);
 
 
 -- =====================================================================
@@ -157,15 +157,15 @@ CREATE TABLE IF NOT EXISTS listings (
   verification_proof_pubkey TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_listings_seller_wallet  ON listings(seller_wallet);
-CREATE INDEX IF NOT EXISTS idx_listings_seller_user_id ON listings(seller_user_id);
-CREATE INDEX IF NOT EXISTS idx_listings_buyer_wallet   ON listings(buyer_wallet);
-CREATE INDEX IF NOT EXISTS idx_listings_buyer_user_id  ON listings(buyer_user_id);
-CREATE INDEX IF NOT EXISTS idx_listings_status         ON listings(status);
-CREATE INDEX IF NOT EXISTS idx_listings_created_at     ON listings(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_listings_price_sol      ON listings(price_sol);
-CREATE INDEX IF NOT EXISTS idx_listings_nft_mint       ON listings(nft_mint_address);
-CREATE INDEX IF NOT EXISTS idx_listings_category       ON listings(category);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_seller_wallet  ON listings(seller_wallet);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_seller_user_id ON listings(seller_user_id);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_buyer_wallet   ON listings(buyer_wallet);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_buyer_user_id  ON listings(buyer_user_id);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_status         ON listings(status);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_created_at     ON listings(created_at);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_price_sol      ON listings(price_sol);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_nft_mint       ON listings(nft_mint_address);
+CREATE INDEX ASYNC IF NOT EXISTS idx_listings_category       ON listings(category);
 
 
 -- =====================================================================
@@ -194,14 +194,14 @@ CREATE TABLE IF NOT EXISTS transactions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_transactions_listing_id     ON transactions(listing_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_buyer_wallet   ON transactions(buyer_wallet);
-CREATE INDEX IF NOT EXISTS idx_transactions_seller_wallet  ON transactions(seller_wallet);
-CREATE INDEX IF NOT EXISTS idx_transactions_buyer_user_id  ON transactions(buyer_user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_seller_user_id ON transactions(seller_user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_signature      ON transactions(signature);
-CREATE INDEX IF NOT EXISTS idx_transactions_status         ON transactions(status);
-CREATE INDEX IF NOT EXISTS idx_transactions_created_at     ON transactions(created_at DESC);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_listing_id     ON transactions(listing_id);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_buyer_wallet   ON transactions(buyer_wallet);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_seller_wallet  ON transactions(seller_wallet);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_buyer_user_id  ON transactions(buyer_user_id);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_seller_user_id ON transactions(seller_user_id);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_signature      ON transactions(signature);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_status         ON transactions(status);
+CREATE INDEX ASYNC IF NOT EXISTS idx_transactions_created_at     ON transactions(created_at);
 
 
 -- =====================================================================
@@ -253,8 +253,8 @@ CREATE TABLE IF NOT EXISTS activities (
 );
 
 -- Feed paging: keyset on (block_time, id) DESC — never OFFSET (the feed only grows).
-CREATE INDEX IF NOT EXISTS idx_activities_feed     ON activities(block_time DESC, id DESC);
+CREATE INDEX ASYNC IF NOT EXISTS idx_activities_feed     ON activities(block_time, id);
 -- Per-type filter chips (sale/listing/transfer/mint) paged by the same keyset.
-CREATE INDEX IF NOT EXISTS idx_activities_type     ON activities(event_type, block_time DESC, id DESC);
+CREATE INDEX ASYNC IF NOT EXISTS idx_activities_type     ON activities(event_type, block_time, id);
 -- Provenance: full chain of custody for one NFT.
-CREATE INDEX IF NOT EXISTS idx_activities_nft_mint ON activities(nft_mint_address, block_time DESC, id DESC);
+CREATE INDEX ASYNC IF NOT EXISTS idx_activities_nft_mint ON activities(nft_mint_address, block_time, id);
