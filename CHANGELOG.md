@@ -3,6 +3,38 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.2.0] - 2026-06-23
+
+Makes the Express backend actually deployable to AWS: the SAM template now grants
+the permissions the app needs and stops shipping secrets in plaintext.
+
+### Added
+
+- **Lambda execution-role permissions (`backend/template.yaml`).** The function now
+  gets least-privilege policies — `secretsmanager:GetSecretValue` on `hypechain/*`,
+  `dsql:DbConnectAdmin` on the Aurora DSQL cluster, and (optionally) `kms:Decrypt`
+  for a customer-managed key — so it can read its custodial key and connect to the
+  database. Previously the auto-generated role had none of these and the Lambda
+  could not start.
+- **DSQL configuration** wired into the template (`HACKNYU_DSQL_ENDPOINT` /
+  `_REGION` / `_DATABASE`), plus `backend/samconfig.toml` with non-secret deploy
+  defaults (no secrets stored on disk).
+
+### Changed
+
+- **Custodial wallet key now loads from AWS Secrets Manager at runtime**, not a
+  plaintext CloudFormation parameter — the key never lands in a Lambda env var.
+  API keys stay `NoEcho` and are passed at deploy time, never committed.
+- **Express CORS is fail-closed in production.** With `NODE_ENV=production` and no
+  `HACKNYU_FRONTEND_URL`, the app now refuses to boot instead of silently trusting
+  `http://localhost:3000`.
+
+### Removed
+
+- Stale **Supabase** parameters from `backend/template.yaml` and the dead Supabase
+  Postgres block from `backend/.env.example` (the backend moved to DSQL in v0.6.0.0).
+- Deprecated the Railway/Render `BACKEND_DEPLOYMENT.md` in favor of the AWS guide.
+
 ## [0.6.1.2] - 2026-06-22
 
 Fixes the production frontend so it stops trying to reach a `localhost` backend.
