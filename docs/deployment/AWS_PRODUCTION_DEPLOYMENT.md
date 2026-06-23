@@ -57,10 +57,10 @@
 
 These are engineering changes the codebase needs before a clean AWS deploy. Each is worth doing on devnet as mainnet-grade practice. Treat this as a pre-deploy checklist.
 
-> **Status (2026-06-15):** §2.1 (DSQL migration) and the rate-limit half of §2.3 have **landed on `main`** (v0.6.0.0, PRs #44/#46–#51). Remaining pre-deploy code: §2.2 (KMS signer), the Privy-auth half of §2.3, §2.4 correctness items, and §2.5 frontend hygiene. These are tracked as follow-up PRs.
+> **Status (2026-06-23):** §2.1 (DSQL migration), §2.2 (KMS/Secrets-Manager signer), and the rate-limit half of §2.3 have **landed on `main`** (§2.1+rate-limit in v0.6.0.0 / PRs #44/#46–#51; §2.2 signer in PR #53). The `template.yaml` + `.env.example` Supabase cleanup and the IAM execution role, DSQL env wiring, and CORS fail-closed have also landed (this deploy PR). Remaining pre-deploy code: the Privy-auth half of §2.3, §2.4 correctness items, and §2.5 frontend hygiene — tracked as follow-up PRs (not deploy blockers for a devnet staging cutover).
 
 ### 2.1 Migrate the Express backend from Supabase to Aurora DSQL ✅ DONE
-**Landed (v0.6.0.0).** Express now ships a full DSQL data layer and Supabase is removed from `backend/src/` (the `backend/.env.example` and `backend/template.yaml` Supabase params are stale and still need cleanup):
+**Landed (v0.6.0.0).** Express now ships a full DSQL data layer and Supabase is removed from `backend/src/`. The stale `backend/.env.example` and `backend/template.yaml` Supabase params have now been removed (this deploy PR):
 - [x] DSQL data layer for Express: `backend/src/db/{pool.js, occ.js, queries.js, index.js}` (lazy singleton pool, OCC retry on SQLSTATE 40001, explicit column-enumerated queries, data-access facade). Ported from `backend-py/app/db/`.
 - [x] Added `pg` + `@aws-sdk/dsql-signer` with **bun**; `@supabase/supabase-js` removed.
 - [x] `listing.js` + `payment.js` route every DB call through the facade; no `supabase` / `HACKNYU_POSTGRES_*` left under `backend/src/`.
@@ -68,11 +68,12 @@ These are engineering changes the codebase needs before a clean AWS deploy. Each
 - [x] `backend/.env.example` rewritten for DSQL (`HACKNYU_DSQL_ENDPOINT`, `AWS_REGION`, IAM-token auth, no DB password); local `HACKNYU_DATABASE_URL` escape hatch is fail-closed in production.
 - [x] Pool uses a lazy module-level singleton, statement cache disabled (DSQL requirement), mints the IAM token per connection. Regression-guard tests in `backend/test/db.test.js`; `bun test` green (89 pass).
 
-### 2.2 Custodial key → Secrets Manager + KMS ⛔ BLOCKER
-`HACKNYU_SERVER_WALLET_PRIVATE_KEY` is plaintext env today and is decoded on every request. On devnet the key is worthless, but adopt the secure pattern now so the mainnet flip is a key swap, not a re-architecture.
+### 2.2 Custodial key → Secrets Manager + KMS ✅ DONE
+**Landed (PR #53 + this deploy PR).** The custodial key now loads from AWS Secrets Manager at cold start, decoded once and cached; it never lands in a Lambda env var.
 
-- [ ] Load the key from Secrets Manager at cold start, decode once, cache in memory, **never log it** (`backend/src/services/solana.js` `getServerWallet()`).
-- [ ] Wrap signing behind a `signer` abstraction so swapping to HSM/MPC later is a one-file change (see [§9](#9-deferred-gates--required-before-real-funds)).
+- [x] `backend/src/services/signer.js` — `signer` abstraction with two backends selected by `HACKNYU_CUSTODIAL_KEY_SOURCE`: `env` (dev/devnet base58) and `secretsmanager` (fetch + decode at cold start, cache in memory, never logged). `initServerWallet()` warm-up wired in `backend/src/lambda.js`.
+- [x] `template.yaml` sets `HACKNYU_CUSTODIAL_KEY_SOURCE=secretsmanager` + `HACKNYU_CUSTODIAL_SECRET_ID`, and grants `secretsmanager:GetSecretValue` on `hypechain/*` (+ optional `kms:Decrypt` for a customer CMK) on the execution role.
+- [x] Swapping to HSM/MPC custody later is a one-file change to `signer.js` (keeps `getServerWallet()`'s contract) — see [§9](#9-deferred-gates--required-before-real-funds).
 
 ### 2.3 Authenticate + rate-limit the cosign endpoint ⛔ BLOCKER (rate-limit ✅ landed)
 `POST /api/payments/cosign-purchase` drains the paid RPC budget and drives the custodial signer.
@@ -155,10 +156,12 @@ Public `api.devnet.solana.com` rate-limits at ~40 req / 10 s / method — too lo
 
 The SAM template (`backend/template.yaml`) and Dockerfile (`backend/Dockerfile`) already build an **arm64 Lambda container** (`public.ecr.aws/lambda/nodejs:20`, bun deps, handler `src/lambda.handler`) behind a **Function URL**. Keep this — do not add API Gateway.
 
-**Template changes needed:**
-- Drop the Supabase parameters; add DSQL endpoint + region.
-- Switch secret parameters from `NoEcho` plaintext to **runtime Secrets Manager reads** (preferred — keeps secrets out of CloudFormation) or `{{resolve:secretsmanager:...}}` dynamic references.
-- Attach execution-role policies: `secretsmanager:GetSecretValue`, `kms:Decrypt`, `dsql:DbConnectAdmin`, CloudWatch Logs.
+**Template changes — ✅ landed (this deploy PR):**
+- [x] Supabase parameters dropped; DSQL `endpoint` / `region` / `database` params + env added.
+- [x] Custodial key moved to a **runtime Secrets Manager read** (`signer.js` secretsmanager source — the key never enters a CloudFormation param or Lambda env var). API keys remain `NoEcho` params passed at deploy via `--parameter-overrides` (kept out of `samconfig`/git); moving them to runtime reads too is a documented fast-follow.
+- [x] Execution-role policies attached via SAM `Policies:` — `secretsmanager:GetSecretValue` on `hypechain/*`, `dsql:DbConnectAdmin` on the cluster, conditional `kms:Decrypt` for a customer CMK; CloudWatch Logs via the SAM-managed basic role.
+- [x] `backend/samconfig.toml` added with non-secret deploy defaults (no secrets on disk).
+- [x] Express CORS is now **fail-closed in production** (`index.js` throws if `HACKNYU_FRONTEND_URL` is unset rather than trusting localhost).
 
 **Environment (devnet):**
 ```
