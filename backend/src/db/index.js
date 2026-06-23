@@ -41,4 +41,9 @@ export const db = {
   insertActivity: (activity) => q.insertActivity(poolConn, activity),
   getActivitiesFeed: (opts) => q.getActivitiesFeed(poolConn, opts),
   getNftHistory: (mint, opts) => q.getNftHistory(poolConn, mint, opts),
+
+  // waitlist (pre-production signup capture)
+  insertWaitlistEntry: (entry) => q.insertWaitlistEntry(poolConn, entry),
+  getWaitlistByEmail: (email) => q.getWaitlistByEmail(poolConn, email),
+  listWaitlist: (opts) => q.listWaitlist(poolConn, opts),
 };
