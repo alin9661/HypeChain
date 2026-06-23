@@ -15,8 +15,9 @@ import listingRoutes from './routes/listing.js';
 import paymentRoutes from './routes/payment.js';
 import activitiesRoutes from './routes/activities.js';
 import webhookRoutes from './routes/webhooks.js';
+import waitlistRoutes from './routes/waitlist.js';
 import { requestId } from './middleware/request-id.js';
-import { createListingLimiter, paymentsLimiter } from './middleware/rate-limit.js';
+import { createListingLimiter, paymentsLimiter, waitlistLimiter } from './middleware/rate-limit.js';
 
 const app = express();
 
@@ -68,10 +69,14 @@ app.get('/health', (req, res) => {
 // (Helius's IPs vary and it self-throttles on 2xx).
 app.use('/api/create-listing', createListingLimiter);
 app.use('/api/payments', paymentsLimiter);
+// Public waitlist signup — per-IP throttle (each call can dispatch SES email).
+app.use('/api/waitlist', waitlistLimiter);
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
 // Activity feed + provenance live at /api/activities and /api/nft/:mint/history.
 app.use('/api', activitiesRoutes);
+// Pre-production waitlist signup + admin export at /api/waitlist[/export].
+app.use('/api', waitlistRoutes);
 // Helius enhanced-webhook ingest (fail-closed HMAC auth).
 app.use('/api/webhooks', webhookRoutes);
 
@@ -93,6 +98,8 @@ app.get('/', (req, res) => {
       getListingDetails: 'GET /api/payments/listing/:listingId',
       activities: 'GET /api/activities',
       nftHistory: 'GET /api/nft/:mint/history',
+      waitlistSignup: 'POST /api/waitlist',
+      waitlistExport: 'GET /api/waitlist/export',
       heliusWebhook: 'POST /api/webhooks/helius'
     },
     documentation: 'https://github.com/alin9661/HypeChain'
