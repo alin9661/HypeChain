@@ -35,8 +35,19 @@ app.use(requestId);
 app.use(helmet());
 
 // CORS configuration — production frontend on Vercel, local dev on :3000.
+// Fail-closed in production: never fall back to a localhost origin when the
+// frontend URL is unconfigured. A misconfigured prod deploy should refuse to
+// boot (clear error) rather than silently trust http://localhost:3000.
+const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+const frontendOrigin = process.env.HACKNYU_FRONTEND_URL;
+if (isProduction && !frontendOrigin) {
+  throw new Error(
+    'HACKNYU_FRONTEND_URL must be set when NODE_ENV=production (CORS fail-closed): ' +
+      'refusing to fall back to http://localhost:3000.'
+  );
+}
 app.use(cors({
-  origin: process.env.HACKNYU_FRONTEND_URL || 'http://localhost:3000',
+  origin: frontendOrigin || 'http://localhost:3000',
   credentials: true
 }));
 
