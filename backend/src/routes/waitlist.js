@@ -59,7 +59,12 @@ function formatIntake(value) {
 
 function csvEscape(value) {
   if (value == null) return '';
-  const s = String(value);
+  let s = String(value);
+  // Defang spreadsheet formula injection: Excel/Sheets/LibreOffice treat a cell
+  // starting with = + - @ (or a leading TAB/CR) as a live formula. A signup
+  // `name` of `=cmd|'/c calc'!A1` would otherwise execute when an admin opens
+  // the export. Prefix such a cell with a single quote so it renders as text.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
