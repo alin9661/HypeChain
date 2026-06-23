@@ -23,12 +23,11 @@ The HypeChain frontend is a modern, responsive blockchain platform built with Ne
 - Real-time metrics display
 
 #### Recent Activities (`/activities`)
-- Live Solana DevNet transactions
-- Real-time auto-refresh (every 30 seconds)
-- Advanced filtering (All, Success, Failed)
+- Live Solana DevNet activity feed
+- Filter by type (All / Sale / Listed / Transfer / Mint)
 - Search by signature or address
 - Transaction details with external explorer links
-- Pagination support
+- Real error, empty, and loading states
 
 #### Chat (`/chat`)
 - Real-time messaging interface
