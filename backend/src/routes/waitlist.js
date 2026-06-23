@@ -29,6 +29,11 @@ import {
 } from '../services/email.js';
 
 const VALID_INTENTS = ['collect', 'trade', 'verify', 'build'];
+// Length caps on the free-text fields. email is already capped at 254 by
+// isValidEmail; name/wallet are unbounded DSQL TEXT, so cap them at the trust
+// boundary before they reach the DB, the admin email, and the CSV export.
+const MAX_NAME_LEN = 200;
+const MAX_WALLET_LEN = 64; // base58 Solana addresses are 32-44 chars.
 const EXPORT_COLUMNS = [
   'id', 'name', 'email', 'wallet_address', 'intent', 'source', 'status',
   'confirmation_sent_at', 'created_at', 'updated_at',
@@ -100,6 +105,20 @@ export function createWaitlistRouter({
           success: false,
           error: 'Email address is invalid.',
           code: 'INVALID_EMAIL',
+        });
+      }
+      if (String(name).trim().length > MAX_NAME_LEN) {
+        return res.status(400).json({
+          success: false,
+          error: `Name must be ${MAX_NAME_LEN} characters or fewer.`,
+          code: 'INVALID_NAME',
+        });
+      }
+      if (walletAddress && String(walletAddress).trim().length > MAX_WALLET_LEN) {
+        return res.status(400).json({
+          success: false,
+          error: `Wallet address must be ${MAX_WALLET_LEN} characters or fewer.`,
+          code: 'INVALID_WALLET',
         });
       }
       const intent = interest == null || interest === '' ? 'collect' : String(interest);
