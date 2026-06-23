@@ -59,3 +59,15 @@ export function base64ToBuffer(base64String) {
   const base64Data = base64String.split(',')[1];
   return Buffer.from(base64Data, 'base64');
 }
+
+/**
+ * Lightweight email shape check for the waitlist signup. Deliberately permissive
+ * (one `@`, a dot in the domain, no spaces) — real deliverability is proven by
+ * the confirmation email, not a regex. Caps length to reject absurd input.
+ */
+export function isValidEmail(email) {
+  if (typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (trimmed.length === 0 || trimmed.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}

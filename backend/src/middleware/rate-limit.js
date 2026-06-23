@@ -43,3 +43,11 @@ export const paymentsLimiter = limiter({
   code: 'RATE_LIMITED',
   message: 'Too many payment requests. Please slow down and try again shortly.',
 });
+
+// Public waitlist signup — cheap, but each call can dispatch SES emails, so cap
+// per-IP to blunt spam/abuse of the send path.
+export const waitlistLimiter = limiter({
+  max: 5,
+  code: 'RATE_LIMITED',
+  message: 'Too many waitlist attempts. Please wait a minute and try again.',
+});

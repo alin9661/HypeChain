@@ -319,3 +319,65 @@ export async function getNftHistory(conn, nftMintAddress, { limit = 100 } = {}) 
   const { rows } = await conn.query(FETCH_NFT_HISTORY_SQL, [nftMintAddress, limit]);
   return rows;
 }
+
+// ---------------------------------------------------------------------------
+// WAITLIST — pre-production signup capture (POST /api/waitlist + admin export).
+// Self-contained block: manifest, SQL, and query functions for the waitlist.
+// ---------------------------------------------------------------------------
+
+export const WAITLIST_COLUMNS = [
+  'id', 'name', 'email', 'wallet_address', 'intent', 'source', 'status',
+  'confirmation_sent_at', 'created_at', 'updated_at',
+];
+
+// Columns the application supplies on INSERT; the rest take DB defaults.
+const WAITLIST_INSERT_COLUMNS = ['name', 'email', 'wallet_address', 'intent', 'source'];
+
+const WAITLIST_COLS = selectList(WAITLIST_COLUMNS);
+
+// Idempotent insert: a duplicate email hits ON CONFLICT DO NOTHING and returns
+// no row, so the caller treats it as "already on the list" without raising and
+// without re-sending the confirmation email.
+export const INSERT_WAITLIST_SQL =
+  `INSERT INTO waitlist (${selectList(WAITLIST_INSERT_COLUMNS)}) ` +
+  `VALUES (${placeholders(WAITLIST_INSERT_COLUMNS.length)}) ` +
+  'ON CONFLICT (email) DO NOTHING ' +
+  `RETURNING ${WAITLIST_COLS}`;
+
+export const GET_WAITLIST_BY_EMAIL_SQL =
+  `SELECT ${WAITLIST_COLS} FROM waitlist WHERE email = $1`;
+
+export const LIST_WAITLIST_SQL =
+  `SELECT ${WAITLIST_COLS} FROM waitlist ORDER BY created_at DESC LIMIT $1`;
+
+// Stamp confirmation_sent_at once the SES acknowledgement actually dispatches.
+export const MARK_WAITLIST_CONFIRMATION_SENT_SQL =
+  'UPDATE waitlist SET confirmation_sent_at = NOW(), updated_at = NOW() WHERE id = $1';
+
+/**
+ * INSERT a waitlist signup, returning the full row — or null on a duplicate
+ * email (ON CONFLICT DO NOTHING). The route normalizes `email` (lower/trim)
+ * before calling so the UNIQUE guard is case-insensitive.
+ */
+export async function insertWaitlistEntry(conn, entry) {
+  const args = WAITLIST_INSERT_COLUMNS.map((col) => entry[col] ?? null);
+  const { rows } = await conn.query(INSERT_WAITLIST_SQL, args);
+  return rows.length ? rows[0] : null;
+}
+
+/** Fetch a waitlist row by (normalized) email, or null if not on the list. */
+export async function getWaitlistByEmail(conn, email) {
+  const { rows } = await conn.query(GET_WAITLIST_BY_EMAIL_SQL, [email]);
+  return rows.length ? rows[0] : null;
+}
+
+/** All waitlist signups, newest first (admin export). `limit` caps the dump. */
+export async function listWaitlist(conn, { limit = 10000 } = {}) {
+  const { rows } = await conn.query(LIST_WAITLIST_SQL, [limit]);
+  return rows;
+}
+
+/** Record that the confirmation email for a row has been dispatched. */
+export async function markWaitlistConfirmationSent(conn, id) {
+  await conn.query(MARK_WAITLIST_CONFIRMATION_SENT_SQL, [id]);
+}

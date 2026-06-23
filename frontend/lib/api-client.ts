@@ -51,6 +51,27 @@ export interface CreateListingResponse {
   listing_price_sol: number;
 }
 
+export type WaitlistIntent = 'collect' | 'trade' | 'verify' | 'build';
+
+export interface WaitlistRequest {
+  name: string;
+  email: string;
+  walletAddress?: string;
+  interest: WaitlistIntent;
+}
+
+export interface WaitlistResponse {
+  success: boolean;
+  /** Public submission id (e.g. "HC-W-3F2A9B1C"); absent only on a rare race. */
+  id?: string;
+  /** Server-formatted intake timestamp (UTC). */
+  intake?: string;
+  email: string;
+  intent: WaitlistIntent;
+  /** True when this email was already on the list (idempotent re-signup). */
+  alreadyOnList: boolean;
+}
+
 export interface HealthCheckResponse {
   status: string;
   timestamp: string;
@@ -354,6 +375,18 @@ class ApiClient {
     data: CreateListingRequest
   ): Promise<ApiResponse<CreateListingResponse>> {
     return this.request<CreateListingResponse>('/api/create-listing', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * POST /api/waitlist - Join the pre-production waitlist.
+   */
+  async joinWaitlist(
+    data: WaitlistRequest
+  ): Promise<ApiResponse<WaitlistResponse>> {
+    return this.request<WaitlistResponse>('/api/waitlist', {
       method: 'POST',
       body: JSON.stringify(data),
     });

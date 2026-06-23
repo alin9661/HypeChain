@@ -3,6 +3,44 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0.0] - 2026-06-23
+
+A production waitlist so prospective users can register interest while HypeChain
+is pre-production. Signups are collected in the AWS backend (Aurora DSQL), with
+an opt-in confirmation email and an admin notification per signup via Amazon
+SES, plus a token-protected export for the operator.
+
+### Added
+
+- **Waitlist signup API.** `POST /api/waitlist` validates name + email (and an
+  optional Solana wallet and intent), writes the signup to a new DSQL `waitlist`
+  table, and returns a server-issued submission id (`HC-W-…`) and intake stamp.
+  The insert is idempotent on email (`ON CONFLICT DO NOTHING`) so a re-signup is
+  a no-op that reports `alreadyOnList` without a duplicate row or a second email.
+- **Transactional email via Amazon SES.** A best-effort email service sends the
+  user a single opt-in confirmation and notifies the operator of each signup.
+  Sends run after the row is committed and never fail a recorded signup if SES
+  is throttled or sandboxed; they are gated by `HACKNYU_WAITLIST_EMAILS_ENABLED`
+  and log only the recipient address and outcome, never message contents.
+- **Admin export.** `GET /api/waitlist/export` returns the full list as CSV
+  (default) or JSON (`?format=json`), guarded by a Bearer token with a
+  constant-time compare. It fails closed (500) when the token is unset.
+- **Waitlist page wired to the live endpoint.** `/waitlist` now submits to the
+  real API and drives its receipt off the server response (including an
+  "already on the list" variant), replacing the previous client-side stub. No
+  visual changes to the design.
+- SAM parameters and an `ses:SendEmail` IAM policy for the new env vars, and a
+  Waitlist section in the AWS production deployment guide (SES setup, sandbox
+  note, export usage).
+
+### Security
+
+- The CSV export defangs spreadsheet formula injection: a cell beginning with
+  `= + - @` (or a tab/CR) is prefixed with an apostrophe so an attacker-supplied
+  signup name cannot execute as a formula when an admin opens the export.
+- `name` and `wallet` are length-capped at the trust boundary (email was already
+  capped), bounding what reaches the database, the admin email, and the export.
+
 ## [0.6.1.2] - 2026-06-22
 
 Fixes the production frontend so it stops trying to reach a `localhost` backend.
