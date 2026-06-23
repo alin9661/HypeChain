@@ -161,6 +161,26 @@ describe('POST /api/waitlist', () => {
     expect(body.code).toBe('INVALID_INTENT');
   });
 
+  it('rejects non-string name/wallet/interest instead of coercing them', async () => {
+    const db = makeFakeDb();
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    // An array name would otherwise String()-coerce to "a,b" and persist.
+    const arrName = await post(baseUrl, { name: ['a', 'b'], email: 'x@y.com' });
+    expect(arrName.status).toBe(400);
+    expect(arrName.body.code).toBe('MISSING_FIELDS');
+
+    const objWallet = await post(baseUrl, { ...VALID, walletAddress: { evil: 1 } });
+    expect(objWallet.status).toBe(400);
+    expect(objWallet.body.code).toBe('INVALID_WALLET');
+
+    const arrInterest = await post(baseUrl, { ...VALID, interest: ['collect'] });
+    expect(arrInterest.status).toBe(400);
+    expect(arrInterest.body.code).toBe('INVALID_INTENT');
+
+    expect(db.rows).toHaveLength(0); // nothing coerced through to the DB
+  });
+
   it('is idempotent: a duplicate email returns alreadyOnList and does not re-send email', async () => {
     const db = makeFakeDb();
     const sendConfirmation = makeSpy();

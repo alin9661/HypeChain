@@ -29,6 +29,9 @@ import {
 } from '../services/email.js';
 
 const VALID_INTENTS = ['collect', 'trade', 'verify', 'build'];
+// Hard cap on a single export dump. Hitting it means the CSV/JSON is a partial
+// view of the list — we log that loudly rather than let it pass as the full set.
+const EXPORT_ROW_CAP = 10000;
 // Length caps on the free-text fields. email is already capped at 254 by
 // isValidEmail; name/wallet are unbounded DSQL TEXT, so cap them at the trust
 // boundary before they reach the DB, the admin email, and the CSV export.
@@ -98,11 +101,28 @@ export function createWaitlistRouter({
 
       // Validation: name + email are required; email must look like an email;
       // intent (if supplied) must be one of the known values.
-      if (!name || !String(name).trim() || !email || !String(email).trim()) {
+      // Type-check at the trust boundary: a JSON body can make name/email an
+      // array or object, which String() would silently coerce ("a,b",
+      // "[object Object]") past validation and into the DB + admin email.
+      if (typeof name !== 'string' || !name.trim() || typeof email !== 'string' || !email.trim()) {
         return res.status(400).json({
           success: false,
           error: 'Name and email are required.',
           code: 'MISSING_FIELDS',
+        });
+      }
+      if (walletAddress != null && typeof walletAddress !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Wallet address must be a string.',
+          code: 'INVALID_WALLET',
+        });
+      }
+      if (interest != null && typeof interest !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: `Intent must be one of: ${VALID_INTENTS.join(', ')}.`,
+          code: 'INVALID_INTENT',
         });
       }
       if (!isValidEmail(email)) {
@@ -245,7 +265,13 @@ export function createWaitlistRouter({
     }
 
     try {
-      const rows = await db.listWaitlist({ limit: 10000 });
+      const rows = await db.listWaitlist({ limit: EXPORT_ROW_CAP });
+      if (rows.length >= EXPORT_ROW_CAP) {
+        // Source-of-truth dump must not silently drop signups. Surface it.
+        console.warn(
+          `[waitlist] export hit the ${EXPORT_ROW_CAP}-row cap — output is truncated; add pagination before relying on it as the full list.`
+        );
+      }
       if (req.query.format === 'json') {
         return res.status(200).json({ success: true, count: rows.length, rows });
       }
