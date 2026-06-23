@@ -199,6 +199,81 @@ describe('POST /api/waitlist', () => {
     expect(body.alreadyOnList).toBe(false);
     expect(db.rows).toHaveLength(1); // the signup was recorded despite the throw
   });
+
+  it('still succeeds (2xx) when the admin-notify email throws — side-effect isolation', async () => {
+    const db = makeFakeDb();
+    const throwingAdmin = makeSpy(() => {
+      throw new Error('admin mailbox unreachable');
+    });
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: throwingAdmin });
+
+    const { status, body } = await post(baseUrl, VALID);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(db.rows).toHaveLength(1);
+  });
+
+  it('stamps confirmation_sent_at only when the confirmation actually sent', async () => {
+    const db = makeFakeDb();
+    // Sender reports sent — the route should stamp the row.
+    const sentUrl = await start({
+      db,
+      sendConfirmation: makeSpy(() => ({ sent: true })),
+      sendAdminNotification: makeSpy(),
+    });
+    await post(sentUrl, VALID);
+    expect(db.stamped).toHaveLength(1);
+    expect(db.rows[0].confirmation_sent_at).not.toBeNull();
+
+    // Sender reports skipped (emails disabled) — no stamp.
+    const skippedDb = makeFakeDb();
+    const skippedUrl = await start({
+      db: skippedDb,
+      sendConfirmation: makeSpy(() => ({ sent: false, skipped: 'disabled' })),
+      sendAdminNotification: makeSpy(),
+    });
+    await post(skippedUrl, { ...VALID, email: 'other@example.com' });
+    expect(skippedDb.stamped).toHaveLength(0);
+    expect(skippedDb.rows[0].confirmation_sent_at).toBeNull();
+  });
+
+  it('400s INVALID_NAME / INVALID_WALLET on over-long free-text fields', async () => {
+    const baseUrl = await start({ db: makeFakeDb(), sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const longName = await post(baseUrl, { ...VALID, name: 'x'.repeat(201) });
+    expect(longName.status).toBe(400);
+    expect(longName.body.code).toBe('INVALID_NAME');
+
+    const longWallet = await post(baseUrl, { ...VALID, walletAddress: 'a'.repeat(65) });
+    expect(longWallet.status).toBe(400);
+    expect(longWallet.body.code).toBe('INVALID_WALLET');
+  });
+
+  it('500s WAITLIST_INSERT_FAILED when the db insert throws', async () => {
+    const db = {
+      async insertWaitlistEntry() {
+        throw new Error('DSQL connection reset');
+      },
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+    const { status, body } = await post(baseUrl, VALID);
+    expect(status).toBe(500);
+    expect(body.code).toBe('WAITLIST_INSERT_FAILED');
+  });
+
+  it('returns success without an id when the row is lost to an unobservable race', async () => {
+    // insert returns null (conflict) but the conflicting row is then not found.
+    const db = {
+      async insertWaitlistEntry() { return null; },
+      async getWaitlistByEmail() { return null; },
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+    const { status, body } = await post(baseUrl, VALID);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.alreadyOnList).toBe(true);
+    expect(body.id).toBeUndefined();
+  });
 });
 
 describe('GET /api/waitlist/export', () => {
@@ -228,5 +303,44 @@ describe('GET /api/waitlist/export', () => {
     expect(parsed.success).toBe(true);
     expect(parsed.count).toBe(1);
     expect(parsed.rows[0].email).toBe('jane@example.com');
+  });
+
+  it('defangs spreadsheet formula injection in the CSV export', async () => {
+    const db = makeFakeDb();
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+    // A malicious signup name that would execute as a formula in Excel/Sheets.
+    await post(baseUrl, { name: '=cmd|\'/c calc\'!A1', email: 'evil@example.com' });
+
+    const csv = await getExport(baseUrl, { token: EXPORT_TOKEN });
+    expect(csv.status).toBe(200);
+    // The dangerous cell must be neutralized with a leading apostrophe so the
+    // spreadsheet treats it as text, never emitted as a bare =-prefixed cell.
+    expect(csv.text).toContain("'=cmd");
+    expect(csv.text).not.toContain(',=cmd');
+  });
+
+  it('500s EXPORT_NOT_CONFIGURED when no export token is set (fail closed)', async () => {
+    const saved = process.env.HACKNYU_WAITLIST_EXPORT_TOKEN;
+    delete process.env.HACKNYU_WAITLIST_EXPORT_TOKEN;
+    try {
+      const baseUrl = await start({ db: makeFakeDb(), sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+      const res = await getExport(baseUrl, { token: 'anything' });
+      expect(res.status).toBe(500);
+      expect(JSON.parse(res.text).code).toBe('EXPORT_NOT_CONFIGURED');
+    } finally {
+      process.env.HACKNYU_WAITLIST_EXPORT_TOKEN = saved;
+    }
+  });
+
+  it('500s WAITLIST_EXPORT_FAILED when the db list throws', async () => {
+    const db = {
+      async listWaitlist() {
+        throw new Error('DSQL read timeout');
+      },
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+    const res = await getExport(baseUrl, { token: EXPORT_TOKEN });
+    expect(res.status).toBe(500);
+    expect(JSON.parse(res.text).code).toBe('WAITLIST_EXPORT_FAILED');
   });
 });
