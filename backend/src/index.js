@@ -69,8 +69,12 @@ app.get('/health', (req, res) => {
 // (Helius's IPs vary and it self-throttles on 2xx).
 app.use('/api/create-listing', createListingLimiter);
 app.use('/api/payments', paymentsLimiter);
-// Public waitlist signup — per-IP throttle (each call can dispatch SES email).
-app.use('/api/waitlist', waitlistLimiter);
+// Public waitlist signup — per-IP throttle on the POST only (each signup can
+// dispatch SES email). The admin export (GET /api/waitlist/export) must not
+// share the signup budget, so it is exempt from this limiter.
+app.use('/api/waitlist', (req, res, next) =>
+  req.method === 'POST' ? waitlistLimiter(req, res, next) : next()
+);
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
 // Activity feed + provenance live at /api/activities and /api/nft/:mint/history.
