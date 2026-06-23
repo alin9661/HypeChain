@@ -92,6 +92,37 @@ Parameters:
       Helius API key (dashboard.helius.dev) — HACKNYU_HELIUS_API_KEY. Used only by
       the deferred DAS historical-backfill path; not required for live webhook ingest.
 
+  # --- Waitlist (SES confirmation email + admin export) — optional ---
+  WaitlistEmailsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: >-
+      HACKNYU_WAITLIST_EMAILS_ENABLED. 'true' makes POST /api/waitlist send a
+      confirmation (to the signup) and a notification (to the admin) via SES.
+      Both are best-effort — a send failure never fails the signup.
+  SesSender:
+    Type: String
+    Default: ''
+    Description: >-
+      HACKNYU_SES_SENDER — a VERIFIED SES sender (email address or domain) used
+      as the From address. Required when WaitlistEmailsEnabled=true. In the SES
+      sandbox, recipients must also be verified until you request production access.
+  WaitlistAdminEmail:
+    Type: String
+    Default: ''
+    Description: HACKNYU_WAITLIST_ADMIN_EMAIL — address notified on each new signup.
+  WaitlistExportToken:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: >-
+      HACKNYU_WAITLIST_EXPORT_TOKEN — Bearer token guarding GET /api/waitlist/export.
+      Generate with `openssl rand -hex 32`. Empty = the export endpoint fails
+      closed (500), never open.
+
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
@@ -173,6 +204,26 @@ Resources:
           # would try to connect on every cold start and leak connections
           # across warm invocations — neither of which we want in Lambda.
           HACKNYU_REDIS_ENABLED: 'false'
+          # Waitlist — SES confirmation email + admin export (see Parameters).
+          # AWS_REGION is injected by the Lambda runtime; SES uses it automatically.
+          HACKNYU_WAITLIST_EMAILS_ENABLED: !Ref WaitlistEmailsEnabled
+          HACKNYU_SES_SENDER: !Ref SesSender
+          HACKNYU_WAITLIST_ADMIN_EMAIL: !Ref WaitlistAdminEmail
+          HACKNYU_WAITLIST_EXPORT_TOKEN: !Ref WaitlistExportToken
+
+      # Least-privilege IAM beyond the basic Lambda execution role. The waitlist
+      # route sends a confirmation + an admin notification via SES. SendRawEmail
+      # is included for forward-compat (attachments/MIME); SendEmail covers the
+      # current plain-text sends. Scope Resource to your verified identity ARN in
+      # production, e.g. arn:aws:ses:<region>:<acct>:identity/yourdomain.com.
+      Policies:
+        - Statement:
+            - Sid: WaitlistSesSend
+              Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: '*'
 
     # SAM uses these to build the container locally and push it to ECR.
     # `DockerContext: .` means the build context is backend/ (where this
