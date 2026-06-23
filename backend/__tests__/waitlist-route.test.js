@@ -21,9 +21,16 @@ const EXPORT_TOKEN = process.env.HACKNYU_WAITLIST_EXPORT_TOKEN;
 // In-memory db mirroring the real db facade's waitlist methods.
 function makeFakeDb() {
   const rows = [];
+  const stamped = [];
   let seq = 0;
   return {
     rows,
+    stamped, // row ids passed to markWaitlistConfirmationSent
+    async markWaitlistConfirmationSent(id) {
+      stamped.push(id);
+      const row = rows.find((r) => r.id === id);
+      if (row) row.confirmation_sent_at = new Date('2026-06-19T12:00:01Z');
+    },
     async insertWaitlistEntry(entry) {
       if (rows.some((r) => r.email === entry.email)) return null; // ON CONFLICT DO NOTHING
       seq += 1;

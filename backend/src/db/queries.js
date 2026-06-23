@@ -350,6 +350,10 @@ export const GET_WAITLIST_BY_EMAIL_SQL =
 export const LIST_WAITLIST_SQL =
   `SELECT ${WAITLIST_COLS} FROM waitlist ORDER BY created_at DESC LIMIT $1`;
 
+// Stamp confirmation_sent_at once the SES acknowledgement actually dispatches.
+export const MARK_WAITLIST_CONFIRMATION_SENT_SQL =
+  'UPDATE waitlist SET confirmation_sent_at = NOW(), updated_at = NOW() WHERE id = $1';
+
 /**
  * INSERT a waitlist signup, returning the full row — or null on a duplicate
  * email (ON CONFLICT DO NOTHING). The route normalizes `email` (lower/trim)
@@ -371,4 +375,9 @@ export async function getWaitlistByEmail(conn, email) {
 export async function listWaitlist(conn, { limit = 10000 } = {}) {
   const { rows } = await conn.query(LIST_WAITLIST_SQL, [limit]);
   return rows;
+}
+
+/** Record that the confirmation email for a row has been dispatched. */
+export async function markWaitlistConfirmationSent(conn, id) {
+  await conn.query(MARK_WAITLIST_CONFIRMATION_SENT_SQL, [id]);
 }

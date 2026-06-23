@@ -180,7 +180,7 @@ export function createWaitlistRouter({
       // This is the side-effect isolation policy — always 2xx once the row is
       // committed. (To instead surface a soft "confirmation delayed" signal,
       // inspect these results and thread a flag into the response below.)
-      await Promise.allSettled([
+      const [confirmation] = await Promise.allSettled([
         sendConfirmation(normalizedEmail, {
           name: entry.name,
           id: submissionId(inserted.id),
@@ -188,6 +188,19 @@ export function createWaitlistRouter({
         }),
         sendAdminNotification(inserted),
       ]);
+
+      // Stamp confirmation_sent_at only when the acknowledgement actually went
+      // out (in dev/CI emails are disabled, so this stays NULL — correct). The
+      // stamp is itself best-effort: a failed UPDATE must not fail the signup.
+      if (confirmation.status === 'fulfilled' && confirmation.value?.sent) {
+        try {
+          await db.markWaitlistConfirmationSent(inserted.id);
+        } catch (err) {
+          console.warn(
+            `[waitlist] confirmation_sent_at stamp failed for ${inserted.id}: ${err?.message ?? err}`
+          );
+        }
+      }
 
       return res.status(200).json({
         success: true,
