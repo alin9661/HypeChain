@@ -1,5 +1,12 @@
 # Backend Deployment Guide
 
+> ⚠️ **DEPRECATED — kept for historical reference only.**
+> The production backend deploys to **AWS Lambda (container) + Aurora DSQL + Secrets Manager**,
+> not Railway/Render/Fly.io. The Railway/Render configs in this guide (and `backend/railway.json`,
+> `backend/render.yaml`) predate the AWS path and conflict with it.
+> **Use [`AWS_PRODUCTION_DEPLOYMENT.md`](./AWS_PRODUCTION_DEPLOYMENT.md)** for the current,
+> supported deploy. This file is not maintained.
+
 ## 📋 Overview
 
 This guide covers deploying the HypeChain Express.js backend to production-ready hosting platforms.

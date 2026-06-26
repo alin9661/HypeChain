@@ -1,0 +1,27 @@
+# SAM deploy defaults for the HypeChain backend Lambda.
+#
+# SECRETS ARE NOT STORED HERE. Pass them at deploy time with --parameter-overrides:
+#   OpenRouterApiKey, NftStorageApiKey, HeliusWebhookSecret (NoEcho params), and the
+#   environment-specific DsqlEndpoint. The custodial wallet key is never a parameter —
+#   it lives in AWS Secrets Manager (CustodialSecretId) and is fetched at runtime.
+#
+# Example first deploy (devnet staging):
+#   sam build
+#   sam deploy --guided \
+#     --parameter-overrides \
+#       DsqlEndpoint=<id>.dsql.us-east-1.on.aws \
+#       OpenRouterApiKey=$HACKNYU_OPENROUTER_API_KEY \
+#       NftStorageApiKey=$HACKNYU_NFT_STORAGE_API_KEY
+#
+# `--guided` will append the ECR image_repositories + S3 resolution keys it needs.
+
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "hypechain-backend"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+# Non-secret, non-environment-specific defaults. DsqlEndpoint and the secret
+# params are intentionally omitted (supplied per-deploy via --parameter-overrides).
+parameter_overrides = "FrontendUrl=\"https://hypechain.vercel.app\" DsqlRegion=\"us-east-1\" DsqlDatabase=\"postgres\" CustodialSecretId=\"hypechain/server-wallet\" SolanaRpcUrl=\"https://api.devnet.solana.com\" DasRpcUrl=\"https://api.devnet.solana.com\""

@@ -8,12 +8,19 @@ Description: >
 # ---------------------------------------------------------------------------
 # Parameters
 # ---------------------------------------------------------------------------
-# `sam deploy --guided` will prompt for these on the first deploy and persist
-# the answers to samconfig.toml. NoEcho:true hides secret values from the
-# CloudFormation console / API and from `aws cloudformation describe-stacks`.
+# `sam deploy --guided` prompts for these on the first deploy and persists the
+# non-secret answers to samconfig.toml. Secrets are NEVER stored in samconfig:
+#   • Custodial wallet key — lives in AWS Secrets Manager, fetched at runtime by
+#     the execution role (see HACKNYU_CUSTODIAL_* env below). Never a CF param,
+#     never an env var, never on disk.
+#   • API keys (OpenRouter, nft.storage, Helius) — NoEcho CF params passed at
+#     deploy time via --parameter-overrides (NOT samconfig). NoEcho hides them
+#     from describe-stacks; they land in the Lambda env at runtime (same exposure
+#     as before). Moving these to runtime Secrets Manager fetch is a documented
+#     fast-follow (needs an import-time fetch shim in openrouter.js / ipfs.js).
 Parameters:
 
-  # --- Required secrets (NoEcho) ---
+  # --- Required secrets (NoEcho, passed at deploy via --parameter-overrides) ---
   OpenRouterApiKey:
     Type: String
     NoEcho: true
@@ -22,23 +29,52 @@ Parameters:
     Type: String
     NoEcho: true
     Description: nft.storage API key — HACKNYU_NFT_STORAGE_API_KEY. Required (ipfs.js throws on import if missing).
-  ServerWalletPrivateKey:
+
+  # --- Aurora DSQL (IAM-token auth, no static password) ---
+  DsqlEndpoint:
     Type: String
-    NoEcho: true
-    Description: Server wallet private key, base58-encoded — HACKNYU_SERVER_WALLET_PRIVATE_KEY. Required for minting.
-  SupabaseUrl:
+    Description: >-
+      Aurora DSQL cluster endpoint — HACKNYU_DSQL_ENDPOINT, e.g.
+      <id>.dsql.us-east-1.on.aws. Required; pool.js throws if unset. Get it from
+      `aws dsql get-cluster` after provisioning (plan Phase 3).
+  DsqlRegion:
     Type: String
-    Description: Supabase project URL — HACKNYU_SUPABASE_URL. Required for the Supabase client.
-  SupabaseServiceRoleKey:
+    Default: us-east-1
+    Description: AWS region the DSQL cluster lives in — HACKNYU_DSQL_REGION. Used to mint the IAM auth token.
+  DsqlDatabase:
     Type: String
-    NoEcho: true
-    Description: Supabase service role key — HACKNYU_SUPABASE_SERVICE_ROLE_KEY. Required for backend writes.
+    Default: postgres
+    Description: DSQL database name — HACKNYU_DSQL_DATABASE. DSQL's default database is "postgres".
+  DsqlClusterArn:
+    Type: String
+    Default: ''
+    Description: >-
+      ARN of the DSQL cluster (arn:aws:dsql:<region>:<acct>:cluster/<id>). Scopes
+      the dsql:DbConnectAdmin grant on the execution role. Empty = scope to all
+      clusters in this account/region (fine for a single-cluster staging deploy).
+
+  # --- Custodial signer (Secrets Manager runtime fetch; the money key) ---
+  CustodialSecretId:
+    Type: String
+    Default: hypechain/server-wallet
+    Description: >-
+      Secrets Manager secret name/ARN holding the custodial wallet key —
+      HACKNYU_CUSTODIAL_SECRET_ID. SecretString is either a raw base58 secret key
+      or a JSON envelope {"privateKey":"<bs58>"}. Fetched at cold start by signer.js.
+  CustodialKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >-
+      ARN of the customer-managed KMS CMK that encrypts the custodial secret. Empty
+      = the secret uses the AWS-managed aws/secretsmanager key (Secrets Manager
+      decrypts transparently; no kms:Decrypt grant needed). Set this only if you
+      provisioned a dedicated CMK (plan Phase 3 step 1).
 
   # --- Required config ---
   FrontendUrl:
     Type: String
     Default: https://hypechain.vercel.app
-    Description: Production frontend origin — HACKNYU_FRONTEND_URL. Used by both Function URL CORS and Express CORS.
+    Description: Production frontend origin — HACKNYU_FRONTEND_URL. Used by both Function URL CORS and Express CORS (fail-closed in prod).
 
   # --- Optional config (sensible defaults) ---
   SolanaRpcUrl:
@@ -72,7 +108,6 @@ Parameters:
       Gateway's 29s timeout cannot serve the 30–90s create-listing flow), so
       this is the throttle layer. Caps simultaneous invocations; excess requests
       are rejected with 429. Tune to your account's unreserved-concurrency budget.
-      See backend-py/deploy/THROTTLING.md.
 
   # --- Activity feed (Helius) — optional; feature degrades gracefully if unset ---
   HeliusWebhookSecret:
@@ -124,6 +159,16 @@ Parameters:
       closed (500), never open.
 
 # ---------------------------------------------------------------------------
+# Conditions
+# ---------------------------------------------------------------------------
+Conditions:
+  # Scope dsql:DbConnectAdmin to a specific cluster ARN when provided; otherwise
+  # to all clusters in this account/region (single-cluster staging default).
+  HasDsqlClusterArn: !Not [!Equals [!Ref DsqlClusterArn, '']]
+  # Add a kms:Decrypt grant only when a customer-managed CMK encrypts the secret.
+  HasCustodialKmsKey: !Not [!Equals [!Ref CustodialKmsKeyArn, '']]
+
+# ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
 Resources:
@@ -156,8 +201,56 @@ Resources:
       # API Gateway to host a usage plan, so a reserved-concurrency cap is the
       # throttle layer: it bounds simultaneous invocations (excess -> 429),
       # protecting OpenRouter/Solana-RPC/DSQL downstreams and capping cost.
-      # See backend-py/deploy/THROTTLING.md.
       ReservedConcurrentExecutions: !Ref ReservedConcurrency
+
+      # Execution role permissions. SAM auto-generates the role (keeping
+      # AWSLambdaBasicExecutionRole for CloudWatch Logs) and merges these inline
+      # statements. Least-privilege: only what the app touches at runtime.
+      Policies:
+        # Custodial key fetch at cold start (signer.js secretsmanager source).
+        # Scoped to the hypechain/* secret namespace, not all secrets.
+        - Version: '2012-10-17'
+          Statement:
+            - Sid: ReadCustodialSecret
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:hypechain/*
+        # Aurora DSQL connection as the admin user (pool.js mints a fresh
+        # DbConnectAdmin IAM token per physical connection).
+        - Version: '2012-10-17'
+          Statement:
+            - Sid: DsqlConnect
+              Effect: Allow
+              Action: dsql:DbConnectAdmin
+              Resource: !If
+                - HasDsqlClusterArn
+                - !Ref DsqlClusterArn
+                - !Sub arn:aws:dsql:${DsqlRegion}:${AWS::AccountId}:cluster/*
+        # kms:Decrypt — only when a customer-managed CMK encrypts the secret.
+        # With the AWS-managed aws/secretsmanager key, Secrets Manager decrypts
+        # transparently and this grant is unnecessary.
+        - !If
+          - HasCustodialKmsKey
+          - Version: '2012-10-17'
+            Statement:
+              - Sid: DecryptCustodialSecret
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Ref CustodialKmsKeyArn
+          - !Ref AWS::NoValue
+        # SES for the waitlist route: a confirmation email to the user + an
+        # admin notification per signup. SendRawEmail is forward-compat
+        # (attachments/MIME); SendEmail covers the current plain-text sends.
+        # Scope Resource to your verified identity ARN in production, e.g.
+        # arn:aws:ses:<region>:<acct>:identity/yourdomain.com.
+        - Version: '2012-10-17'
+          Statement:
+            - Sid: WaitlistSesSend
+              Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: '*'
 
       # Direct HTTPS endpoint, no API Gateway. AuthType NONE because we rely
       # on application-level wallet-signature verification, not AWS IAM auth.
@@ -167,10 +260,11 @@ Resources:
         Cors:
           AllowOrigins:
             - !Ref FrontendUrl
+          # Preflight OPTIONS is generated automatically by the Function URL
+          # CORS layer — listing it explicitly is rejected by the schema.
           AllowMethods:
             - GET
             - POST
-            - OPTIONS
           AllowHeaders:
             - Content-Type
             - Authorization
@@ -181,15 +275,21 @@ Resources:
         Variables:
           NODE_ENV: production
           # CORS allowlist — must match the Function URL CORS config above so
-          # the two layers agree on which origin the browser sees.
+          # the two layers agree on which origin the browser sees. Express CORS
+          # is fail-closed in production (index.js throws if this is unset).
           HACKNYU_FRONTEND_URL: !Ref FrontendUrl
-          # Secrets — sourced from Parameters above; baked into the Lambda
-          # config at deploy time (not the container image).
+          # --- Aurora DSQL (IAM-token auth; no password, no secret) ---
+          HACKNYU_DSQL_ENDPOINT: !Ref DsqlEndpoint
+          HACKNYU_DSQL_REGION: !Ref DsqlRegion
+          HACKNYU_DSQL_DATABASE: !Ref DsqlDatabase
+          # --- Custodial signer: fetch the key from Secrets Manager at cold
+          # start (signer.js). The key NEVER lands in an env var. AWS_REGION is
+          # auto-injected by the Lambda runtime, so signer.js reads it directly. ---
+          HACKNYU_CUSTODIAL_KEY_SOURCE: secretsmanager
+          HACKNYU_CUSTODIAL_SECRET_ID: !Ref CustodialSecretId
+          # --- API keys (NoEcho params; passed at deploy, not in samconfig) ---
           HACKNYU_OPENROUTER_API_KEY: !Ref OpenRouterApiKey
           HACKNYU_NFT_STORAGE_API_KEY: !Ref NftStorageApiKey
-          HACKNYU_SERVER_WALLET_PRIVATE_KEY: !Ref ServerWalletPrivateKey
-          HACKNYU_SUPABASE_URL: !Ref SupabaseUrl
-          HACKNYU_SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
           # Chain / IPFS config — devnet defaults are fine for v1.
           HACKNYU_SOLANA_RPC_URL: !Ref SolanaRpcUrl
           HACKNYU_DAS_RPC_URL: !Ref DasRpcUrl
@@ -210,20 +310,6 @@ Resources:
           HACKNYU_SES_SENDER: !Ref SesSender
           HACKNYU_WAITLIST_ADMIN_EMAIL: !Ref WaitlistAdminEmail
           HACKNYU_WAITLIST_EXPORT_TOKEN: !Ref WaitlistExportToken
-
-      # Least-privilege IAM beyond the basic Lambda execution role. The waitlist
-      # route sends a confirmation + an admin notification via SES. SendRawEmail
-      # is included for forward-compat (attachments/MIME); SendEmail covers the
-      # current plain-text sends. Scope Resource to your verified identity ARN in
-      # production, e.g. arn:aws:ses:<region>:<acct>:identity/yourdomain.com.
-      Policies:
-        - Statement:
-            - Sid: WaitlistSesSend
-              Effect: Allow
-              Action:
-                - ses:SendEmail
-                - ses:SendRawEmail
-              Resource: '*'
 
     # SAM uses these to build the container locally and push it to ECR.
     # `DockerContext: .` means the build context is backend/ (where this

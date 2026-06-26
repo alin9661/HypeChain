@@ -22,12 +22,22 @@ FROM public.ecr.aws/lambda/nodejs:20
 # Pinning bun's version keeps the container build deterministic with local
 # installs that read backend/bun.lock.
 ARG BUN_VERSION=1.1.38
+# Pick the bun build that matches the image arch. The function targets arm64
+# (template.yaml Architectures: arm64), so on an arm64 image we MUST install the
+# aarch64 bun — the x64 build would die under rosetta with
+# "failed to open elf at /lib64/ld-linux-x86-64.so.2". Detect at build time so
+# the same Dockerfile works for an x86_64 target too.
 RUN microdnf install -y unzip tar gzip \
-    && curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" -o /tmp/bun.zip \
+    && case "$(uname -m)" in \
+         aarch64|arm64) BUN_ARCH=aarch64 ;; \
+         x86_64) BUN_ARCH=x64 ;; \
+         *) echo "unsupported arch: $(uname -m)" && exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${BUN_ARCH}.zip" -o /tmp/bun.zip \
     && unzip -q /tmp/bun.zip -d /tmp \
-    && mv /tmp/bun-linux-x64/bun /usr/local/bin/bun \
+    && mv /tmp/bun-linux-${BUN_ARCH}/bun /usr/local/bin/bun \
     && chmod +x /usr/local/bin/bun \
-    && rm -rf /tmp/bun.zip /tmp/bun-linux-x64 \
+    && rm -rf /tmp/bun.zip /tmp/bun-linux-${BUN_ARCH} \
     && microdnf clean all
 
 # Lambda's base image sets WORKDIR to /var/task automatically — that's where
