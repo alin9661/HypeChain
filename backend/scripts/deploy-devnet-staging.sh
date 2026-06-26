@@ -7,11 +7,15 @@
 #   export HACKNYU_OPENROUTER_API_KEY=...   # https://openrouter.ai/keys
 #   export HACKNYU_NFT_STORAGE_API_KEY=...  # https://nft.storage/manage
 #   # optional (activity feed): export HACKNYU_HELIUS_WEBHOOK_SECRET=$(openssl rand -hex 32)
+#   # optional (admin export):  export HACKNYU_WAITLIST_EXPORT_TOKEN=$(openssl rand -hex 32)
 #
 # Then:  cd backend && ./scripts/deploy-devnet-staging.sh
 #
+# After `sam deploy`, this script applies schema/001_dsql_schema.sql to the
+# cluster (idempotent) so the DB never drifts behind the app code.
+#
 # Prereqs already provisioned (us-east-1):
-#   • Aurora DSQL cluster qjt3zldyhx2oaemd37zt3yypcu (schema applied)
+#   • Aurora DSQL cluster qjt3zldyhx2oaemd37zt3yypcu
 #   • Secrets Manager secret hypechain/server-wallet (custodial key)
 #   • `sam build` runs clean (arm64 image)
 set -euo pipefail
@@ -50,6 +54,22 @@ PARAM_OVERRIDES=(
 if [ -n "${HACKNYU_HELIUS_WEBHOOK_SECRET:-}" ]; then
   PARAM_OVERRIDES+=( "HeliusWebhookSecret=${HACKNYU_HELIUS_WEBHOOK_SECRET}" )
 fi
+
+# Admin export token is optional. Same rule as Helius: SAM rejects an empty
+# "Key=" and the template defaults it to '', so only pass it when set. Without
+# it, GET /api/waitlist/export returns EXPORT_NOT_CONFIGURED by design.
+if [ -n "${HACKNYU_WAITLIST_EXPORT_TOKEN:-}" ]; then
+  PARAM_OVERRIDES+=( "WaitlistExportToken=${HACKNYU_WAITLIST_EXPORT_TOKEN}" )
+fi
+
+# Apply the DSQL schema BEFORE deploying the function, so new code never goes
+# live against a cluster that's missing a table it expects. Idempotent
+# (CREATE ... IF NOT EXISTS) and fail-closed: a bad apply aborts the deploy
+# (set -e), so a fresh table like `waitlist` is guaranteed present before the
+# code that reads it ships — instead of 500ing with `relation ... does not exist`.
+echo "Applying DSQL schema (idempotent)..."
+HACKNYU_DSQL_ENDPOINT="$DSQL_ENDPOINT" AWS_REGION="$REGION" \
+  ./scripts/apply-dsql-schema.sh
 
 sam deploy \
   --stack-name hypechain-backend \
