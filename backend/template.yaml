@@ -254,29 +254,20 @@ Resources:
 
       # Direct HTTPS endpoint, no API Gateway. AuthType NONE because we rely
       # on application-level wallet-signature verification, not AWS IAM auth.
+      # CORS is owned solely by the Express `cors()` middleware (index.js). The
+      # Function URL CORS layer is intentionally OMITTED: when both are active,
+      # each response carries TWO Access-Control-Allow-Origin headers, which
+      # browsers reject ("multiple values, only one allowed"). Express handles
+      # preflight too (cors() mounted before routes), so nothing is lost.
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: BUFFERED
-        Cors:
-          AllowOrigins:
-            - !Ref FrontendUrl
-          # Preflight OPTIONS is generated automatically by the Function URL
-          # CORS layer — listing it explicitly is rejected by the schema.
-          AllowMethods:
-            - GET
-            - POST
-          AllowHeaders:
-            - Content-Type
-            - Authorization
-          AllowCredentials: true
-          MaxAge: 3600
 
       Environment:
         Variables:
           NODE_ENV: production
-          # CORS allowlist — must match the Function URL CORS config above so
-          # the two layers agree on which origin the browser sees. Express CORS
-          # is fail-closed in production (index.js throws if this is unset).
+          # CORS allowlist — the single origin Express `cors()` allows. Express
+          # CORS is fail-closed in production (index.js throws if this is unset).
           HACKNYU_FRONTEND_URL: !Ref FrontendUrl
           # --- Aurora DSQL (IAM-token auth; no password, no secret) ---
           HACKNYU_DSQL_ENDPOINT: !Ref DsqlEndpoint
