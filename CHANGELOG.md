@@ -3,6 +3,29 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.1.2] - 2026-06-26
+
+Waitlist signups work in production again, and deploys now keep the database
+schema in sync so a newly added table can't silently go missing.
+
+### Fixed
+
+- **Waitlist signup no longer 500s** (`POST /api/waitlist`). The live Aurora DSQL
+  cluster was missing the `waitlist` table — the schema had been applied by hand
+  once, before that table existed, and never re-applied. Signups record correctly
+  again.
+
+### Added
+
+- **Idempotent schema apply** (`backend/scripts/apply-dsql-schema.sh`). Applies
+  `schema/001_dsql_schema.sql` to the live cluster and then asserts every table the
+  schema defines actually exists, failing loudly if one is missing. The deploy
+  script runs it before `sam deploy`, so the database can never drift behind the
+  code that depends on it.
+- **Optional waitlist export token** passthrough in the deploy script
+  (`HACKNYU_WAITLIST_EXPORT_TOKEN`), so `GET /api/waitlist/export` can be enabled
+  without editing committed config.
+
 ## [0.7.1.1] - 2026-06-26
 
 Fixes the devnet-staging deploy so the backend actually boots and serves the
