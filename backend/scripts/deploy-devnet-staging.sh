@@ -27,24 +27,38 @@ cd "$(dirname "$0")/.."
 
 sam build
 
+PARAM_OVERRIDES=(
+  "DsqlEndpoint=${DSQL_ENDPOINT}"
+  "DsqlClusterArn=${DSQL_CLUSTER_ARN}"
+  "DsqlRegion=${REGION}"
+  "DsqlDatabase=postgres"
+  "CustodialSecretId=hypechain/server-wallet"
+  "FrontendUrl=https://hypechain.vercel.app"
+  "SolanaRpcUrl=https://api.devnet.solana.com"
+  "DasRpcUrl=https://api.devnet.solana.com"
+  # Deployed devnet marketplace program ID (contracts/.../lib.rs declare_id!).
+  # Required: evidence-locker-client.js throws at module load in production if
+  # this is empty or the Anchor scaffold placeholder.
+  "MarketplaceProgramId=2pTtzWXELYNXAsXkWq3zgErbYnJTANfq5LmBptdk5uiF"
+  "OpenRouterApiKey=${HACKNYU_OPENROUTER_API_KEY}"
+  "NftStorageApiKey=${HACKNYU_NFT_STORAGE_API_KEY}"
+)
+
+# Helius webhook secret is optional (powers the activity feed). Only pass it
+# when set: SAM rejects an empty "Key=" value, and the template defaults this
+# parameter to '' so omitting it is the correct "not configured" state.
+if [ -n "${HACKNYU_HELIUS_WEBHOOK_SECRET:-}" ]; then
+  PARAM_OVERRIDES+=( "HeliusWebhookSecret=${HACKNYU_HELIUS_WEBHOOK_SECRET}" )
+fi
+
 sam deploy \
   --stack-name hypechain-backend \
   --region "$REGION" \
   --capabilities CAPABILITY_IAM \
   --resolve-image-repos \
+  --resolve-s3 \
   --no-confirm-changeset \
-  --parameter-overrides \
-    "DsqlEndpoint=${DSQL_ENDPOINT}" \
-    "DsqlClusterArn=${DSQL_CLUSTER_ARN}" \
-    "DsqlRegion=${REGION}" \
-    "DsqlDatabase=postgres" \
-    "CustodialSecretId=hypechain/server-wallet" \
-    "FrontendUrl=https://hypechain.vercel.app" \
-    "SolanaRpcUrl=https://api.devnet.solana.com" \
-    "DasRpcUrl=https://api.devnet.solana.com" \
-    "OpenRouterApiKey=${HACKNYU_OPENROUTER_API_KEY}" \
-    "NftStorageApiKey=${HACKNYU_NFT_STORAGE_API_KEY}" \
-    "HeliusWebhookSecret=${HACKNYU_HELIUS_WEBHOOK_SECRET:-}"
+  --parameter-overrides "${PARAM_OVERRIDES[@]}"
 
 echo
 echo "Done. Grab the Function URL from the Outputs above, then:"
