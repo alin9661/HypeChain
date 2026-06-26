@@ -3,6 +3,25 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.1.1] - 2026-06-26
+
+Fixes the devnet-staging deploy so the backend actually boots and serves the
+frontend cross-origin. Found running the first real AWS Lambda deploy.
+
+### Fixed
+
+- **Deploy script no longer fails on the optional Helius secret** (`backend/scripts/deploy-devnet-staging.sh`).
+  Parameter overrides are now built as an array; the optional `HeliusWebhookSecret`
+  is only passed when set, instead of sending an empty `Key=` that SAM rejects.
+- **Added `--resolve-s3` to `sam deploy`.** The image-based Lambda still stages its
+  template to S3, so the deploy failed with "S3 Bucket not specified" without it.
+- **Pass `MarketplaceProgramId` (the deployed devnet program ID).** The app threw at
+  module load (`evidence-locker-client.js`) when it was unset, crash-looping the
+  Lambda on every invocation (HTTP 502).
+- **Removed the Function URL CORS block (`backend/template.yaml`).** Express `cors()`
+  is now the sole CORS owner. With both layers active, every response carried two
+  `Access-Control-Allow-Origin` headers, which browsers reject.
+
 ## [0.7.1.0] - 2026-06-23
 
 Makes the Express backend actually deployable to AWS: the SAM template now grants
