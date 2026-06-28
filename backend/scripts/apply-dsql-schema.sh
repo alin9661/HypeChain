@@ -44,7 +44,9 @@ SCHEMA_FILE="schema/001_dsql_schema.sql"
 REQUIRED_TABLES=()
 while IFS= read -r _t; do
   [ -n "$_t" ] && REQUIRED_TABLES+=("$_t")
-done < <(grep -oiE 'create table (if not exists )?[a-z_]+' "$SCHEMA_FILE" | awk '{print tolower($NF)}' | sort -u)
+# Anchor at line start so a real `CREATE TABLE x` statement matches but prose in
+# a `-- ... CREATE TABLE above ...` comment does not (comment lines start `--`).
+done < <(grep -oiE '^create table (if not exists )?[a-z_]+' "$SCHEMA_FILE" | awk '{print tolower($NF)}' | sort -u)
 [ "${#REQUIRED_TABLES[@]}" -gt 0 ] || { echo "error: no CREATE TABLE statements found in $SCHEMA_FILE" >&2; exit 1; }
 
 echo "Minting DSQL admin auth token for ${DSQL_ENDPOINT} (${REGION})..."
