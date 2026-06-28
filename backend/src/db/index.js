@@ -22,6 +22,7 @@ export const db = {
   // listings
   insertListing: (listing) => q.insertListing(poolConn, listing),
   fetchListingById: (id) => q.fetchListingById(poolConn, id),
+  getListings: (opts) => q.getListings(poolConn, opts),
   updateListingStatus: (id, opts) => q.updateListingStatus(poolConn, id, opts),
   updateListingOnChainRefs: (id, refs) => q.updateListingOnChainRefs(poolConn, id, refs),
   markListingSoldIfActive: (id) => q.markListingSoldIfActive(poolConn, id),

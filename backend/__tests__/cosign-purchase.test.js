@@ -495,7 +495,7 @@ describe('buildCosignedPurchaseTx — read-repair on chain-Sold', () => {
     const f = makeFixture({ chain: { status: ListingStatus.Sold } });
     await expectCosignError(
       callWith(f, async () => {
-        throw new Error('supabase exploded');
+        throw new Error('database exploded');
       }),
       'LISTING_NOT_PURCHASABLE',
       409

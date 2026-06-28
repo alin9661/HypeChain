@@ -282,12 +282,14 @@ class ApiClient {
     // configured "https://host/" + "/api/..." doesn't become "host//api/...".
     //
     // Fallback differs by environment: in dev the Express API runs at
-    // localhost:3001, but in a production browser that host is unreachable —
-    // and worse, prefixing it onto endpoints that exist same-origin on Vercel
-    // (e.g. /api/listings, /api/users/register) breaks calls that would
-    // otherwise succeed. So when NEXT_PUBLIC_API_URL is unset in production we
-    // fall back to same-origin ('') and let the co-located Next.js API routes
-    // resolve; Express-only endpoints fail cleanly into their error states.
+    // localhost:3001. In production EVERY endpoint now lives on the Express
+    // backend — the Supabase-backed Next.js API routes (/api/listings,
+    // /api/users/*) were removed in the Supabase decommission, so there is no
+    // same-origin route left to serve them. NEXT_PUBLIC_API_URL must therefore
+    // point at the backend (the Lambda Function URL) in production; the
+    // same-origin ('') fallback only applies if it is misconfigured/unset, in
+    // which case API calls fail cleanly into their error states rather than
+    // silently resolving against a now-deleted route.
     const fallbackBase =
       process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
     this.baseURL = (process.env.NEXT_PUBLIC_API_URL || fallbackBase)
@@ -419,80 +421,28 @@ class ApiClient {
   }
 
   /**
-   * POST /api/users/register - Register or login user after wallet connection
+   * POST /api/users/register - Register or login user after wallet connection.
+   * Hits the Express backend (DSQL-backed) via the shared base URL — the former
+   * Supabase Next.js route was removed in the Supabase decommission.
    */
   async registerUser(
     data: RegisterUserRequest
   ): Promise<ApiResponse<RegisterUserResponse>> {
-    // Use the local Next.js API route (not backend server)
-    const url = '/api/users/register';
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
-
-      return {
-        success: true,
-        data: responseData,
-      };
-    } catch (error) {
-      console.warn('API request failed for url:', url, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      };
-    }
+    return this.request<RegisterUserResponse>('/api/users/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   /**
-   * GET /api/users/[walletAddress] - Get user profile by wallet address
+   * GET /api/users/:walletAddress - Get user profile by wallet address.
+   * Hits the Express backend (DSQL-backed) via the shared base URL — the former
+   * Supabase Next.js route was removed in the Supabase decommission.
    */
   async getUserProfile(walletAddress: string): Promise<ApiResponse<GetUserResponse>> {
-    // Use the local Next.js API route (not backend server)
-    const url = `/api/users/${encodeURIComponent(walletAddress)}`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
-
-      return {
-        success: true,
-        data: responseData,
-      };
-    } catch (error) {
-      console.warn('API request failed for url:', url, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      };
-    }
+    return this.request<GetUserResponse>(
+      `/api/users/${encodeURIComponent(walletAddress)}`
+    );
   }
 
   /**
@@ -575,7 +525,9 @@ class ApiClient {
   }
 
   /**
-   * GET /api/listings - Fetch all listings
+   * GET /api/listings - Fetch all listings.
+   * Hits the Express backend (DSQL-backed) via the shared base URL — the former
+   * Supabase Next.js route was removed in the Supabase decommission.
    */
   async getAllListings(params?: {
     status?: string;
@@ -593,36 +545,10 @@ class ApiClient {
     if (params?.order) queryParams.set('order', params.order);
     if (params?.search) queryParams.set('search', params.search);
 
-    const url = `/api/listings${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
-
-      return {
-        success: true,
-        data: responseData,
-      };
-    } catch (error) {
-      console.warn('API request failed for url:', url, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      };
-    }
+    const query = queryParams.toString();
+    return this.request<{ success: true; listings: Listing[]; count: number }>(
+      `/api/listings${query ? `?${query}` : ''}`
+    );
   }
 
   /**

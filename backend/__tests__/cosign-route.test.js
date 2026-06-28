@@ -1,9 +1,9 @@
 /**
  * Route-level smoke tests for POST /api/payments/cosign-purchase.
  *
- * Uses the exported handler factory with injected stubs so no Supabase or
- * RPC access happens. Supabase env vars are dummied because importing
- * routes/payment.js initializes the client at module load.
+ * Uses the exported handler factory with injected stubs so no database or
+ * RPC access happens. The env bootstrap dummies the API keys that
+ * routes/payment.js (and its transitive imports) read at module load.
  */
 
 import './helpers/env-setup.js';

@@ -20,6 +20,37 @@ dotenv.config();
 const router = express.Router();
 
 /**
+ * GET /api/listings
+ * Paginated marketplace listing feed. Replaces the Supabase-backed Next.js
+ * route (frontend/app/api/listings/route.ts) as part of the Supabase
+ * decommission; returns the same JSON shape the frontend already consumes:
+ *   { success, listings, count, limit, offset }
+ * with `listings` as raw snake_case rows (parity with the old `select('*')`).
+ *
+ * Query params (all optional): status (default 'active'), limit (default 50,
+ * clamped 1-100), offset (default 0), sortBy (whitelisted, default
+ * 'created_at'), order ('asc'|'desc', default 'desc'), search (ILIKE across
+ * product_name/description/category).
+ */
+router.get('/listings', async (req, res) => {
+  try {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const result = await db.getListings({
+      status: req.query.status || 'active',
+      limit: req.query.limit,
+      offset: req.query.offset,
+      sortBy: req.query.sortBy || 'created_at',
+      order: req.query.order === 'asc' ? 'asc' : 'desc',
+      search: search || null,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[listings] fetch failed:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch listings' });
+  }
+});
+
+/**
  * POST /api/create-listing
  * Creates a new NFT listing with AI verification and image generation
  */
@@ -364,7 +395,7 @@ router.post('/create-listing', async (req, res) => {
     // confidence score wasn't tampered with.  Skipping a standard NFT is
     // currently not supported (cNFT mints don't surface a regular mint
     // pubkey the program can key off of); compressed listings stay in the
-    // Supabase-only path until cNFT support lands on-chain.
+    // off-chain DB-only path until cNFT support lands on-chain.
     let verificationResult2 = null;
     if (!isCompressed && process.env.HACKNYU_MARKETPLACE_PROGRAM_ID) {
       try {
@@ -513,14 +544,14 @@ router.post('/create-listing', async (req, res) => {
         'Metaplex minting service issues',
         'Invalid wallet address provided'
       ];
-    } else if (errorMessage.includes('database') || errorMessage.includes('Supabase')) {
+    } else if (errorMessage.includes('database') || errorMessage.includes('DSQL') || errorMessage.includes('relation')) {
       failureStep = 'Step 4: Database Storage';
       verboseExplanation = 'Failed to save the listing to the database.';
       possibleCauses = [
-        'Supabase connection is invalid or expired',
-        'Database schema mismatch',
-        'Network connectivity issues with Supabase',
-        'Database permissions issue'
+        'Aurora DSQL connection is invalid or the IAM token expired',
+        'Database schema mismatch (a migration may not be applied)',
+        'Network connectivity issues reaching the DSQL cluster',
+        'Database permissions issue (DbConnectAdmin / IAM)'
       ];
     }
 

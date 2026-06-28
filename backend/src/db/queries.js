@@ -95,6 +95,15 @@ export const GET_USER_ID_BY_WALLET_SQL = 'SELECT id FROM users WHERE wallet_addr
 
 export const FETCH_LISTING_BY_ID_SQL = `SELECT ${RETURNING} FROM listings WHERE id = $1`;
 
+// Columns a client may sort the marketplace listing feed by. ORDER BY column
+// names CANNOT be bound as query parameters, so user-supplied `sortBy` must be
+// validated against this fixed set before it ever reaches the SQL text —
+// otherwise it is a SQL-injection vector. Anything not in the set falls back to
+// `created_at`.
+export const LISTINGS_SORTABLE_COLUMNS = new Set([
+  'created_at', 'updated_at', 'price_sol', 'views', 'favorites',
+]);
+
 export const GET_TRANSACTION_ID_BY_SIGNATURE_SQL =
   'SELECT id FROM transactions WHERE signature = $1';
 
@@ -182,6 +191,68 @@ export async function getUserIdByWallet(conn, walletAddress) {
 export async function fetchListingById(conn, listingId) {
   const { rows } = await conn.query(FETCH_LISTING_BY_ID_SQL, [listingId]);
   return rows.length ? rows[0] : null;
+}
+
+/**
+ * Paginated marketplace listing feed (replaces the Supabase-backed Next.js
+ * route frontend/app/api/listings/route.ts). Filters by `status`, optional
+ * case-insensitive `search` across product_name/description/category, sorts by
+ * a whitelisted column/direction, and pages with LIMIT/OFFSET.
+ *
+ * Returns `{ listings, count, limit, offset }` where `count` is the TOTAL
+ * matching rows (not the page size), computed with a second COUNT(*) over the
+ * same filter — a window function is deliberately avoided for DSQL portability.
+ * `limit`/`offset` are the CLAMPED values actually applied, so the client can
+ * compute the next page accurately even if it over-asked.
+ *
+ * SQL-injection safety: `status`/`search`/`limit`/`offset` are bound as params;
+ * `sortBy`/`order` are the only identifiers spliced into the text and both are
+ * constrained to fixed allow-lists first.
+ */
+export async function getListings(
+  conn,
+  { status = 'active', limit = 50, offset = 0, sortBy = 'created_at', order = 'desc', search = null } = {}
+) {
+  const sortCol = LISTINGS_SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'created_at';
+  const sortDir = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  // Parse THEN clamp — don't use `|| 50`, which would coalesce a legitimate
+  // limit=0 (falsy) to the default instead of clamping it to the floor of 1.
+  const parsedLimit = Number.parseInt(limit, 10);
+  const safeLimit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50;
+  const parsedOffset = Number.parseInt(offset, 10);
+  const safeOffset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
+
+  const filters = ['status = $1'];
+  const args = [status];
+  if (search) {
+    args.push(`%${search}%`);
+    // Same placeholder reused for all three columns — one bound value, no
+    // string interpolation of the search term.
+    filters.push(
+      `(product_name ILIKE $${args.length} OR description ILIKE $${args.length} OR category ILIKE $${args.length})`
+    );
+  }
+  const where = `WHERE ${filters.join(' AND ')}`;
+
+  // Stable order: the `id DESC` tiebreaker keeps pagination deterministic when
+  // the sort column has ties (e.g. many rows share a created_at).
+  const listSql =
+    `SELECT ${RETURNING} FROM listings ${where} ` +
+    `ORDER BY ${sortCol} ${sortDir}, id DESC ` +
+    `LIMIT $${args.length + 1} OFFSET $${args.length + 2}`;
+  const countSql = `SELECT COUNT(*) AS count FROM listings ${where}`;
+
+  const [page, total] = await Promise.all([
+    conn.query(listSql, [...args, safeLimit, safeOffset]),
+    conn.query(countSql, args),
+  ]);
+
+  return {
+    listings: page.rows,
+    count: Number(total.rows[0]?.count ?? 0),
+    limit: safeLimit,
+    offset: safeOffset,
+  };
 }
 
 /** Return an existing transaction's id for this signature, or null. */

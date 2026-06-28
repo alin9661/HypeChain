@@ -1,7 +1,7 @@
 # AWS Lambda container image for the HypeChain backend.
 #
 # Why a container image instead of a zipped Lambda?
-#   Our deps (full Metaplex Umi stack + Solana web3 + Supabase SDK + OpenAI
+#   Our deps (full Metaplex Umi stack + Solana web3 + pg/DSQL signer + OpenAI
 #   SDK) exceed Lambda's 250 MB unzipped zip limit. Container images go up
 #   to 10 GB and let us pin Node 20 explicitly.
 #
