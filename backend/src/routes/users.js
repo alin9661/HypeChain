@@ -106,11 +106,17 @@ export function createUserRouter({ db = defaultDb } = {}) {
         });
       }
 
-      // Register echoes the caller's OWN just-submitted email (not a leak — they
-      // provided it) plus isNewUser. The public profile lookup below does not.
+      // Echo email ONLY on a brand-new registration (isNewUser), where the caller
+      // genuinely just submitted it. On the existing-wallet path the row's email
+      // is the PRIOR registrant's (email isn't updated on conflict) and the caller
+      // proved no wallet ownership — returning it would leak PII by wallet, the
+      // exact enumeration the GET lookup is hardened against.
       return res
         .status(isNewUser ? 201 : 200)
-        .json({ success: true, user: { ...toPublicUser(user), email: user.email, isNewUser } });
+        .json({
+          success: true,
+          user: toPublicUser(user, { ...(isNewUser ? { email: user.email } : {}), isNewUser }),
+        });
     } catch (err) {
       console.error('[users] register failed:', err?.message || err);
       return res.status(500).json({
@@ -133,6 +139,16 @@ export function createUserRouter({ db = defaultDb } = {}) {
           success: false,
           error: 'walletAddress is required',
           code: 'MISSING_WALLET',
+        });
+      }
+
+      // Same trust-boundary cap as register: bound the param before it reaches
+      // the indexed lookup (the GET is exempt from the register rate limiter).
+      if (walletAddress.length > MAX_WALLET_LEN) {
+        return res.status(400).json({
+          success: false,
+          error: 'walletAddress is too long',
+          code: 'INVALID_WALLET',
         });
       }
 

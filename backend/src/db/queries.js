@@ -417,9 +417,11 @@ export const GET_USER_BY_WALLET_SQL =
 
 /**
  * Register a new user or, if the wallet already exists, stamp last_login and
- * return the existing row. Returns `{ user, isNewUser }`. Atomic against the
- * wallet_address UNIQUE constraint: the INSERT either creates the row (new) or
- * no-ops on conflict, in which case the follow-up UPDATE refreshes last_login.
+ * return the existing row. Returns `{ user, isNewUser }`. Idempotent against the
+ * wallet_address UNIQUE constraint via TWO statements (not a single transaction):
+ * the INSERT either creates the row (new) or no-ops on conflict, in which case
+ * the follow-up UPDATE refreshes last_login. The caller handles the rare
+ * row-deleted-between-statements race (user === null).
  */
 export async function registerOrLoginUser(conn, { walletAddress, privyUserId, chainType, email }) {
   const inserted = await conn.query(INSERT_USER_SQL, [

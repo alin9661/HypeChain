@@ -80,20 +80,13 @@
 
 
 -- =====================================================================
--- USERS TABLE  (RECONSTRUCTED — not present in repo .sql)
+-- USERS TABLE
 -- =====================================================================
--- Inferred from `listing.js` (`SELECT id FROM users WHERE wallet_address = ?`,
--- listing.js:311-318) and the `increment_user_volume(user_id, amount)` RPC
--- (payment.js:298), which adds a SOL amount to a running per-user volume
--- column (named `total_volume` here). `username` / `profile_image` were
--- referenced by the now-dropped active_listings / user_stats views; included
--- for completeness/parity. `email` retained for guest-claim association.
---
--- ASSUMPTIONS A HUMAN SHOULD CONFIRM against the live Supabase `users` table:
---   - PK is `id UUID`.
---   - lookup column is `wallet_address TEXT UNIQUE`.
---   - the volume column the RPC increments is `total_volume NUMERIC`
---     (NOT NULL DEFAULT 0). Confirm the real column name/type before deploy.
+-- DSQL is the source of truth for users (Supabase is being decommissioned).
+-- `total_volume` is the running per-user volume the payment RPC increments;
+-- `username` / `profile_image` are profile fields; `email` is used for
+-- guest-claim association. The register/profile routes (routes/users.js) and
+-- the listing/payment paths are the only readers/writers.
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_address TEXT UNIQUE,
