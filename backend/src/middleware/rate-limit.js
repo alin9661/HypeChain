@@ -61,3 +61,13 @@ export const userRegisterLimiter = limiter({
   code: 'RATE_LIMITED',
   message: 'Too many registration attempts. Please wait a minute and try again.',
 });
+
+// Public profile lookup (GET /api/users/:wallet) — unauthenticated and a
+// registration/existence oracle (200 vs 404), so throttle per-IP to blunt
+// mass wallet enumeration + DB-load DoS. Looser than register since a page can
+// legitimately fetch several profiles.
+export const userLookupLimiter = limiter({
+  max: 60,
+  code: 'RATE_LIMITED',
+  message: 'Too many profile lookups. Please slow down and try again shortly.',
+});

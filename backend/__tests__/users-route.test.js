@@ -137,6 +137,26 @@ describe('POST /api/users/register', () => {
     expect((await res.json()).code).toBe('INVALID_WALLET');
   });
 
+  it('rejects an over-long privyUserId (400 INVALID_PRIVY_ID)', async () => {
+    const base = await start({ db: makeFakeDb() });
+    const res = await fetch(`${base}/api/users/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...VALID, privyUserId: 'p'.repeat(129) }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('INVALID_PRIVY_ID');
+  });
+
+  it('rejects an over-long email (400 INVALID_EMAIL)', async () => {
+    const base = await start({ db: makeFakeDb() });
+    const res = await fetch(`${base}/api/users/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...VALID, email: `${'e'.repeat(250)}@example.com` }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('INVALID_EMAIL');
+  });
+
   it('500s USER_REGISTER_FAILED when the row vanishes between insert and update', async () => {
     // registerOrLoginUser can resolve { user: null } if the conflicting row is
     // deleted before the follow-up UPDATE returns it.

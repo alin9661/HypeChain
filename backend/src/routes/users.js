@@ -17,9 +17,11 @@ import express from 'express';
 import { db as defaultDb } from '../db/index.js';
 
 const VALID_CHAIN_TYPES = ['ethereum', 'solana'];
-// base58 Solana addresses are 32-44 chars; cap at the trust boundary so an
-// over-long value can't bloat the row / index before it reaches the DB.
-const MAX_WALLET_LEN = 64;
+// Length caps at the trust boundary: the body parser allows 5MB, so cap each
+// free-text field before it reaches the DB to prevent storage/index bloat.
+const MAX_WALLET_LEN = 64; // base58 Solana addresses are 32-44 chars.
+const MAX_PRIVY_LEN = 128; // Privy DIDs are ~40 chars; generous headroom.
+const MAX_EMAIL_LEN = 254; // RFC 5321 max.
 
 // PUBLIC profile shape — safe to return on an UNAUTHENTICATED by-wallet lookup.
 // Deliberately omits PII: `email` and `last_login` are NOT included, so a
@@ -46,10 +48,12 @@ export function createUserRouter({ db = defaultDb } = {}) {
   // POST /api/users/register — register a new wallet or refresh last_login
   //
   // SECURITY (deferred, mainnet-hardening): this write has NO server-side proof
-  // that the caller controls `walletAddress` — a client could register/squat any
-  // wallet→privyUserId binding. The original Supabase route had the same gap;
-  // Privy authenticates the user client-side. Full fix = verify a wallet-signed
-  // nonce before binding. Mitigated for now by the per-IP rate limit in index.js.
+  // that the caller controls `walletAddress`. ON CONFLICT updates only timestamps,
+  // so the FIRST writer of any (public, on-chain) wallet PERMANENTLY owns the
+  // wallet→privyUserId binding — a later real owner can't rebind through this API.
+  // The original Supabase route had the same gap; Privy authenticates client-side.
+  // Full fix = verify a wallet-signed nonce before binding AND let the owner
+  // update it. Mitigated for now by the per-IP rate limit in index.js.
   // -------------------------------------------------------------------------
   router.post('/users/register', async (req, res) => {
     try {
@@ -85,8 +89,24 @@ export function createUserRouter({ db = defaultDb } = {}) {
         });
       }
 
+      if (privyUserId.length > MAX_PRIVY_LEN) {
+        return res.status(400).json({
+          success: false,
+          error: 'privyUserId is too long',
+          code: 'INVALID_PRIVY_ID',
+        });
+      }
+
       const emailValue =
         typeof email === 'string' && email.trim() ? email.trim() : null;
+
+      if (emailValue && emailValue.length > MAX_EMAIL_LEN) {
+        return res.status(400).json({
+          success: false,
+          error: 'email is too long',
+          code: 'INVALID_EMAIL',
+        });
+      }
 
       const { user, isNewUser } = await db.registerOrLoginUser({
         walletAddress: walletAddress.trim(),

@@ -18,7 +18,7 @@ import webhookRoutes from './routes/webhooks.js';
 import waitlistRoutes from './routes/waitlist.js';
 import userRoutes from './routes/users.js';
 import { requestId } from './middleware/request-id.js';
-import { createListingLimiter, paymentsLimiter, waitlistLimiter, userRegisterLimiter } from './middleware/rate-limit.js';
+import { createListingLimiter, paymentsLimiter, waitlistLimiter, userRegisterLimiter, userLookupLimiter } from './middleware/rate-limit.js';
 
 const app = express();
 
@@ -87,9 +87,13 @@ app.use('/api/payments', paymentsLimiter);
 app.use('/api/waitlist', (req, res, next) =>
   req.method === 'POST' ? waitlistLimiter(req, res, next) : next()
 );
-// Throttle the unauthenticated register write; the GET profile lookup is exempt.
+// Throttle the unauthenticated register write (POST) and, separately, the
+// public profile lookup (GET) which is an enumeration/existence oracle.
 app.use('/api/users/register', (req, res, next) =>
   req.method === 'POST' ? userRegisterLimiter(req, res, next) : next()
+);
+app.use('/api/users', (req, res, next) =>
+  req.method === 'GET' ? userLookupLimiter(req, res, next) : next()
 );
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
