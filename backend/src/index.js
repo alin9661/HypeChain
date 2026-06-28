@@ -18,7 +18,7 @@ import webhookRoutes from './routes/webhooks.js';
 import waitlistRoutes from './routes/waitlist.js';
 import userRoutes from './routes/users.js';
 import { requestId } from './middleware/request-id.js';
-import { createListingLimiter, paymentsLimiter, waitlistLimiter } from './middleware/rate-limit.js';
+import { createListingLimiter, paymentsLimiter, waitlistLimiter, userRegisterLimiter } from './middleware/rate-limit.js';
 
 const app = express();
 
@@ -86,6 +86,10 @@ app.use('/api/payments', paymentsLimiter);
 // share the signup budget, so it is exempt from this limiter.
 app.use('/api/waitlist', (req, res, next) =>
   req.method === 'POST' ? waitlistLimiter(req, res, next) : next()
+);
+// Throttle the unauthenticated register write; the GET profile lookup is exempt.
+app.use('/api/users/register', (req, res, next) =>
+  req.method === 'POST' ? userRegisterLimiter(req, res, next) : next()
 );
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);

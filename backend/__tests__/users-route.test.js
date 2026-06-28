@@ -108,7 +108,9 @@ describe('POST /api/users/register', () => {
     const body = await res.json();
     expect(body.user.isNewUser).toBe(false);
     expect(db.rows).toHaveLength(1); // no duplicate row
-    expect(new Date(body.user.lastLogin).toISOString()).toBe('2026-06-27T13:00:00.000Z');
+    // last_login was stamped on the existing row (verified at the db, not the
+    // response — register no longer surfaces lastLogin).
+    expect(new Date(db.rows[0].last_login).toISOString()).toBe('2026-06-27T13:00:00.000Z');
   });
 
   it('rejects missing required fields (400 MISSING_FIELDS)', async () => {
@@ -156,6 +158,10 @@ describe('GET /api/users/:walletAddress', () => {
     expect(body.success).toBe(true);
     expect(body.user.walletAddress).toBe(VALID.walletAddress);
     expect(body.user.chainType).toBe('solana');
+    // PII is NOT leaked on an unauthenticated public lookup.
+    expect(body.user.email).toBeUndefined();
+    expect(body.user.lastLogin).toBeUndefined();
+    expect(body.user.privyUserId).toBeUndefined();
   });
 
   it('returns 404 for an unknown wallet (USER_NOT_FOUND)', async () => {

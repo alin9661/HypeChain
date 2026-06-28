@@ -21,17 +21,19 @@ const VALID_CHAIN_TYPES = ['ethereum', 'solana'];
 // over-long value can't bloat the row / index before it reaches the DB.
 const MAX_WALLET_LEN = 64;
 
-// Map a snake_case DSQL row to the camelCase user object the client expects.
-function toUserResponse(row, extra = {}) {
+// PUBLIC profile shape — safe to return on an UNAUTHENTICATED by-wallet lookup.
+// Deliberately omits PII: `email` and `last_login` are NOT included, so a
+// wallet-enumeration scan can't harvest emails or activity timing. (The old
+// Supabase route returned both via `select('*')`; this is the tightened
+// replacement.) `privy_user_id` is never surfaced.
+function toPublicUser(row, extra = {}) {
   return {
     id: row.id,
     walletAddress: row.wallet_address,
     chainType: row.chain_type,
     username: row.username,
-    email: row.email,
     profileImage: row.profile_image,
     createdAt: row.created_at,
-    lastLogin: row.last_login,
     totalVolume: row.total_volume,
     ...extra,
   };
@@ -42,6 +44,12 @@ export function createUserRouter({ db = defaultDb } = {}) {
 
   // -------------------------------------------------------------------------
   // POST /api/users/register — register a new wallet or refresh last_login
+  //
+  // SECURITY (deferred, mainnet-hardening): this write has NO server-side proof
+  // that the caller controls `walletAddress` — a client could register/squat any
+  // wallet→privyUserId binding. The original Supabase route had the same gap;
+  // Privy authenticates the user client-side. Full fix = verify a wallet-signed
+  // nonce before binding. Mitigated for now by the per-IP rate limit in index.js.
   // -------------------------------------------------------------------------
   router.post('/users/register', async (req, res) => {
     try {
@@ -98,9 +106,11 @@ export function createUserRouter({ db = defaultDb } = {}) {
         });
       }
 
+      // Register echoes the caller's OWN just-submitted email (not a leak — they
+      // provided it) plus isNewUser. The public profile lookup below does not.
       return res
         .status(isNewUser ? 201 : 200)
-        .json({ success: true, user: toUserResponse(user, { isNewUser }) });
+        .json({ success: true, user: { ...toPublicUser(user), email: user.email, isNewUser } });
     } catch (err) {
       console.error('[users] register failed:', err?.message || err);
       return res.status(500).json({
@@ -135,7 +145,7 @@ export function createUserRouter({ db = defaultDb } = {}) {
         });
       }
 
-      return res.json({ success: true, user: toUserResponse(user) });
+      return res.json({ success: true, user: toPublicUser(user) });
     } catch (err) {
       console.error('[users] profile lookup failed:', err?.message || err);
       return res.status(500).json({
