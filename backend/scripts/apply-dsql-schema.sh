@@ -49,6 +49,18 @@ while IFS= read -r _t; do
 done < <(grep -oiE '^create table (if not exists )?[a-z_]+' "$SCHEMA_FILE" | awk '{print tolower($NF)}' | sort -u)
 [ "${#REQUIRED_TABLES[@]}" -gt 0 ] || { echo "error: no CREATE TABLE statements found in $SCHEMA_FILE" >&2; exit 1; }
 
+# Also derive "table.column" pairs from every `ALTER TABLE x ADD COLUMN ... col`.
+# Column-level drift is the failure mode that table-existence checks miss: on an
+# already-provisioned cluster the CREATE TABLE no-ops, so a column that never
+# applied leaves the table present (guard green) but the app 500ing on the
+# missing column. Verifying the ALTER targets closes that gap.
+REQUIRED_COLUMNS=()
+while IFS= read -r _line; do
+  _tbl=$(printf '%s\n' "$_line" | awk '{print $3}')
+  _col=$(printf '%s\n' "$_line" | awk '{print $NF}')
+  [ -n "$_tbl" ] && [ -n "$_col" ] && REQUIRED_COLUMNS+=("${_tbl}.${_col}")
+done < <(grep -oiE '^alter table [a-z_]+ add column (if not exists )?[a-z_]+' "$SCHEMA_FILE" | tr 'A-Z' 'a-z')
+
 echo "Minting DSQL admin auth token for ${DSQL_ENDPOINT} (${REGION})..."
 # Dynamic import() works whether the SDK ships as ESM or CJS. The token is the
 # DB password; it is never placed on a command line (passed via PGPASSWORD).
@@ -83,3 +95,19 @@ if [ "${#missing[@]}" -gt 0 ]; then
   exit 1
 fi
 echo "All ${#REQUIRED_TABLES[@]} required tables present."
+
+# Assert every ALTER-added column actually landed (catches silent column drift
+# that the table check above can't see).
+missing_cols=()
+for _tc in "${REQUIRED_COLUMNS[@]}"; do
+  _tbl="${_tc%.*}"; _col="${_tc#*.}"
+  present="$(PGPASSWORD="$TOKEN" psql -tAc \
+    "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='${_tbl}' AND column_name='${_col}')")"
+  [ "$present" = "t" ] || missing_cols+=("$_tc")
+done
+if [ "${#missing_cols[@]}" -gt 0 ]; then
+  echo "error: columns missing after apply: ${missing_cols[*]}" >&2
+  exit 1
+fi
+[ "${#REQUIRED_COLUMNS[@]}" -gt 0 ] && \
+  echo "All ${#REQUIRED_COLUMNS[@]} required ALTER-added columns present."
