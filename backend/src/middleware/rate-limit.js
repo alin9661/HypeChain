@@ -51,3 +51,23 @@ export const waitlistLimiter = limiter({
   code: 'RATE_LIMITED',
   message: 'Too many waitlist attempts. Please wait a minute and try again.',
 });
+
+// User register/login — unauthenticated wallet write. Cheap per call, but cap
+// per-IP so a script can't mass-create or spray wallet rows (the route has no
+// server-side ownership proof yet; see routes/users.js). Looser than waitlist
+// since a wallet connect can legitimately re-register on each session.
+export const userRegisterLimiter = limiter({
+  max: 20,
+  code: 'RATE_LIMITED',
+  message: 'Too many registration attempts. Please wait a minute and try again.',
+});
+
+// Public profile lookup (GET /api/users/:wallet) — unauthenticated and a
+// registration/existence oracle (200 vs 404), so throttle per-IP to blunt
+// mass wallet enumeration + DB-load DoS. Looser than register since a page can
+// legitimately fetch several profiles.
+export const userLookupLimiter = limiter({
+  max: 60,
+  code: 'RATE_LIMITED',
+  message: 'Too many profile lookups. Please slow down and try again shortly.',
+});

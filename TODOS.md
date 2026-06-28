@@ -1,5 +1,24 @@
 # TODOS
 
+## Users / Auth (Supabase decommission)
+
+### Server-side wallet-ownership proof on /api/users/register
+**Priority:** P1
+`POST /api/users/register` has no proof the caller controls `walletAddress`, and
+`ON CONFLICT` updates only timestamps — so the first writer permanently owns the
+`wallet→privyUserId` binding (squatting), and an owner can't rebind. Mitigated by
+a per-IP rate limit for now. Fix: verify a wallet-signed nonce before binding and
+add an authenticated owner-update path. (Deferred from v0.8.0.0 per scope call.)
+
+### Finish the Supabase cutover
+**Priority:** P1
+Remaining after v0.8.0.0: build `GET /api/listings` (paginated + search,
+ORDER-BY-whitelisted) on Express/DSQL; re-point `frontend/lib/api-client.ts`
+`registerUser`/`getUserProfile` from same-origin to the Lambda base URL; delete
+`frontend/lib/supabase.ts` + the 3 Next.js `app/api/{users,listings}` routes;
+remove `@supabase/supabase-js`; strip all `*SUPABASE*` env vars. Must land with a
+backend redeploy (the new /api/users routes aren't on the Lambda yet).
+
 ## Solana / Evidence Locker
 
 ### Server-driven purchase finalization (full reconciler)

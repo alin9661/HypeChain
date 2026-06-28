@@ -80,30 +80,39 @@
 
 
 -- =====================================================================
--- USERS TABLE  (RECONSTRUCTED — not present in repo .sql)
+-- USERS TABLE
 -- =====================================================================
--- Inferred from `listing.js` (`SELECT id FROM users WHERE wallet_address = ?`,
--- listing.js:311-318) and the `increment_user_volume(user_id, amount)` RPC
--- (payment.js:298), which adds a SOL amount to a running per-user volume
--- column (named `total_volume` here). `username` / `profile_image` were
--- referenced by the now-dropped active_listings / user_stats views; included
--- for completeness/parity. `email` retained for guest-claim association.
---
--- ASSUMPTIONS A HUMAN SHOULD CONFIRM against the live Supabase `users` table:
---   - PK is `id UUID`.
---   - lookup column is `wallet_address TEXT UNIQUE`.
---   - the volume column the RPC increments is `total_volume NUMERIC`
---     (NOT NULL DEFAULT 0). Confirm the real column name/type before deploy.
+-- DSQL is the source of truth for users (Supabase is being decommissioned).
+-- `total_volume` is the running per-user volume the payment RPC increments;
+-- `username` / `profile_image` are profile fields; `email` is used for
+-- guest-claim association. The register/profile routes (routes/users.js) and
+-- the listing/payment paths are the only readers/writers.
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_address TEXT UNIQUE,
+  privy_user_id TEXT,
+  chain_type TEXT CHECK (chain_type IN ('ethereum', 'solana')),
   username TEXT,
   profile_image TEXT,
   email TEXT,
   total_volume NUMERIC NOT NULL DEFAULT 0,
+  last_login TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Bring an ALREADY-EXISTING users table up to the current shape. CREATE TABLE
+-- IF NOT EXISTS above no-ops on a live cluster, so column additions must be
+-- explicit + idempotent or they never reach a cluster created before they were
+-- added (the same drift that hid the waitlist table, one level down).
+-- NOTE: DSQL rejects "ALTER TABLE ADD COLUMN ... CHECK (...)" ("ADD COLUMN with
+-- constraint not supported"), so chain_type is added bare here. The CHECK lives
+-- in the CREATE TABLE above (fresh clusters get it); on an already-existing
+-- cluster, chain_type validity is enforced app-side in routes/users.js
+-- (VALID_CHAIN_TYPES) — consistent with this schema's app-side-enforcement model.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS privy_user_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS chain_type TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ;
 
 CREATE INDEX ASYNC IF NOT EXISTS idx_users_wallet_address ON users(wallet_address);
 

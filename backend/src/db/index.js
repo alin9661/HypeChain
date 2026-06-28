@@ -30,6 +30,8 @@ export const db = {
   getUserIdByWallet: (wallet) => q.getUserIdByWallet(poolConn, wallet),
   incrementUserVolume: (userId, amount) =>
     q.incrementUserVolume(userId, amount, { withClientFn: withClient }),
+  registerOrLoginUser: (input) => q.registerOrLoginUser(poolConn, input),
+  getUserByWallet: (wallet) => q.getUserByWallet(poolConn, wallet),
 
   // transactions
   getTransactionIdBySignature: (sig) => q.getTransactionIdBySignature(poolConn, sig),

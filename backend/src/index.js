@@ -16,8 +16,9 @@ import paymentRoutes from './routes/payment.js';
 import activitiesRoutes from './routes/activities.js';
 import webhookRoutes from './routes/webhooks.js';
 import waitlistRoutes from './routes/waitlist.js';
+import userRoutes from './routes/users.js';
 import { requestId } from './middleware/request-id.js';
-import { createListingLimiter, paymentsLimiter, waitlistLimiter } from './middleware/rate-limit.js';
+import { createListingLimiter, paymentsLimiter, waitlistLimiter, userRegisterLimiter, userLookupLimiter } from './middleware/rate-limit.js';
 
 const app = express();
 
@@ -86,12 +87,23 @@ app.use('/api/payments', paymentsLimiter);
 app.use('/api/waitlist', (req, res, next) =>
   req.method === 'POST' ? waitlistLimiter(req, res, next) : next()
 );
+// Throttle the unauthenticated register write (POST) and, separately, the
+// public profile lookup (GET) which is an enumeration/existence oracle.
+app.use('/api/users/register', (req, res, next) =>
+  req.method === 'POST' ? userRegisterLimiter(req, res, next) : next()
+);
+app.use('/api/users', (req, res, next) =>
+  req.method === 'GET' ? userLookupLimiter(req, res, next) : next()
+);
 app.use('/api', listingRoutes);
 app.use('/api/payments', paymentRoutes);
 // Activity feed + provenance live at /api/activities and /api/nft/:mint/history.
 app.use('/api', activitiesRoutes);
 // Pre-production waitlist signup + admin export at /api/waitlist[/export].
 app.use('/api', waitlistRoutes);
+// User register/login + profile at /api/users/register and /api/users/:wallet
+// (DSQL-backed; replaces the former Supabase Next.js routes).
+app.use('/api', userRoutes);
 // Helius enhanced-webhook ingest (fail-closed HMAC auth).
 app.use('/api/webhooks', webhookRoutes);
 

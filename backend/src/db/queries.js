@@ -381,3 +381,60 @@ export async function listWaitlist(conn, { limit = 10000 } = {}) {
 export async function markWaitlistConfirmationSent(conn, id) {
   await conn.query(MARK_WAITLIST_CONFIRMATION_SENT_SQL, [id]);
 }
+
+// ---------------------------------------------------------------------------
+// USERS — register/login + profile lookup. Replaces the Supabase-backed
+// Next.js routes (frontend/app/api/users/*) as part of the Supabase
+// decommission. Same idempotent INSERT ... ON CONFLICT DO NOTHING RETURNING
+// idiom as the waitlist: a returned row means a brand-new user; no row means
+// the wallet already existed, so we stamp last_login and return the row.
+// ---------------------------------------------------------------------------
+
+export const USER_COLUMNS = [
+  'id', 'wallet_address', 'privy_user_id', 'chain_type', 'username',
+  'profile_image', 'email', 'total_volume', 'last_login', 'created_at',
+  'updated_at',
+];
+
+// Columns supplied on a first-time register; id/timestamps take DB defaults,
+// last_login is stamped with NOW() in the SQL below.
+const USER_INSERT_COLUMNS = ['wallet_address', 'privy_user_id', 'chain_type', 'email'];
+
+const USER_COLS = selectList(USER_COLUMNS);
+
+export const INSERT_USER_SQL =
+  `INSERT INTO users (${selectList(USER_INSERT_COLUMNS)}, last_login) ` +
+  `VALUES (${placeholders(USER_INSERT_COLUMNS.length)}, NOW()) ` +
+  'ON CONFLICT (wallet_address) DO NOTHING ' +
+  `RETURNING ${USER_COLS}`;
+
+export const UPDATE_USER_LOGIN_SQL =
+  'UPDATE users SET last_login = NOW(), updated_at = NOW() ' +
+  `WHERE wallet_address = $1 RETURNING ${USER_COLS}`;
+
+export const GET_USER_BY_WALLET_SQL =
+  `SELECT ${USER_COLS} FROM users WHERE wallet_address = $1`;
+
+/**
+ * Register a new user or, if the wallet already exists, stamp last_login and
+ * return the existing row. Returns `{ user, isNewUser }`. Idempotent against the
+ * wallet_address UNIQUE constraint via TWO statements (not a single transaction):
+ * the INSERT either creates the row (new) or no-ops on conflict, in which case
+ * the follow-up UPDATE refreshes last_login. The caller handles the rare
+ * row-deleted-between-statements race (user === null).
+ */
+export async function registerOrLoginUser(conn, { walletAddress, privyUserId, chainType, email }) {
+  const inserted = await conn.query(INSERT_USER_SQL, [
+    walletAddress, privyUserId, chainType, email ?? null,
+  ]);
+  if (inserted.rows.length) return { user: inserted.rows[0], isNewUser: true };
+
+  const updated = await conn.query(UPDATE_USER_LOGIN_SQL, [walletAddress]);
+  return { user: updated.rows.length ? updated.rows[0] : null, isNewUser: false };
+}
+
+/** Fetch a user profile by wallet address, or null if not registered. */
+export async function getUserByWallet(conn, walletAddress) {
+  const { rows } = await conn.query(GET_USER_BY_WALLET_SQL, [walletAddress]);
+  return rows.length ? rows[0] : null;
+}
