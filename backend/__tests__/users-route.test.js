@@ -93,24 +93,61 @@ describe('POST /api/users/register', () => {
     expect(body.user.wallet_address).toBeUndefined();
   });
 
-  it('re-registering the same wallet returns 200 (isNewUser=false) and stamps last_login', async () => {
+  it('re-registering an existing wallet returns 200, stamps last_login, and does NOT leak the stored email', async () => {
     const db = makeFakeDb();
     const base = await start({ db });
+    // First registration binds a private email to the wallet.
     await fetch(`${base}/api/users/register`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(VALID),
+      body: JSON.stringify({ ...VALID, email: 'secret@victim.com' }),
     });
+    // A second caller (no ownership proof) re-POSTs the same wallet.
     const res = await fetch(`${base}/api/users/register`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(VALID),
+      body: JSON.stringify(VALID), // no email
     });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.user.isNewUser).toBe(false);
     expect(db.rows).toHaveLength(1); // no duplicate row
-    // last_login was stamped on the existing row (verified at the db, not the
-    // response — register no longer surfaces lastLogin).
+    // SECURITY REGRESSION: the existing-wallet path must NOT echo the stored
+    // email — that would let anyone harvest a victim's email by wallet.
+    expect(body.user.email).toBeUndefined();
+    // last_login was stamped (verified at the db; register no longer surfaces it).
     expect(new Date(db.rows[0].last_login).toISOString()).toBe('2026-06-27T13:00:00.000Z');
+  });
+
+  it('a brand-new register without an email coerces it to null (and echoes it)', async () => {
+    const base = await start({ db: makeFakeDb() });
+    const res = await fetch(`${base}/api/users/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(VALID), // no email field
+    });
+    expect(res.status).toBe(201);
+    expect((await res.json()).user.email).toBeNull();
+  });
+
+  it('rejects an over-long walletAddress (400 INVALID_WALLET)', async () => {
+    const base = await start({ db: makeFakeDb() });
+    const res = await fetch(`${base}/api/users/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...VALID, walletAddress: 'x'.repeat(65) }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('INVALID_WALLET');
+  });
+
+  it('500s USER_REGISTER_FAILED when the row vanishes between insert and update', async () => {
+    // registerOrLoginUser can resolve { user: null } if the conflicting row is
+    // deleted before the follow-up UPDATE returns it.
+    const db = { async registerOrLoginUser() { return { user: null, isNewUser: false }; } };
+    const base = await start({ db });
+    const res = await fetch(`${base}/api/users/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(VALID),
+    });
+    expect(res.status).toBe(500);
+    expect((await res.json()).code).toBe('USER_REGISTER_FAILED');
   });
 
   it('rejects missing required fields (400 MISSING_FIELDS)', async () => {
