@@ -3,6 +3,35 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0.0] - 2026-06-27
+
+First step of the Supabase decommission: user registration and profiles now run
+on the Express backend + Aurora DSQL instead of the Supabase-backed Next.js
+routes. Additive only — the frontend still calls Supabase until the cutover, so
+nothing changes for users yet.
+
+### Added
+
+- **`POST /api/users/register`** — register a wallet or refresh its last login,
+  DSQL-backed. Idempotent (insert-or-stamp), with type-checked input, a chain-type
+  whitelist, length caps on every field, and a per-IP rate limit.
+- **`GET /api/users/:walletAddress`** — public profile lookup, 404 when not
+  registered, per-IP rate limited.
+- **`users` table columns** `privy_user_id`, `chain_type`, `last_login`, applied
+  to existing clusters via idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+
+### Security
+
+- The public profile lookup never returns `email` or `last_login`, and register
+  only echoes an email on a brand-new signup — so a wallet address can't be used
+  to harvest a stored email. (Server-side wallet-ownership proof is a documented
+  mainnet follow-up.)
+
+### Fixed
+
+- `apply-dsql-schema.sh` no longer treats a `CREATE TABLE` mentioned in a SQL
+  comment as a required table (anchored the table-derivation grep to line start).
+
 ## [0.7.1.2] - 2026-06-26
 
 Waitlist signups work in production again, and deploys now keep the database
