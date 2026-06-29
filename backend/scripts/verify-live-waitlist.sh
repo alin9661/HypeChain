@@ -71,9 +71,18 @@ case "$CODE" in
   *) fail "signup returned ${CODE} (expected 200/201). Body: ${BODY}" ;;
 esac
 printf '%s' "$BODY" | grep -q '"success":true' || fail "signup body missing success:true: ${BODY}"
-printf '%s' "$BODY" | grep -qE '"id":"HC-W-[A-Z0-9]+"' || fail "signup body missing HC-W- id: ${BODY}"
-SUBMISSION_ID="$(printf '%s' "$BODY" | sed -n 's/.*"id":"\(HC-W-[A-Z0-9]*\)".*/\1/p')"
-echo "    ${CODE} — submission ${SUBMISSION_ID} ✔"
+# A fresh row and a normal dup both carry an HC-W- receipt id. The route also has
+# a rare race-loss branch (insert lost to a concurrent signup, row not yet
+# visible) that returns success + alreadyOnList with NO id — still a healthy 2xx,
+# so accept it rather than false-FAIL on a working server.
+if printf '%s' "$BODY" | grep -qE '"id":"HC-W-[A-Z0-9]+"'; then
+  SUBMISSION_ID="$(printf '%s' "$BODY" | sed -n 's/.*"id":"\(HC-W-[A-Z0-9]*\)".*/\1/p')"
+  echo "    ${CODE} — submission ${SUBMISSION_ID} ✔"
+elif printf '%s' "$BODY" | grep -q '"alreadyOnList":true'; then
+  echo "    ${CODE} — alreadyOnList, no receipt id (race-loss branch) ✔"
+else
+  fail "signup body has neither an HC-W- id nor alreadyOnList: ${BODY}"
+fi
 
 # 3. Export — only if a Bearer token was provided. Without one the endpoint
 #    fails closed (EXPORT_NOT_CONFIGURED / 500), which is correct, not a smoke
@@ -82,10 +91,17 @@ echo "==> [3/3] GET /api/waitlist/export"
 if [ -z "$TOKEN" ]; then
   echo "    skipped (set HACKNYU_WAITLIST_EXPORT_TOKEN to exercise the CSV export)"
 else
-  RES="$(http "${FUNCTION_URL}/api/waitlist/export" -H "Authorization: Bearer ${TOKEN}")" \
+  # Pass the bearer token via a 0600 curl config file, not argv — a token on the
+  # command line is readable by other local users via `ps`/proc (the same reason
+  # the deploy script keeps secrets out of argv). mktemp creates the file 0600;
+  # the EXIT trap removes it even on `fail`.
+  CURL_CFG="$(mktemp)"; trap 'rm -f "$CURL_CFG"' EXIT
+  printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" > "$CURL_CFG"
+  RES="$(http --config "$CURL_CFG" "${FUNCTION_URL}/api/waitlist/export")" \
     || fail "export request errored"
   [ "$(status_of "$RES")" = "200" ] || fail "export returned $(status_of "$RES") (expected 200; check the token matches the deploy)"
-  printf '%s' "$(body_of "$RES")" | grep -q "$SMOKE_EMAIL" \
+  # grep -F: match the address literally — an email's . / + are regex metachars.
+  printf '%s' "$(body_of "$RES")" | grep -qF "$SMOKE_EMAIL" \
     || fail "export CSV did not contain the smoke signup ${SMOKE_EMAIL}"
   echo "    200 — CSV contains ${SMOKE_EMAIL} ✔"
 fi
