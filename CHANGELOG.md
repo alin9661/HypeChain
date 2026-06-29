@@ -3,6 +3,22 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.1.1] - 2026-06-28
+
+Operator tooling for the waitlist email go-live: a script that DKIM-verifies a
+sending domain in SES, plus a runbook for the full sequence. Scripts and docs
+only — no application code. Builds on the email wiring in 0.8.1.0.
+
+### Added
+
+- **`backend/scripts/setup-ses-domain.sh`** — given a Route 53-registered domain,
+  creates the SES EasyDKIM identity, upserts the 3 DKIM CNAMEs into the hosted
+  zone, and polls until SES reports verified. Idempotent and re-runnable. It
+  deliberately does **not** register the domain (a charged, PII-bearing action
+  left to the operator) and validates the domain charset before interpolating it.
+- **`docs/deployment/WAITLIST_GOLIVE_RUNBOOK.md`** — ordered, copy-paste commands
+  for the gated steps (register, DKIM-verify, sandbox recipient, production
+  access, deploy-with-emails, Vercel wiring + smoke test) plus end-to-end checks.
 ## [0.8.1.0] - 2026-06-28
 
 Waitlist transactional email is now wired to actually send. The email service
