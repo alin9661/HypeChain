@@ -213,20 +213,22 @@ The app's production guards throw if the Privy app id or program id are unset/pl
 
 The pre-production waitlist (`/waitlist` form → `POST /api/waitlist`) persists signups to the DSQL `waitlist` table (source of truth) and, **best-effort**, sends two emails via **Amazon SES**: a confirmation to the signup and a notification to the operator. A send failure never fails the signup. An admin-only `GET /api/waitlist/export` (Bearer token) returns the list as CSV (or `?format=json`).
 
+**Dependency:** the SES transport lives in `backend/src/services/email.js`, which **lazily** imports `@aws-sdk/client-ses`. That package must be in `backend/package.json` (it is — pinned to the same `^3.10xx` line as the other `@aws-sdk/*` deps). If it ever goes missing, the import fails *inside* best-effort error handling: the signup still returns 2xx but **no email ever sends** — a silent failure. `__tests__/waitlist-email.test.js` has a regression guard that imports the real package so the suite fails loudly if it disappears.
+
 **SES setup (one-time):**
-1. In the **same region** as the Lambda, verify the sender — `aws ses verify-email-identity --email-address waitlist@yourdomain.com` (or verify the whole domain via DKIM, recommended for deliverability).
+1. In the **same region** as the Lambda, verify the sender — `aws ses verify-email-identity --email-address waitlist@yourdomain.com` (or, recommended for deliverability, DKIM-verify the whole domain: `aws sesv2 create-email-identity --email-identity yourdomain.com` → add the 3 CNAME records to your hosted zone → wait for **Verified**).
 2. New SES accounts are in the **sandbox**: you can only send *to* verified addresses, and at low rate. Verify your admin/test recipients, then **request production access** (SES console → "Request production access") before opening signups to the public.
-3. The Lambda's execution role already grants `ses:SendEmail` / `ses:SendRawEmail` (added to `template.yaml`). Scope the policy `Resource` to your verified identity ARN for least privilege.
+3. The Lambda's execution role grants `ses:SendEmail` / `ses:SendRawEmail` (in `template.yaml`). Pass `SesIdentityArn` (or `HACKNYU_SES_IDENTITY_ARN` to the deploy script) to scope that grant to your verified identity ARN for least privilege; unset = `Resource: '*'`.
 
 **Config (SAM parameters / env):**
 | Variable | Purpose |
 |---|---|
-| `HACKNYU_WAITLIST_EMAILS_ENABLED` | `true` to send via SES; `false` (default) stores signups without email — fine for staging. |
-| `HACKNYU_SES_SENDER` | Verified SES "From" identity. Required when emails are enabled. |
-| `HACKNYU_WAITLIST_ADMIN_EMAIL` | Address notified on each new signup. |
+| `HACKNYU_SES_SENDER` | Verified SES "From" identity. **Setting this in the deploy env is the switch that turns emails on** — the deploy script then passes `WaitlistEmailsEnabled=true` + the sender. Without it, emails stay off (the template default), since `email.js` throws without a verified sender. |
+| `HACKNYU_WAITLIST_ADMIN_EMAIL` | Address notified on each new signup. Optional — unset = admin-notify skips, user confirmation still sends. |
+| `HACKNYU_SES_IDENTITY_ARN` | Optional. Verified-identity ARN to scope the SES IAM grant to (least privilege). Unset = `'*'`. |
 | `HACKNYU_WAITLIST_EXPORT_TOKEN` | Bearer token for the export endpoint. Generate with `openssl rand -hex 32`. Unset = export fails closed (500). |
 
-`AWS_REGION` is injected by the Lambda runtime; SES uses it automatically. Apply `backend/schema/001_dsql_schema.sql` (now including the `waitlist` table) to the cluster as in [§4.2](#42-aurora-dsql).
+`HACKNYU_WAITLIST_EMAILS_ENABLED` (`true`/`false`, default `false`) is the underlying SAM/env gate the app reads; the deploy script sets it to `true` for you when `HACKNYU_SES_SENDER` is present, so you normally only set the sender. `AWS_REGION` is injected by the Lambda runtime; SES uses it automatically. Apply `backend/schema/001_dsql_schema.sql` (now including the `waitlist` table) to the cluster as in [§4.2](#42-aurora-dsql).
 
 **Pull the list:**
 ```bash

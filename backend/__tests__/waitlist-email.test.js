@@ -113,6 +113,21 @@ describe('sendAdminSignupNotification()', () => {
   });
 });
 
+// Regression guard for the A1 fix: every test above injects a fake `sesSend`,
+// so the real transport's `await import('@aws-sdk/client-ses')` is NEVER
+// exercised by them. That import lives inside best-effort error handling that
+// swallows a missing dependency into a logged warning + {sent:false} — so if
+// the package were dropped from package.json again, the whole suite would stay
+// green while production silently sent zero emails. This test imports the real
+// package so the suite fails LOUDLY if that dependency goes missing.
+describe('SES transport dependency (@aws-sdk/client-ses)', () => {
+  it('is installed and exposes the symbols email.js dynamically imports', async () => {
+    const mod = await import('@aws-sdk/client-ses');
+    expect(typeof mod.SESClient).toBe('function');
+    expect(typeof mod.SendEmailCommand).toBe('function');
+  });
+});
+
 describe('isValidEmail()', () => {
   it('accepts a well-formed address', () => {
     expect(isValidEmail('jane@example.com')).toBe(true);
