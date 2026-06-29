@@ -11,7 +11,6 @@
 #   # optional (waitlist email — set the VERIFIED sender to turn emails on):
 #   #   export HACKNYU_SES_SENDER="noreply@yourdomain.com"
 #   #   export HACKNYU_WAITLIST_ADMIN_EMAIL="you@example.com"   # admin-notify target
-#   #   export HACKNYU_SES_IDENTITY_ARN="arn:aws:ses:us-east-1:<acct>:identity/yourdomain.com"  # least-privilege scope
 #
 # Then:  cd backend && ./scripts/deploy-devnet-staging.sh
 #
@@ -81,11 +80,10 @@ if [ -n "${HACKNYU_SES_SENDER:-}" ]; then
   if [ -n "${HACKNYU_WAITLIST_ADMIN_EMAIL:-}" ]; then
     PARAM_OVERRIDES+=( "WaitlistAdminEmail=${HACKNYU_WAITLIST_ADMIN_EMAIL}" )
   fi
-  # Optional least-privilege scope: when set, the SES IAM grant is restricted to
-  # this verified-identity ARN instead of '*' (see template.yaml HasSesIdentityArn).
-  if [ -n "${HACKNYU_SES_IDENTITY_ARN:-}" ]; then
-    PARAM_OVERRIDES+=( "SesIdentityArn=${HACKNYU_SES_IDENTITY_ARN}" )
-  fi
+  # NOTE: the SES IAM grant is intentionally Resource: '*' (template.yaml) — SES
+  # authorizes ses:SendEmail against the RECIPIENT identity too, and waitlist
+  # recipients are arbitrary, so a sender-identity scope can't work. No
+  # SesIdentityArn override is passed.
 fi
 
 # Make THIS deploy's waitlist email/export state visible. CloudFormation reverts

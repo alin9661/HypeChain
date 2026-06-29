@@ -149,15 +149,6 @@ Parameters:
     Type: String
     Default: ''
     Description: HACKNYU_WAITLIST_ADMIN_EMAIL — address notified on each new signup.
-  SesIdentityArn:
-    Type: String
-    Default: ''
-    Description: >-
-      ARN of the VERIFIED SES identity used as the From address, e.g.
-      arn:aws:ses:<region>:<acct>:identity/yourdomain.com. When set, the
-      execution role's ses:SendEmail/SendRawEmail grant is scoped to this
-      identity (least privilege). Empty = scope to '*' (any verified identity in
-      the account/region) — acceptable for a single-sender staging deploy.
   WaitlistExportToken:
     Type: String
     NoEcho: true
@@ -176,9 +167,6 @@ Conditions:
   HasDsqlClusterArn: !Not [!Equals [!Ref DsqlClusterArn, '']]
   # Add a kms:Decrypt grant only when a customer-managed CMK encrypts the secret.
   HasCustodialKmsKey: !Not [!Equals [!Ref CustodialKmsKeyArn, '']]
-  # Scope the SES send grant to a specific verified identity when provided;
-  # otherwise to '*' (any verified identity in this account/region).
-  HasSesIdentityArn: !Not [!Equals [!Ref SesIdentityArn, '']]
 
 # ---------------------------------------------------------------------------
 # Resources
@@ -253,8 +241,16 @@ Resources:
         # SES for the waitlist route: a confirmation email to the user + an
         # admin notification per signup. SendRawEmail is forward-compat
         # (attachments/MIME); SendEmail covers the current plain-text sends.
-        # Scoped to SesIdentityArn (your verified identity) when provided, else
-        # '*' — pass HACKNYU_SES_IDENTITY_ARN at deploy to lock it down.
+        #
+        # Resource is '*' on purpose. We tried scoping it to the verified sender
+        # identity (arn:.../identity/<domain>) for least privilege, but SES
+        # authorizes ses:SendEmail against the RECIPIENT identity too — in the
+        # sandbox, sends go to verified identities, so a sender-scoped policy is
+        # denied with "not authorized ... on resource identity/<recipient>". The
+        # recipients are arbitrary public waitlist signups, so they can't be
+        # enumerated in a policy. '*' is the only Resource that lets the feature
+        # send. (Tighten later via SES sending authorization / a dedicated
+        # configuration set, not an IAM Resource scope.)
         - Version: '2012-10-17'
           Statement:
             - Sid: WaitlistSesSend
@@ -262,10 +258,7 @@ Resources:
               Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
-              Resource: !If
-                - HasSesIdentityArn
-                - !Ref SesIdentityArn
-                - '*'
+              Resource: '*'
 
       # Direct HTTPS endpoint, no API Gateway. AuthType NONE because we rely
       # on application-level wallet-signature verification, not AWS IAM auth.
