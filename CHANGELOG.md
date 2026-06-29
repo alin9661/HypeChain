@@ -3,6 +3,20 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.1.2] - 2026-06-28
+
+A live smoke-test for the deployed waitlist endpoint (Part D verification).
+Script only — no application code.
+
+### Added
+
+- **`backend/scripts/verify-live-waitlist.sh`** — hits the public Lambda Function
+  URL (no AWS creds) and checks health + signup persistence + an optional
+  Bearer-token CSV export. Idempotent: a fixed smoke recipient hits the route's
+  dedupe path on re-run instead of piling rows. It requires a **deliverable**
+  `SMOKE_EMAIL` (defaults to the admin inbox) and refuses reserved/undeliverable
+  TLDs, so a smoke run can't hard-bounce a confirmation once emails are enabled.
+
 ## [0.8.0.0] - 2026-06-27
 
 First step of the Supabase decommission: user registration and profiles now run
