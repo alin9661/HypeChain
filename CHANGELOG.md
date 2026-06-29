@@ -16,6 +16,48 @@ Script only — no application code.
   dedupe path on re-run instead of piling rows. It requires a **deliverable**
   `SMOKE_EMAIL` (defaults to the admin inbox) and refuses reserved/undeliverable
   TLDs, so a smoke run can't hard-bounce a confirmation once emails are enabled.
+## [0.8.1.1] - 2026-06-28
+
+Operator tooling for the waitlist email go-live: a script that DKIM-verifies a
+sending domain in SES, plus a runbook for the full sequence. Scripts and docs
+only — no application code. Builds on the email wiring in 0.8.1.0.
+
+### Added
+
+- **`backend/scripts/setup-ses-domain.sh`** — given a Route 53-registered domain,
+  creates the SES EasyDKIM identity, upserts the 3 DKIM CNAMEs into the hosted
+  zone, and polls until SES reports verified. Idempotent and re-runnable. It
+  deliberately does **not** register the domain (a charged, PII-bearing action
+  left to the operator) and validates the domain charset before interpolating it.
+- **`docs/deployment/WAITLIST_GOLIVE_RUNBOOK.md`** — ordered, copy-paste commands
+  for the gated steps (register, DKIM-verify, sandbox recipient, production
+  access, deploy-with-emails, Vercel wiring + smoke test) plus end-to-end checks.
+## [0.8.1.0] - 2026-06-28
+
+Waitlist transactional email is now wired to actually send. The email service
+already existed, but its SDK dependency was missing from `package.json` and the
+deploy never passed the SES config — so every send silently no-opped behind
+best-effort error handling (signups still 2xx'd, no email ever left). This makes
+sends real and keeps the IAM grant least-privilege.
+
+### Added
+
+- **`@aws-sdk/client-ses`** dependency. `services/email.js` lazy-imports it; without
+  it the dynamic import failed inside swallowed error handling, so no email sent.
+  A regression test now imports the real package so the suite fails loudly if it
+  goes missing again.
+- **`SesIdentityArn`** SAM parameter + `HasSesIdentityArn` condition — scopes the
+  `ses:SendEmail`/`ses:SendRawEmail` grant to one verified identity when set
+  (least privilege), else `*`.
+
+### Changed
+
+- **`deploy-devnet-staging.sh`** now passes `WaitlistEmailsEnabled=true` /
+  `SesSender` / `WaitlistAdminEmail` / `SesIdentityArn`, gated on
+  `HACKNYU_SES_SENDER` being set (the verified sender is the on-switch; the email
+  service throws without it, so this can't enable broken sends).
+- Deployment guide §6.4 documents the dependency, the sender-is-the-switch wiring,
+  and the new least-privilege parameter.
 
 ## [0.8.0.0] - 2026-06-27
 

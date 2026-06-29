@@ -8,6 +8,10 @@
 #   export HACKNYU_NFT_STORAGE_API_KEY=...  # https://nft.storage/manage
 #   # optional (activity feed): export HACKNYU_HELIUS_WEBHOOK_SECRET=$(openssl rand -hex 32)
 #   # optional (admin export):  export HACKNYU_WAITLIST_EXPORT_TOKEN=$(openssl rand -hex 32)
+#   # optional (waitlist email — set the VERIFIED sender to turn emails on):
+#   #   export HACKNYU_SES_SENDER="noreply@yourdomain.com"
+#   #   export HACKNYU_WAITLIST_ADMIN_EMAIL="you@example.com"   # admin-notify target
+#   #   export HACKNYU_SES_IDENTITY_ARN="arn:aws:ses:us-east-1:<acct>:identity/yourdomain.com"  # least-privilege scope
 #
 # Then:  cd backend && ./scripts/deploy-devnet-staging.sh
 #
@@ -60,6 +64,44 @@ fi
 # it, GET /api/waitlist/export returns EXPORT_NOT_CONFIGURED by design.
 if [ -n "${HACKNYU_WAITLIST_EXPORT_TOKEN:-}" ]; then
   PARAM_OVERRIDES+=( "WaitlistExportToken=${HACKNYU_WAITLIST_EXPORT_TOKEN}" )
+fi
+
+# Waitlist emails are gated on the VERIFIED sender, not on a separate enable
+# flag. email.js throws without HACKNYU_SES_SENDER, so a deploy that "enabled"
+# emails with no sender would 500 every send; gating the whole block on the
+# sender means "forgot the sender => emails stay off" (matches the template's
+# WaitlistEmailsEnabled=false default) rather than "on but broken".
+if [ -n "${HACKNYU_SES_SENDER:-}" ]; then
+  PARAM_OVERRIDES+=(
+    "WaitlistEmailsEnabled=true"
+    "SesSender=${HACKNYU_SES_SENDER}"
+  )
+  # Admin-notify target is optional: without it, sendAdminSignupNotification
+  # skips with { skipped: 'no-recipient' } and the user confirmation still sends.
+  if [ -n "${HACKNYU_WAITLIST_ADMIN_EMAIL:-}" ]; then
+    PARAM_OVERRIDES+=( "WaitlistAdminEmail=${HACKNYU_WAITLIST_ADMIN_EMAIL}" )
+  fi
+  # Optional least-privilege scope: when set, the SES IAM grant is restricted to
+  # this verified-identity ARN instead of '*' (see template.yaml HasSesIdentityArn).
+  if [ -n "${HACKNYU_SES_IDENTITY_ARN:-}" ]; then
+    PARAM_OVERRIDES+=( "SesIdentityArn=${HACKNYU_SES_IDENTITY_ARN}" )
+  fi
+fi
+
+# Make THIS deploy's waitlist email/export state visible. CloudFormation reverts
+# any parameter you don't re-pass to its template default, so a redeploy from a
+# shell that forgot to re-export HACKNYU_SES_SENDER / HACKNYU_WAITLIST_EXPORT_TOKEN
+# silently flips emails back off and clears the export token. Printing the state
+# makes that reset loud instead of silent — read it before walking away.
+if [ -n "${HACKNYU_SES_SENDER:-}" ]; then
+  echo "waitlist email:  ON  (sender=${HACKNYU_SES_SENDER}, admin=${HACKNYU_WAITLIST_ADMIN_EMAIL:-<unset>})"
+else
+  echo "waitlist email:  OFF (HACKNYU_SES_SENDER not set — emails disabled this deploy)"
+fi
+if [ -n "${HACKNYU_WAITLIST_EXPORT_TOKEN:-}" ]; then
+  echo "waitlist export: ENABLED (token passed)"
+else
+  echo "waitlist export: DISABLED (HACKNYU_WAITLIST_EXPORT_TOKEN not set — export returns 500)"
 fi
 
 # Apply the DSQL schema BEFORE deploying the function, so new code never goes
