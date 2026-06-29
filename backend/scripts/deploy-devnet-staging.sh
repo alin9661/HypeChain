@@ -88,6 +88,22 @@ if [ -n "${HACKNYU_SES_SENDER:-}" ]; then
   fi
 fi
 
+# Make THIS deploy's waitlist email/export state visible. CloudFormation reverts
+# any parameter you don't re-pass to its template default, so a redeploy from a
+# shell that forgot to re-export HACKNYU_SES_SENDER / HACKNYU_WAITLIST_EXPORT_TOKEN
+# silently flips emails back off and clears the export token. Printing the state
+# makes that reset loud instead of silent — read it before walking away.
+if [ -n "${HACKNYU_SES_SENDER:-}" ]; then
+  echo "waitlist email:  ON  (sender=${HACKNYU_SES_SENDER}, admin=${HACKNYU_WAITLIST_ADMIN_EMAIL:-<unset>})"
+else
+  echo "waitlist email:  OFF (HACKNYU_SES_SENDER not set — emails disabled this deploy)"
+fi
+if [ -n "${HACKNYU_WAITLIST_EXPORT_TOKEN:-}" ]; then
+  echo "waitlist export: ENABLED (token passed)"
+else
+  echo "waitlist export: DISABLED (HACKNYU_WAITLIST_EXPORT_TOKEN not set — export returns 500)"
+fi
+
 # Apply the DSQL schema BEFORE deploying the function, so new code never goes
 # live against a cluster that's missing a table it expects. Idempotent
 # (CREATE ... IF NOT EXISTS) and fail-closed: a bad apply aborts the deploy
