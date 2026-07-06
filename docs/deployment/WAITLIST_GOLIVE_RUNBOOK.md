@@ -127,16 +127,19 @@ aws sesv2 get-account --region "$REGION" --query 'ProductionAccessEnabled'
 ## C — Deploy the backend with emails ON (needs B2 + your secrets)
 
 Setting `HACKNYU_SES_SENDER` is the switch: the deploy script then passes
-`WaitlistEmailsEnabled=true` + the sender (and scopes the SES IAM grant when you
-also pass the identity ARN). This same deploy activates the merged-but-not-yet-live
-`/api/users` routes and re-applies the DSQL schema.
+`WaitlistEmailsEnabled=true` + the sender. This same deploy activates the
+merged-but-not-yet-live `/api/users` routes and re-applies the DSQL schema. (The
+SES IAM grant is `Resource: '*'` by design — SES authorizes `ses:SendEmail`
+against the recipient identity too, and waitlist recipients are arbitrary, so it
+can't be scoped to the sender identity. A `ses:FromAddress` condition pins the
+role to sending as `HACKNYU_SES_SENDER` only, so the wildcard doesn't let it
+impersonate other identities in the account.)
 
 ```bash
 export HACKNYU_OPENROUTER_API_KEY=…           # https://openrouter.ai/keys
 export HACKNYU_NFT_STORAGE_API_KEY=…          # https://nft.storage/manage
 export HACKNYU_SES_SENDER="noreply@$DOMAIN"
 export HACKNYU_WAITLIST_ADMIN_EMAIL="aaronlin098@gmail.com"
-export HACKNYU_SES_IDENTITY_ARN="arn:aws:ses:${REGION}:012417848464:identity/${DOMAIN}"
 export HACKNYU_WAITLIST_EXPORT_TOKEN="$(openssl rand -hex 32)"   # SAVE this — needed to export
 # Persist it to a 0600 file instead of echoing — this is a NoEcho secret, so
 # keep it out of terminal scrollback / CI logs:

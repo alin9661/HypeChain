@@ -218,14 +218,13 @@ The pre-production waitlist (`/waitlist` form → `POST /api/waitlist`) persists
 **SES setup (one-time):**
 1. In the **same region** as the Lambda, verify the sender — `aws ses verify-email-identity --email-address waitlist@yourdomain.com` (or, recommended for deliverability, DKIM-verify the whole domain: `aws sesv2 create-email-identity --email-identity yourdomain.com` → add the 3 CNAME records to your hosted zone → wait for **Verified**).
 2. New SES accounts are in the **sandbox**: you can only send *to* verified addresses, and at low rate. Verify your admin/test recipients, then **request production access** (SES console → "Request production access") before opening signups to the public.
-3. The Lambda's execution role grants `ses:SendEmail` / `ses:SendRawEmail` (in `template.yaml`). Pass `SesIdentityArn` (or `HACKNYU_SES_IDENTITY_ARN` to the deploy script) to scope that grant to your verified identity ARN for least privilege; unset = `Resource: '*'`.
+3. The Lambda's execution role grants `ses:SendEmail` / `ses:SendRawEmail` on `Resource: '*'` (in `template.yaml`) — intentionally. SES authorizes `ses:SendEmail` against the **recipient** identity as well as the sender, so in the sandbox a sender-scoped policy is denied with `not authorized ... on resource identity/<recipient>`. Waitlist recipients are arbitrary public signups and can't be enumerated in a policy, so `'*'` is required. Least privilege is kept on the sender side instead: a `ses:FromAddress` condition restricts the role to sending as the `SesSender` address (a bare email address, not a domain — the same value `email.js` uses as `Source`, so they can't drift).
 
 **Config (SAM parameters / env):**
 | Variable | Purpose |
 |---|---|
 | `HACKNYU_SES_SENDER` | Verified SES "From" identity. **Setting this in the deploy env is the switch that turns emails on** — the deploy script then passes `WaitlistEmailsEnabled=true` + the sender. Without it, emails stay off (the template default), since `email.js` throws without a verified sender. |
 | `HACKNYU_WAITLIST_ADMIN_EMAIL` | Address notified on each new signup. Optional — unset = admin-notify skips, user confirmation still sends. |
-| `HACKNYU_SES_IDENTITY_ARN` | Optional. Verified-identity ARN to scope the SES IAM grant to (least privilege). Unset = `'*'`. |
 | `HACKNYU_WAITLIST_EXPORT_TOKEN` | Bearer token for the export endpoint. Generate with `openssl rand -hex 32`. Unset = export fails closed (500). |
 
 `HACKNYU_WAITLIST_EMAILS_ENABLED` (`true`/`false`, default `false`) is the underlying SAM/env gate the app reads; the deploy script sets it to `true` for you when `HACKNYU_SES_SENDER` is present, so you normally only set the sender. `AWS_REGION` is injected by the Lambda runtime; SES uses it automatically. Apply `backend/schema/001_dsql_schema.sql` (now including the `waitlist` table) to the cluster as in [§4.2](#42-aurora-dsql).

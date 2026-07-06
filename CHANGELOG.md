@@ -3,6 +3,35 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.1.3] - 2026-06-29
+
+Hotfix found while taking the waitlist email feature live: every SES send was
+denied by IAM.
+
+### Fixed
+
+- **SES `ses:SendEmail` no longer denied.** 0.8.1.0 scoped the execution role's
+  SES grant to the verified **sender** identity as a least-privilege measure. But
+  SES authorizes `ses:SendEmail` against the **recipient** identity too — in the
+  sandbox, sends to verified recipients were denied with `not authorized ... on
+  resource identity/<recipient>`, so no waitlist email ever left. Waitlist
+  recipients are arbitrary public signups and can't be enumerated in a policy, so
+  the grant is now `Resource: '*'`.
+
+### Security
+
+- **SES wildcard grant pinned to the configured sender.** The `Resource: '*'`
+  send grant carries a `ses:FromAddress` condition equal to the `SesSender`
+  parameter — the same value `email.js` puts in the `Source` header — so the
+  role can send *to* anyone but only *as* the verified waitlist sender, and the
+  grant is inert when emails are off (`SesSender` empty).
+
+### Removed
+
+- The `SesIdentityArn` SAM parameter + `HasSesIdentityArn` condition, the deploy
+  script's `HACKNYU_SES_IDENTITY_ARN` passthrough, and the docs references — the
+  scoping it enabled cannot work for arbitrary-recipient transactional email.
+
 ## [0.8.1.2] - 2026-06-28
 
 A live smoke-test for the deployed waitlist endpoint (Part D verification).
