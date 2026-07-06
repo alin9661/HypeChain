@@ -18,6 +18,14 @@ denied by IAM.
   recipients are arbitrary public signups and can't be enumerated in a policy, so
   the grant is now `Resource: '*'`.
 
+### Security
+
+- **SES wildcard grant pinned to the configured sender.** The `Resource: '*'`
+  send grant carries a `ses:FromAddress` condition equal to the `SesSender`
+  parameter — the same value `email.js` puts in the `Source` header — so the
+  role can send *to* anyone but only *as* the verified waitlist sender, and the
+  grant is inert when emails are off (`SesSender` empty).
+
 ### Removed
 
 - The `SesIdentityArn` SAM parameter + `HasSesIdentityArn` condition, the deploy

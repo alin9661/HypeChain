@@ -131,7 +131,9 @@ Setting `HACKNYU_SES_SENDER` is the switch: the deploy script then passes
 merged-but-not-yet-live `/api/users` routes and re-applies the DSQL schema. (The
 SES IAM grant is `Resource: '*'` by design — SES authorizes `ses:SendEmail`
 against the recipient identity too, and waitlist recipients are arbitrary, so it
-can't be scoped to the sender identity.)
+can't be scoped to the sender identity. A `ses:FromAddress` condition pins the
+role to sending as `HACKNYU_SES_SENDER` only, so the wildcard doesn't let it
+impersonate other identities in the account.)
 
 ```bash
 export HACKNYU_OPENROUTER_API_KEY=…           # https://openrouter.ai/keys

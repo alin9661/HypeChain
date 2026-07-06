@@ -142,9 +142,11 @@ Parameters:
     Type: String
     Default: ''
     Description: >-
-      HACKNYU_SES_SENDER — a VERIFIED SES sender (email address or domain) used
-      as the From address. Required when WaitlistEmailsEnabled=true. In the SES
-      sandbox, recipients must also be verified until you request production access.
+      HACKNYU_SES_SENDER — a VERIFIED SES sender EMAIL ADDRESS (not a bare
+      domain) used verbatim as the From address AND as the ses:FromAddress IAM
+      condition on the send grant. Required when WaitlistEmailsEnabled=true. In
+      the SES sandbox, recipients must also be verified until you request
+      production access.
   WaitlistAdminEmail:
     Type: String
     Default: ''
@@ -249,8 +251,14 @@ Resources:
         # denied with "not authorized ... on resource identity/<recipient>". The
         # recipients are arbitrary public waitlist signups, so they can't be
         # enumerated in a policy. '*' is the only Resource that lets the feature
-        # send. (Tighten later via SES sending authorization / a dedicated
-        # configuration set, not an IAM Resource scope.)
+        # send.
+        #
+        # Least privilege is restored on the SENDER side instead: the
+        # ses:FromAddress condition pins the role to sending as SesSender only —
+        # the same value email.js puts in the Source header (both read
+        # HACKNYU_SES_SENDER / !Ref SesSender, so they can't drift). When
+        # SesSender is '' (emails off) the condition matches nothing and the
+        # grant is inert — fail-closed.
         - Version: '2012-10-17'
           Statement:
             - Sid: WaitlistSesSend
@@ -259,6 +267,9 @@ Resources:
                 - ses:SendEmail
                 - ses:SendRawEmail
               Resource: '*'
+              Condition:
+                StringEquals:
+                  ses:FromAddress: !Ref SesSender
 
       # Direct HTTPS endpoint, no API Gateway. AuthType NONE because we rely
       # on application-level wallet-signature verification, not AWS IAM auth.
