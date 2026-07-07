@@ -12,6 +12,8 @@ import { VerifyFlowSection } from '@/components/landing/verify-flow-section'
 import { EvidenceMovesSection } from '@/components/landing/evidence-moves-section'
 import { MarketplaceProofSection } from '@/components/landing/marketplace-proof-section'
 import { FinalCtaSection } from '@/components/landing/final-cta-section'
+import { DossierShell } from '@/components/landing/dossier-shell'
+import { VerifiedTicker } from '@/components/landing/verified-ticker'
 
 // The WebGL hero (react-three-fiber <Canvas>) must mount client-only. R3F's
 // reconciler provisions the Canvas store via React context, and that reconciler
@@ -113,11 +115,29 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Scroll-told product story below the hero */}
-      <VerifyFlowSection />
-      <EvidenceMovesSection />
-      <MarketplaceProofSection />
-      <FinalCtaSection />
+      {/* Scroll-told product story below the hero — one continuous case
+          file on chart paper. DossierShell paints the ambient layer (grid,
+          scanlines, marginalia rails) and tracks the active section via
+          the data-dossier-sec markers. Tickers are SIBLINGS between the
+          sections — never inside VerifyFlowSection's scrub track, whose
+          progress math depends on its own rect height. */}
+      <DossierShell>
+        <div data-dossier-sec="verify">
+          <VerifyFlowSection />
+        </div>
+        <VerifiedTicker durationSec={38} />
+        <div data-dossier-sec="moves">
+          <EvidenceMovesSection />
+        </div>
+        <VerifiedTicker durationSec={44} />
+        <div data-dossier-sec="proof">
+          <MarketplaceProofSection />
+        </div>
+        <VerifiedTicker durationSec={50} />
+        <div data-dossier-sec="cta">
+          <FinalCtaSection />
+        </div>
+      </DossierShell>
       </main>
 
       <Leva hidden />
