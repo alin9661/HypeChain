@@ -219,3 +219,92 @@
   0%, 100% { box-shadow: inset 0 0 0 0 rgba(0,0,0,0), 0 0 0 0 rgba(255,199,0,0); }
   50%      { box-shadow: inset 0 0 24px rgba(0,0,0,0.15), 0 0 24px rgba(255,199,0,0.35); }
 }
+
+/* =====================================================================
+   Dossier chassis — the below-hero "case file on chart paper" layer.
+   Used only by components/landing/. See dossier-shell.tsx for layering.
+   ===================================================================== */
+
+/* Scoped scanline grain — same texture as .hc-scanlines but absolute
+   (parent must be position:relative) so it never overlays the hero, and
+   without mix-blend-mode: over pure black `lighten` is visually identical
+   to normal and blending would force a compositing pass over a
+   page-height layer. */
+.hc-scanlines-local::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0px,
+    rgba(255, 255, 255, 0.012) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Chart paper: fine 24px + coarse 120px hairline cross-hatch. Raw CSS
+   repeating-linear-gradient (like .hc-scanlines above) — NOT a Tailwind
+   bg-gradient-* utility, which DESIGN.md bans. Drifted vertically by
+   dossier-shell.tsx via transform, so the layer must be oversized by one
+   coarse period. */
+.hc-dossier-grid {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgba(31, 31, 31, 0.55) 0px,
+      rgba(31, 31, 31, 0.55) 1px,
+      transparent 1px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(31, 31, 31, 0.55) 0px,
+      rgba(31, 31, 31, 0.55) 1px,
+      transparent 1px,
+      transparent 24px
+    ),
+    repeating-linear-gradient(
+      to right,
+      rgba(31, 31, 31, 0.9) 0px,
+      rgba(31, 31, 31, 0.9) 1px,
+      transparent 1px,
+      transparent 120px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(31, 31, 31, 0.9) 0px,
+      rgba(31, 31, 31, 0.9) 1px,
+      transparent 1px,
+      transparent 120px
+    );
+}
+
+/* Verified-mints ticker divider. The track holds two copies of the entry
+   list; translating -50% then looping is seamless. Reduced motion is
+   handled here in CSS so the component needs no JS fork (and therefore
+   has no hydration risk): the track simply freezes on the first copy. */
+@keyframes hc-ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.hc-ticker-track {
+  animation: hc-ticker-scroll var(--hc-ticker-dur, 40s) linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-ticker-track {
+    animation: none;
+  }
+}
+
+/* Rotary-stamp settle — quotes the MintCertificate stamp gesture (-7°)
+   for the landing page's VERIFIED / CASE OPEN chips. */
+@keyframes hc-stamp-settle {
+  from { transform: rotate(-7deg) scale(1.08); opacity: 0; }
+  to   { transform: rotate(-7deg) scale(1); opacity: 1; }
+}
