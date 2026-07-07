@@ -3,6 +3,18 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.1.4] - 2026-07-06
+
+Compliance: bump the Lambda container runtime to Node.js 22 (current LTS).
+
+### Changed
+
+- **Lambda base image `nodejs:20` → `nodejs:22`** (`backend/Dockerfile`, plus the
+  `DockerTag` label in `template.yaml`). The AWS SDK for JavaScript v3 warns at
+  runtime that releases published after early January 2027 will require
+  Node >=22; Node 20 is approaching end of support. No application code change —
+  the handler, RIC entrypoint, and arm64 bun install are unaffected.
+
 ## [0.8.1.3] - 2026-06-29
 
 Hotfix found while taking the waitlist email feature live: every SES send was

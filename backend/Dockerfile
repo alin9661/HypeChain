@@ -3,18 +3,20 @@
 # Why a container image instead of a zipped Lambda?
 #   Our deps (full Metaplex Umi stack + Solana web3 + Supabase SDK + OpenAI
 #   SDK) exceed Lambda's 250 MB unzipped zip limit. Container images go up
-#   to 10 GB and let us pin Node 20 explicitly.
+#   to 10 GB and let us pin Node 22 explicitly.
 #
-# Why public.ecr.aws/lambda/nodejs:20?
-#   AWS's official Node.js 20 base. It ships with the Lambda Runtime
-#   Interface Client (RIC) preinstalled and the ENTRYPOINT wired to bootstrap
-#   the RIC — so we only need to set CMD to point at our handler.
+# Why public.ecr.aws/lambda/nodejs:22?
+#   AWS's official Node.js 22 base (current LTS). It ships with the Lambda
+#   Runtime Interface Client (RIC) preinstalled and the ENTRYPOINT wired to
+#   bootstrap the RIC — so we only need to set CMD to point at our handler.
+#   Node 20 is being phased out: the AWS SDK for JavaScript v3 requires
+#   Node >=22 for updates published after early January 2027, so we pin 22.
 #
 # Build:   sam build           (from backend/, uses SAM's docker driver)
 # Deploy:  sam deploy --guided (pushes to ECR, updates the Lambda)
 # Local:   docker build -t hypechain-backend . && docker run -p 9000:8080 hypechain-backend
 
-FROM public.ecr.aws/lambda/nodejs:20
+FROM public.ecr.aws/lambda/nodejs:22
 
 # Install bun into the AWS Lambda Node.js base. We keep the AWS-managed base
 # (not oven/bun) so the Lambda Runtime Interface Client and ENTRYPOINT stay
