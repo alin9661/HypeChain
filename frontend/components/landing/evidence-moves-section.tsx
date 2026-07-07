@@ -5,49 +5,57 @@ import { Pill } from '@/components/pill';
 import { RedactedField } from '@/components/redacted-field';
 import { useInView } from '@/hooks/useInView';
 import { Reveal } from './reveal';
-import { EVIDENCE_MOVES } from './landing-section-data';
+import { EVIDENCE_MOVES, type EvidenceMove } from './landing-section-data';
 
 /**
- * Section 2 — the three signature Evidence Locker moves.
+ * Section 2 — the three signature Evidence Locker moves, laid out as
+ * full-width EXHIBIT rows (A/B/C) like tabbed exhibits in a case file.
  *
- * Three reveal-on-scroll cards, each demoing one signature move:
- *   1. Case-File Ribbon — vocabulary reproduced inline. The literal
+ * Each row: a hairline top rule broken by the EXHIBIT tag, then demo
+ * panel and copy in an alternating 3fr/2fr split. The demos are live:
+ *   A. Case-File Ribbon — vocabulary reproduced inline. The literal
  *      `<CaseFileRibbon>` is forbidden on `/` per DESIGN.md, so we
  *      borrow the format string and render it as a static strip.
- *   2. Redaction Bars — real `<RedactedField>` instances. A local
- *      `pending` state flips `true → false` when the card enters view,
- *      so the typewriter unredact plays on scroll-in instead of mount.
- *   3. Mint Certificate — static certificate card.
+ *   B. Redaction Bars — real `<RedactedField>` instances. `pending`
+ *      flips true → false when the row enters view, and a [RE-RUN]
+ *      control replays the typewriter unredact on demand.
+ *   C. Mint Certificate — specimen certificate card.
+ *
+ * The section background is transparent — the DossierShell chart paper
+ * reads through between rows.
  */
 export function EvidenceMovesSection() {
   return (
     <section
       aria-labelledby="landing-moves-title"
       className="relative w-full px-6 py-32 md:py-40"
-      style={{ background: 'var(--hc-bg)' }}
     >
       <div className="mx-auto max-w-[1280px]">
         <Reveal>
-          <div className="flex justify-center">
-            <Pill>EVIDENCE LOCKER</Pill>
+          <div className="flex items-end justify-between gap-6">
+            <div>
+              <Pill>EVIDENCE LOCKER</Pill>
+              <h2
+                id="landing-moves-title"
+                className="mt-8 max-w-[820px] font-sentient italic font-extralight leading-[1.05] tracking-[-0.02em] text-white"
+                style={{ fontSize: 'clamp(2.25rem, 5vw, 3.75rem)' }}
+              >
+                Three moves no other marketplace makes.
+              </h2>
+            </div>
+            <span
+              aria-hidden
+              className="hidden shrink-0 pb-2 font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums sm:inline"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              EXHIBITS A–C // 3 ENCLOSED
+            </span>
           </div>
         </Reveal>
 
-        <Reveal delayMs={80}>
-          <h2
-            id="landing-moves-title"
-            className="mx-auto mt-8 max-w-[820px] text-center font-sentient italic font-extralight leading-[1.05] tracking-[-0.02em] text-white"
-            style={{ fontSize: 'clamp(2.25rem, 5vw, 3.75rem)' }}
-          >
-            Three moves no other marketplace makes.
-          </h2>
-        </Reveal>
-
-        <div className="mt-20 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-5">
+        <div className="mt-16 flex flex-col gap-16 md:mt-20 md:gap-20">
           {EVIDENCE_MOVES.map((move, i) => (
-            <Reveal key={move.id} delayMs={80 * i}>
-              <MoveCard move={move} index={i} />
-            </Reveal>
+            <ExhibitRow key={move.id} move={move} index={i} />
           ))}
         </div>
       </div>
@@ -55,56 +63,82 @@ export function EvidenceMovesSection() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────  EXHIBIT ROW  ──────────────────────────── */
 
-function MoveCard({
-  move,
-  index,
-}: {
-  move: (typeof EVIDENCE_MOVES)[number];
-  index: number;
-}) {
+function ExhibitRow({ move, index }: { move: EvidenceMove; index: number }) {
+  const demoRight = index % 2 === 1;
   return (
-    <article
-      className="relative flex h-full flex-col gap-5 border p-6 hc-poly"
-      style={{
-        borderColor: 'var(--hc-border)',
-        background: 'var(--hc-surface-1)',
-        // Force the consistent polychromatic corner radius — set the local
-        // CSS variable that components/pill.tsx and others read.
-        ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
-      }}
-    >
-      <header className="flex items-center justify-between">
-        <span
-          className="font-mono text-[10px] uppercase tracking-[0.14em]"
-          style={{ color: 'var(--hc-text-muted)' }}
-        >
-          {move.eyebrow}
-        </span>
-        <span
-          className="font-mono text-[10px] tabular-nums"
-          style={{ color: 'var(--hc-text-muted)' }}
-        >
-          {String(index + 1).padStart(2, '0')} / 03
-        </span>
-      </header>
+    <Reveal>
+      <article aria-label={`Exhibit ${move.exhibit} — ${move.title}`}>
+        {/* Top rule broken by the exhibit tag. */}
+        <div className="flex items-center gap-4">
+          <span
+            className="hc-poly shrink-0 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+            style={{
+              borderColor: 'var(--hc-accent)',
+              color: 'var(--hc-accent)',
+              background: 'var(--hc-accent-tint)',
+              ['--hc-poly-r' as string]: 'var(--hc-poly-4, 4px)',
+            }}
+          >
+            EXHIBIT {move.exhibit} {'//'} {move.eyebrow.split(' // ')[1]}
+          </span>
+          <span aria-hidden className="h-px flex-1" style={{ background: 'var(--hc-hairline)' }} />
+          <span
+            className="shrink-0 font-mono text-[10px] tabular-nums"
+            style={{ color: 'var(--hc-text-muted)' }}
+          >
+            {String(index + 1).padStart(2, '0')} / 03
+          </span>
+        </div>
 
-      <h3 className="font-mono text-xl leading-tight text-white">{move.title}</h3>
+        <div className="mt-8 grid grid-cols-1 items-center gap-8 md:grid-cols-[3fr_2fr] md:gap-12">
+          {/* Demo panel — order alternates per row on md+. */}
+          <Reveal
+            delayMs={160}
+            className={demoRight ? 'md:order-2' : undefined}
+          >
+            <div
+              className="hc-poly flex min-h-[220px] flex-col justify-center gap-4 border p-6 md:p-8"
+              style={{
+                borderColor: 'var(--hc-border)',
+                background: 'var(--hc-surface-1)',
+                ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
+              }}
+            >
+              {renderExhibitDemo(move.id)}
+              <span
+                className="font-mono text-[9px] uppercase tracking-[0.14em]"
+                style={{ color: 'var(--hc-text-muted)' }}
+              >
+                {move.demoCaption}
+              </span>
+            </div>
+          </Reveal>
 
-      <div className="min-h-[88px]">{renderMoveDemo(move.id)}</div>
-
-      <p
-        className="mt-auto font-mono text-sm leading-relaxed"
-        style={{ color: 'var(--hc-text-body)' }}
-      >
-        {move.body}
-      </p>
-    </article>
+          {/* Copy column. */}
+          <div className={demoRight ? 'md:order-1' : undefined}>
+            <span
+              className="font-mono text-[10px] uppercase tracking-[0.14em]"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              {move.eyebrow}
+            </span>
+            <h3 className="mt-3 font-mono text-2xl leading-tight text-white">{move.title}</h3>
+            <p
+              className="mt-4 max-w-[480px] font-mono text-sm leading-relaxed sm:text-base"
+              style={{ color: 'var(--hc-text-body)' }}
+            >
+              {move.body}
+            </p>
+          </div>
+        </div>
+      </article>
+    </Reveal>
   );
 }
 
-function renderMoveDemo(id: 'ribbon' | 'redaction' | 'certificate') {
+function renderExhibitDemo(id: EvidenceMove['id']) {
   switch (id) {
     case 'ribbon':
       return <RibbonDemo />;
@@ -115,12 +149,12 @@ function renderMoveDemo(id: 'ribbon' | 'redaction' | 'certificate') {
   }
 }
 
-/* ─────────────────  MOVE 1 — Case-File Ribbon vocabulary  ───────── */
+/* ─────────────  EXHIBIT A — Case-File Ribbon vocabulary  ──────────── */
 
 function RibbonDemo() {
   return (
     <div
-      className="overflow-x-auto whitespace-nowrap border-y px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] [scrollbar-width:none]"
+      className="overflow-x-auto whitespace-nowrap border-y px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] [scrollbar-width:none]"
       style={{
         borderColor: 'var(--hc-hairline)',
         background: 'var(--hc-surface-2)',
@@ -128,13 +162,13 @@ function RibbonDemo() {
       }}
     >
       <span style={{ color: 'var(--hc-text-body)' }}>HC-2026-005847</span>
-      <span className="mx-2 opacity-60">//</span>
+      <span className="mx-2 opacity-60">{'//'}</span>
       <span>INTAKE 14:32:08 EST</span>
-      <span className="mx-2 opacity-60">//</span>
+      <span className="mx-2 opacity-60">{'//'}</span>
       <span>EXAMINER: VISION-4O</span>
-      <span className="mx-2 opacity-60">//</span>
+      <span className="mx-2 opacity-60">{'//'}</span>
       <span>CHAIN: SOL</span>
-      <span className="mx-2 opacity-60">//</span>
+      <span className="mx-2 opacity-60">{'//'}</span>
       <span
         aria-hidden
         className="inline-block h-1.5 w-1.5 rounded-full align-middle"
@@ -151,13 +185,15 @@ function RibbonDemo() {
   );
 }
 
-/* ─────────────────  MOVE 2 — Redaction Bars w/ unredact  ────────── */
+/* ─────────────  EXHIBIT B — Redaction bars w/ RE-RUN  ─────────────── */
 
 function RedactionDemo() {
   const { ref, state } = useInView<HTMLDivElement>({ threshold: 0.4 });
   const [pending, setPending] = useState(true);
+  // Bumped by [RE-RUN]; remounting the fields replays the typewriter pass.
+  const [runNonce, setRunNonce] = useState(0);
 
-  // Once the card is revealed, hold the redaction for a beat then unredact —
+  // Once the row is revealed, hold the redaction for a beat then unredact —
   // gives users time to register "the bars are real" before the typewriter
   // reveal kicks in. RM users get the unredacted value immediately because
   // useInView short-circuits to 'revealed' under reduced motion.
@@ -165,32 +201,70 @@ function RedactionDemo() {
     if (state !== 'revealed') return;
     const t = setTimeout(() => setPending(false), 450);
     return () => clearTimeout(t);
-  }, [state]);
+  }, [state, runNonce]);
+
+  const rerun = () => {
+    setPending(true);
+    setRunNonce((n) => n + 1);
+  };
 
   return (
-    <div
-      ref={ref}
-      className="flex flex-col gap-2 border-l-2 pl-4 font-mono text-sm"
-      style={{ borderColor: 'var(--hc-accent)' }}
-    >
-      <div className="flex items-center justify-between">
-        <span style={{ color: 'var(--hc-text-muted)' }}>PRICE</span>
-        <RedactedField pending={pending} value="11,250 USDC" widthCh={11} />
+    <div ref={ref} className="flex flex-col gap-3">
+      <div
+        className="flex flex-col gap-2.5 border-l-2 pl-4 font-mono text-sm"
+        style={{ borderColor: 'var(--hc-accent)' }}
+      >
+        <div className="flex items-center justify-between" key={`price-${runNonce}`}>
+          <span style={{ color: 'var(--hc-text-muted)' }}>PRICE</span>
+          <RedactedField pending={pending} value="11,250 USDC" widthCh={11} />
+        </div>
+        <div className="flex items-center justify-between" key={`seller-${runNonce}`}>
+          <span style={{ color: 'var(--hc-text-muted)' }}>SELLER</span>
+          <RedactedField pending={pending} value="0x7f…3c2a" widthCh={11} />
+        </div>
+        <div className="flex items-center justify-between" key={`prov-${runNonce}`}>
+          <span style={{ color: 'var(--hc-text-muted)' }}>PROVENANCE</span>
+          <RedactedField pending={pending} value="IPFS QM…9F2" widthCh={11} />
+        </div>
       </div>
-      <div className="flex items-center justify-between">
-        <span style={{ color: 'var(--hc-text-muted)' }}>SELLER</span>
-        <RedactedField pending={pending} value="0x7f…3c2a" widthCh={11} />
-      </div>
+      <button
+        type="button"
+        onClick={rerun}
+        className="hc-poly self-start border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors duration-[180ms] hover:text-black focus-visible:text-black"
+        style={{
+          borderColor: 'var(--hc-border)',
+          color: 'var(--hc-text-muted)',
+          ['--hc-poly-r' as string]: 'var(--hc-poly-4, 4px)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--hc-accent)';
+          e.currentTarget.style.borderColor = 'var(--hc-accent)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = 'var(--hc-border)';
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.background = 'var(--hc-accent)';
+          e.currentTarget.style.borderColor = 'var(--hc-accent)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = 'var(--hc-border)';
+        }}
+      >
+        [RE-RUN CLEARANCE]
+      </button>
     </div>
   );
 }
 
-/* ─────────────────  MOVE 3 — Mint Certificate card  ─────────────── */
+/* ─────────────  EXHIBIT C — Mint certificate specimen  ────────────── */
 
 function CertificateDemo() {
   return (
     <div
-      className="relative flex flex-col gap-2 border p-3 hc-poly"
+      className="hc-poly relative mx-auto flex w-full max-w-[380px] flex-col gap-2.5 border p-5"
       style={{
         borderColor: 'var(--hc-accent)',
         background: 'var(--hc-surface-2)',
@@ -217,7 +291,7 @@ function CertificateDemo() {
       >
         HC-2026-005847
       </div>
-      <div className="font-sentient italic text-lg text-white" style={{ lineHeight: 1.1 }}>
+      <div className="font-sentient italic text-xl text-white" style={{ lineHeight: 1.1 }}>
         Yeezy Boost 350 v2
       </div>
       <div
@@ -226,6 +300,13 @@ function CertificateDemo() {
       >
         <span>EXAMINER VISION-4O</span>
         <span style={{ color: 'var(--hc-accent)' }}>98.4%</span>
+      </div>
+      <div
+        className="mt-2 flex items-center justify-between border-t pt-2 font-mono text-[9px] uppercase tracking-[0.12em]"
+        style={{ borderColor: 'var(--hc-hairline)', color: 'var(--hc-text-muted)' }}
+      >
+        <span>SERIAL 0001-EBC658</span>
+        <span>SOLANA · MAINNET</span>
       </div>
     </div>
   );
