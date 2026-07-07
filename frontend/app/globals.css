@@ -246,8 +246,8 @@
 }
 
 /* Chart paper: fine 24px + coarse 120px hairline cross-hatch. Raw CSS
-   repeating-linear-gradient (like .hc-scanlines above) — NOT a Tailwind
-   bg-gradient-* utility, which DESIGN.md bans. Drifted vertically by
+   repeating-linear-gradient (like .hc-scanlines above) — NOT one of the
+   Tailwind gradient utilities DESIGN.md bans. Drifted vertically by
    dossier-shell.tsx via transform, so the layer must be oversized by one
    coarse period. */
 .hc-dossier-grid {
