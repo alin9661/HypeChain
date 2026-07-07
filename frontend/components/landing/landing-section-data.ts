@@ -99,6 +99,10 @@ export type EvidenceMove = {
   eyebrow: string;
   title: string;
   body: string;
+  /** EXHIBIT letter shown on the row's rule-breaking tag. */
+  exhibit: 'A' | 'B' | 'C';
+  /** Mono caption under the enlarged demo panel. */
+  demoCaption: string;
 };
 
 export const EVIDENCE_MOVES: readonly EvidenceMove[] = [
@@ -107,18 +111,24 @@ export const EVIDENCE_MOVES: readonly EvidenceMove[] = [
     eyebrow: 'MOVE 01 // CHROME',
     title: 'Case-file ribbon.',
     body: 'Every app surface opens with a forensic header — case ID, intake time, examiner, chain. The page itself reads like a dossier.',
+    exhibit: 'A',
+    demoCaption: 'REPRODUCTION // APP CHROME, ACTUAL SIZE',
   },
   {
     id: 'redaction',
     eyebrow: 'MOVE 02 // STATE',
     title: 'Redaction bars.',
     body: 'Pending verifications render as literal █ blocks over price and seller. On clearance, the field unredacts at typewriter speed — proof, not a spinner.',
+    exhibit: 'B',
+    demoCaption: 'LIVE // UNREDACTS ON CLEARANCE',
   },
   {
     id: 'certificate',
     eyebrow: 'MOVE 03 // ARTIFACT',
     title: 'Mint certificate.',
     body: 'Every successful mint slides up a downloadable certificate — wordmark, case ID, examiner stamp. Built to be screenshotted.',
+    exhibit: 'C',
+    demoCaption: 'SPECIMEN // POST-MINT ARTIFACT',
   },
 ] as const;
 
@@ -134,6 +144,10 @@ export const PROOF_COPY = {
   emptyBody:
     'No dossiers have cleared the public floor yet. File the first intake and watch the redaction bars unredact on-chain.',
   emptyCta: 'Open the marketplace →',
+  /** Mono title on the terminal panel's header bar. */
+  panelTitle: 'MARKET FEED // VERIFIED FLOOR',
+  /** Placeholder row rendered while no dossier has cleared the floor. */
+  emptyRow: 'AWAITING FIRST DOSSIER',
 } as const;
 
 /* ──────────────────  SECTION 4 — FINAL CTA BAND  ──────────────────── */
