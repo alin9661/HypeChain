@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pill } from '@/components/pill';
 import { RedactedField } from '@/components/redacted-field';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
 import { Reveal } from './reveal';
 import { VERIFY_STEPS, type VerifyStep } from './landing-section-data';
+import { stepBlockState, type BlockState } from './dossier-data';
 
 /**
  * Section 1 — How verification works (sticky-pinned cinematic).
@@ -14,15 +15,18 @@ import { VERIFY_STEPS, type VerifyStep } from './landing-section-data';
  * Renders two render-paths from one component:
  *
  *   • Static flow — the SSR / first-client / reduced-motion / mobile path.
- *     Three step cards stacked in normal flow, each with its own Reveal.
- *     Fully visible without JS; matches DESIGN.md spacing.
+ *     Three step cards stacked in normal flow, each pairing the step copy
+ *     with its dossier block in `complete` state. Fully visible without
+ *     JS; matches DESIGN.md spacing.
  *
  *   • Cinematic flow — desktop + motion-OK only. A tall track wraps a
- *     viewport-height sticky panel; `useScrollProgress` advances a step
- *     index as the user scrolls, and the active step crossfades into
- *     view. Step 2 mounts a `<RedactedField>` to dramatize the
- *     "examination clearing" beat — the typewriter reveal fires as step
- *     2 becomes active.
+ *     viewport-height sticky panel. The left column crossfades the step
+ *     copy as `useScrollProgress` advances; the right column is ONE
+ *     persistent case-file document (`DossierPanel`) whose three blocks
+ *     fill in as steps pass — scrolling reads as progress through a
+ *     single dossier, not a card carousel. Scrolling back un-fills
+ *     (states derive purely from stepIndex; RedactedField supports the
+ *     pending round-trip).
  *
  * The cinematic path is opt-in post-mount only, so the server renders
  * the static path and the first hydration paint matches. Switching is a
@@ -48,6 +52,9 @@ export function VerifyFlowSection() {
   return enhanced ? <CinematicFlow /> : <StaticFlow />;
 }
 
+/** Case-file status word shown on the panel header per active step. */
+const PANEL_STATUS: readonly string[] = ['OPEN', 'EXAMINING', 'MINTED'];
+
 /* ─────────────────────────  STATIC PATH  ──────────────────────────── */
 
 function StaticFlow() {
@@ -55,14 +62,29 @@ function StaticFlow() {
     <section
       aria-labelledby="landing-verify-title"
       className="relative w-full px-6 py-32"
-      style={{ background: 'var(--hc-bg)' }}
     >
       <div className="mx-auto max-w-[1280px]">
         <Header />
         <ol className="mt-16 grid grid-cols-1 gap-6">
           {VERIFY_STEPS.map((step, i) => (
             <Reveal key={step.id} delayMs={80 * i}>
-              <StepCard step={step} index={i} active />
+              <li
+                className="hc-poly w-full border p-8 md:p-10"
+                style={{
+                  borderColor: 'var(--hc-border)',
+                  background: 'var(--hc-surface-1)',
+                  ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
+                }}
+              >
+                <div className="flex flex-col gap-6 md:grid md:grid-cols-[2fr_1fr] md:gap-12">
+                  <StepCopy step={step} />
+                  <div className="flex items-center justify-center">
+                    <div className="w-full max-w-[300px]">
+                      <DossierBlock index={i} state="complete" sub={0} />
+                    </div>
+                  </div>
+                </div>
+              </li>
             </Reveal>
           ))}
         </ol>
@@ -88,7 +110,6 @@ function CinematicFlow() {
         // Track height = (steps + 1) × viewport. One viewport of dwell per
         // step plus an entry slot before the first step settles.
         minHeight: `${(VERIFY_STEPS.length + 1) * 100}svh`,
-        background: 'var(--hc-bg)',
       }}
     >
       {/* pt-24 (96px) clears the 84px fixed Navigation that pins above */}
@@ -98,29 +119,27 @@ function CinematicFlow() {
           <StepRail stepIndex={stepIndex} sub={sub} />
         </div>
 
-        <div className="mx-auto w-full max-w-[1280px] flex-1 relative mt-12">
-          {VERIFY_STEPS.map((step, i) => (
-            <CinematicStep key={step.id} step={step} index={i} active={i === stepIndex} />
-          ))}
+        <div className="mx-auto mt-12 grid w-full max-w-[1280px] flex-1 grid-cols-[3fr_2fr] items-start gap-12">
+          {/* Left — crossfading step copy. */}
+          <div className="relative h-full">
+            {VERIFY_STEPS.map((step, i) => (
+              <CinematicStepCopy key={step.id} step={step} active={i === stepIndex} />
+            ))}
+          </div>
+
+          {/* Right — ONE persistent dossier that fills in as steps pass. */}
+          <DossierPanel stepIndex={stepIndex} sub={sub} />
         </div>
       </div>
     </section>
   );
 }
 
-function CinematicStep({
-  step,
-  index,
-  active,
-}: {
-  step: VerifyStep;
-  index: number;
-  active: boolean;
-}) {
+function CinematicStepCopy({ step, active }: { step: VerifyStep; active: boolean }) {
   return (
     <div
       aria-hidden={!active}
-      className="absolute inset-0 flex items-start"
+      className="absolute inset-0"
       style={{
         opacity: active ? 1 : 0,
         transform: active ? 'translateY(0)' : 'translateY(12px)',
@@ -129,7 +148,7 @@ function CinematicStep({
         pointerEvents: active ? 'auto' : 'none',
       }}
     >
-      <StepCard step={step} index={index} active={active} />
+      <StepCopy step={step} />
     </div>
   );
 }
@@ -209,188 +228,208 @@ function StepRail({ stepIndex, sub }: { stepIndex: number; sub: number }) {
   );
 }
 
-/* ─────────────────────────  STEP CARD  ────────────────────────────── */
-
-function StepCard({
-  step,
-  index,
-  active,
-}: {
-  step: VerifyStep;
-  index: number;
-  active: boolean;
-}) {
+/** Step copy column — shared verbatim between static and cinematic. */
+function StepCopy({ step }: { step: VerifyStep }) {
   return (
-    <article
-      className="w-full border p-8 md:p-10 hc-poly"
+    <div className="flex flex-col gap-4">
+      <span
+        className="font-mono text-[10px] uppercase tracking-[0.14em]"
+        style={{ color: 'var(--hc-text-muted)' }}
+      >
+        {step.eyebrow}
+      </span>
+      <h3
+        className="font-sentient italic font-extralight leading-[1.1] text-white"
+        style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)' }}
+      >
+        {step.title}
+      </h3>
+      <p
+        className="max-w-[560px] font-mono text-sm leading-relaxed sm:text-base"
+        style={{ color: 'var(--hc-text-body)' }}
+      >
+        {step.body}
+      </p>
+      <span
+        className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em]"
+        style={{ color: 'var(--hc-text-muted)' }}
+      >
+        {step.caption}
+      </span>
+    </div>
+  );
+}
+
+/* ─────────────────────  THE ACCUMULATING DOSSIER  ─────────────────── */
+
+/**
+ * One persistent case-file document. All three blocks always occupy
+ * layout — only opacity, border-color, and the sub-progress fill change
+ * during scrub, so the panel never reflows while pinned.
+ */
+function DossierPanel({ stepIndex, sub }: { stepIndex: number; sub: number }) {
+  return (
+    <div
+      className="hc-poly w-full border p-5 md:p-6"
       style={{
         borderColor: 'var(--hc-border)',
         background: 'var(--hc-surface-1)',
         ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
       }}
     >
-      <div className="flex flex-col gap-6 md:grid md:grid-cols-[2fr_1fr] md:gap-12">
-        <div className="flex flex-col gap-4">
-          <span
-            className="font-mono text-[10px] uppercase tracking-[0.14em]"
-            style={{ color: 'var(--hc-text-muted)' }}
-          >
-            {step.eyebrow}
-          </span>
-          <h3
-            className="font-sentient italic font-extralight leading-[1.1] text-white"
-            style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)' }}
-          >
-            {step.title}
-          </h3>
-          <p
-            className="max-w-[560px] font-mono text-sm leading-relaxed sm:text-base"
-            style={{ color: 'var(--hc-text-body)' }}
-          >
-            {step.body}
-          </p>
-          <span
-            className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em]"
-            style={{ color: 'var(--hc-text-muted)' }}
-          >
-            {step.caption}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-center">
-          <StepArtifact step={step} index={index} active={active} />
-        </div>
-      </div>
-    </article>
-  );
-}
-
-/* ─────────  Per-step right-rail artifact (evidence flavor)  ──────── */
-
-function StepArtifact({
-  step,
-  index,
-  active,
-}: {
-  step: VerifyStep;
-  index: number;
-  active: boolean;
-}) {
-  if (step.id === 'intake') {
-    return <IntakeArtifact />;
-  }
-  if (step.id === 'examine') {
-    return <ExamineArtifact active={active} />;
-  }
-  return <MintArtifact />;
-}
-
-function IntakeArtifact() {
-  return (
-    <div
-      className="w-full max-w-[280px] border p-4 font-mono text-xs hc-poly"
-      style={{
-        borderColor: 'var(--hc-border)',
-        background: 'var(--hc-surface-2)',
-        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
-      }}
-    >
       <div
-        className="mb-3 flex items-center justify-between text-[10px] uppercase tracking-[0.14em]"
-        style={{ color: 'var(--hc-text-muted)' }}
+        className="mb-4 flex items-center justify-between border-b pb-3 font-mono text-[10px] uppercase tracking-[0.14em]"
+        style={{ borderColor: 'var(--hc-hairline)' }}
       >
-        <span>INTAKE FORM</span>
-        <span style={{ color: 'var(--hc-verify-high)' }}>● OPEN</span>
-      </div>
-      <dl className="grid grid-cols-2 gap-y-2">
-        <dt style={{ color: 'var(--hc-text-muted)' }}>CASE ID</dt>
-        <dd className="text-right tabular-nums text-white">HC-2026-005847</dd>
-        <dt style={{ color: 'var(--hc-text-muted)' }}>WEIGHT</dt>
-        <dd className="text-right tabular-nums text-white">986g</dd>
-        <dt style={{ color: 'var(--hc-text-muted)' }}>PARCEL</dt>
-        <dd className="text-right tabular-nums text-white">UPS · 1Z…7K9</dd>
-        <dt style={{ color: 'var(--hc-text-muted)' }}>BENCH</dt>
-        <dd className="text-right tabular-nums text-white">NYC-04</dd>
-      </dl>
-    </div>
-  );
-}
-
-function ExamineArtifact({ active }: { active: boolean }) {
-  // While the step is active, pending=false → typewriter unredacts. While
-  // inactive (or before first activation in static mode), pending=true so
-  // the reveal can replay if the user scrolls back.
-  return (
-    <div
-      className="w-full max-w-[280px] border p-4 font-mono text-xs hc-poly"
-      style={{
-        borderColor: 'var(--hc-accent)',
-        background: 'var(--hc-surface-2)',
-        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
-      }}
-    >
-      <div
-        className="mb-3 flex items-center justify-between text-[10px] uppercase tracking-[0.14em]"
-        style={{ color: 'var(--hc-text-muted)' }}
-      >
-        <span>EXAMINATION</span>
-        <span style={{ color: active ? 'var(--hc-accent)' : 'var(--hc-text-muted)' }}>
-          ● {active ? 'CLEARED' : 'PENDING'}
+        <span style={{ color: 'var(--hc-text-muted)' }}>
+          CASE FILE <span style={{ color: 'var(--hc-text-body)' }}>HC-2026-005847</span>
+        </span>
+        <span style={{ color: 'var(--hc-accent)' }}>
+          ● {PANEL_STATUS[stepIndex] ?? PANEL_STATUS[0]}
         </span>
       </div>
-      <div className="flex flex-col gap-2">
-        <Row label="CONFIDENCE">
-          <RedactedField pending={!active} value="98.4%" widthCh={6} />
-        </Row>
-        <Row label="STITCHING">
-          <RedactedField pending={!active} value="MATCH" widthCh={6} />
-        </Row>
-        <Row label="SERIAL">
-          <RedactedField pending={!active} value="GW-2401" widthCh={8} />
-        </Row>
+
+      <div className="flex flex-col gap-3">
+        {VERIFY_STEPS.map((_, i) => (
+          <DossierBlock key={i} index={i} state={stepBlockState(stepIndex, i)} sub={sub} />
+        ))}
       </div>
     </div>
   );
 }
 
-function MintArtifact() {
+const BLOCK_LABELS = ['INTAKE', 'EXAMINATION', 'CERTIFICATE'] as const;
+
+/**
+ * One dossier block. `state` drives everything:
+ *   pending  — dimmed, waiting its turn
+ *   active   — full ink, accent left border, sub-progress fill underneath
+ *   complete — full ink, muted FILED tag
+ */
+function DossierBlock({
+  index,
+  state,
+  sub,
+}: {
+  index: number;
+  state: BlockState;
+  sub: number;
+}) {
+  const active = state === 'active';
   return (
     <div
-      className="w-full max-w-[280px] border p-4 hc-poly"
+      className="relative border-l-2 py-2.5 pl-4"
       style={{
-        borderColor: 'var(--hc-accent)',
-        background: 'var(--hc-surface-2)',
-        ['--hc-poly-r' as string]: 'var(--hc-poly-6, 6px)',
+        opacity: state === 'pending' ? 0.4 : 1,
+        borderColor: active ? 'var(--hc-accent)' : 'var(--hc-hairline)',
+        transition:
+          'opacity 280ms cubic-bezier(0.16, 1, 0.3, 1), border-color 280ms cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       <div
         className="mb-2 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em]"
         style={{ color: 'var(--hc-text-muted)' }}
       >
-        <span>CERTIFICATE</span>
-        <span style={{ color: 'var(--hc-verify-high)' }}>● MINTED</span>
+        <span>{BLOCK_LABELS[index]}</span>
+        {state === 'complete' && (
+          <span style={{ color: 'var(--hc-text-muted)' }}>● FILED</span>
+        )}
+        {active && <span style={{ color: 'var(--hc-accent)' }}>● IN PROGRESS</span>}
       </div>
-      <div
-        className="font-mono text-xs tabular-nums"
-        style={{ color: 'var(--hc-text-body)' }}
-      >
-        HC-2026-005847
-      </div>
-      <div className="mt-1 font-sentient italic text-lg leading-tight text-white">
-        Yeezy Boost 350 v2
-      </div>
-      <div
-        className="mt-3 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.12em]"
-        style={{ color: 'var(--hc-text-muted)' }}
-      >
-        <span>SOLANA · MAINNET</span>
-        <span style={{ color: 'var(--hc-accent)' }}>98.4%</span>
-      </div>
+
+      <BlockContent index={index} state={state} />
+
+      {/* Scrub-driven fill under the active block. No transition — the
+          user drives width via scroll; a transition would trail it. */}
+      {active && (
+        <span
+          aria-hidden
+          className="absolute bottom-0 left-0 block h-[2px]"
+          style={{
+            background: 'var(--hc-accent)',
+            width: `${Math.max(0, Math.min(100, Math.round(sub * 100)))}%`,
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function BlockContent({ index, state }: { index: number; state: BlockState }) {
+  if (index === 0) return <IntakeBlock />;
+  if (index === 1) return <ExamineBlock state={state} />;
+  return <MintBlock state={state} />;
+}
+
+function IntakeBlock() {
+  return (
+    <dl className="grid grid-cols-2 gap-y-1.5 font-mono text-xs">
+      <dt style={{ color: 'var(--hc-text-muted)' }}>WEIGHT</dt>
+      <dd className="text-right tabular-nums text-white">986g</dd>
+      <dt style={{ color: 'var(--hc-text-muted)' }}>PARCEL</dt>
+      <dd className="text-right tabular-nums text-white">UPS · 1Z…7K9</dd>
+      <dt style={{ color: 'var(--hc-text-muted)' }}>BENCH</dt>
+      <dd className="text-right tabular-nums text-white">NYC-04</dd>
+    </dl>
+  );
+}
+
+function ExamineBlock({ state }: { state: BlockState }) {
+  // Pending until the examination step activates; RedactedField plays the
+  // typewriter unredact on the flip and re-redacts if the user scrolls back.
+  const pending = state === 'pending';
+  return (
+    <div className="flex flex-col gap-1.5 font-mono text-xs">
+      <BlockRow label="CONFIDENCE">
+        <RedactedField pending={pending} value="98.4%" widthCh={6} />
+      </BlockRow>
+      <BlockRow label="STITCHING">
+        <RedactedField pending={pending} value="MATCH" widthCh={6} />
+      </BlockRow>
+      <BlockRow label="SERIAL">
+        <RedactedField pending={pending} value="GW-2401" widthCh={8} />
+      </BlockRow>
+    </div>
+  );
+}
+
+function MintBlock({ state }: { state: BlockState }) {
+  const lit = state !== 'pending';
+  return (
+    <div className="flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <div className="font-sentient italic text-lg leading-tight text-white">
+          Yeezy Boost 350 v2
+        </div>
+        <div
+          className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em]"
+          style={{ color: 'var(--hc-text-muted)' }}
+        >
+          SOLANA · MAINNET · IPFS PINNED
+        </div>
+      </div>
+      {/* Stamp chip settles when the mint step lights up. */}
+      <span
+        aria-hidden
+        className="hc-poly shrink-0 border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em]"
+        style={{
+          borderColor: lit ? 'var(--hc-accent)' : 'var(--hc-border)',
+          color: lit ? 'var(--hc-accent)' : 'var(--hc-text-muted)',
+          background: lit ? 'var(--hc-accent-tint)' : 'transparent',
+          transform: 'rotate(-7deg)',
+          animation: lit
+            ? 'hc-stamp-settle 280ms cubic-bezier(0.16, 1, 0.3, 1) both'
+            : undefined,
+          ['--hc-poly-r' as string]: 'var(--hc-poly-4, 4px)',
+        }}
+      >
+        VERIFIED {'//'} VISION-4O
+      </span>
+    </div>
+  );
+}
+
+function BlockRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between">
       <span style={{ color: 'var(--hc-text-muted)' }}>{label}</span>
