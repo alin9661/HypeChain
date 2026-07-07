@@ -5,17 +5,22 @@ import { useMemo } from 'react';
 import { Pill } from '@/components/pill';
 import { Button } from '@/components/ui/button';
 import { useListings, type NFTListing } from '@/contexts/AppContext';
+import { AnimatedNumber } from './animated-number';
 import { Reveal } from './reveal';
 import { PROOF_COPY } from './landing-section-data';
 
 /**
- * Section 3 — marketplace proof band.
+ * Section 3 — the verified floor as a terminal panel.
  *
- * Pulls live data from `useListings()`. When verified listings exist, the
- * band renders the KPI strip + a short list of recent verified rows. When
- * the state is empty (the current default — listings aren't fetched yet),
- * it collapses to a graceful "verified floor is open" invitation. Same
- * page in both modes; the band never claims more than the data supports.
+ * One hc-poly bordered panel with a mono header bar (ribbon vocabulary
+ * quoted as a static strip — the literal `<CaseFileRibbon>` is forbidden
+ * on `/`), a KPI strip with count-up numerals, and hairline table rows.
+ *
+ * Pulls live data from `useListings()`. The panel is designed empty-first:
+ * when no verified listings exist (the current default — listings aren't
+ * fetched yet), the same frame renders an AWAITING FIRST DOSSIER row with
+ * a blinking caret and the marketplace CTA. The band never claims more
+ * than the data supports.
  *
  * KPI derivations mirror `app/marketplace/page.tsx` (~lines 78–108) so
  * both surfaces tell the same story when populated.
@@ -92,88 +97,138 @@ export function MarketplaceProofSection() {
     <section
       aria-labelledby="landing-proof-title"
       className="relative w-full px-6 py-32 md:py-40"
-      style={{ background: 'var(--hc-bg)' }}
     >
       <div className="mx-auto max-w-[1280px]">
         <Reveal>
-          <div className="flex justify-center">
-            <Pill>{PROOF_COPY.eyebrow}</Pill>
+          <div className="flex items-end justify-between gap-6">
+            <div>
+              <Pill>{PROOF_COPY.eyebrow}</Pill>
+              <h2
+                id="landing-proof-title"
+                className="mt-8 max-w-[820px] font-sentient italic font-extralight leading-[1.05] tracking-[-0.02em] text-white"
+                style={{ fontSize: 'clamp(2.25rem, 5vw, 3.75rem)' }}
+              >
+                {hasData ? PROOF_COPY.title : PROOF_COPY.emptyTitle}
+              </h2>
+              <p
+                className="mt-6 max-w-[560px] font-mono text-sm sm:text-base"
+                style={{ color: 'var(--hc-text-muted)' }}
+              >
+                {hasData ? PROOF_COPY.subtitle : PROOF_COPY.emptyBody}
+              </p>
+            </div>
           </div>
         </Reveal>
 
-        <Reveal delayMs={80}>
-          <h2
-            id="landing-proof-title"
-            className="mx-auto mt-8 max-w-[820px] text-center font-sentient italic font-extralight leading-[1.05] tracking-[-0.02em] text-white"
-            style={{ fontSize: 'clamp(2.25rem, 5vw, 3.75rem)' }}
-          >
-            {hasData ? PROOF_COPY.title : PROOF_COPY.emptyTitle}
-          </h2>
-        </Reveal>
-
         <Reveal delayMs={160}>
-          <p
-            className="mx-auto mt-6 max-w-[560px] text-center font-mono text-sm sm:text-base"
-            style={{ color: 'var(--hc-text-muted)' }}
+          <div
+            className="hc-poly mt-14 border"
+            style={{
+              borderColor: 'var(--hc-border)',
+              background: 'var(--hc-surface-1)',
+              ['--hc-poly-r' as string]: 'var(--hc-poly-16, 16px)',
+            }}
           >
-            {hasData ? PROOF_COPY.subtitle : PROOF_COPY.emptyBody}
-          </p>
-        </Reveal>
-
-        {hasData ? (
-          <>
-            <Reveal delayMs={240}>
-              <div className="mt-14 grid grid-cols-1 gap-8 sm:grid-cols-3">
-                <KpiCell
-                  label="24H VOLUME"
-                  value={formatPrice(kpis.volume24h)}
-                  unit="USDC"
-                  barPct={Math.min(100, (kpis.volume24h / 10_000) * 100)}
-                />
-                <KpiCell
-                  label="FLOOR (VERIFIED)"
-                  value={kpis.floor != null ? formatPrice(kpis.floor) : '—'}
-                  unit="USDC"
-                  barPct={kpis.floor != null ? 65 : 0}
-                />
-                <KpiCell
-                  label="VERIFIED COUNT"
-                  value={String(kpis.verifiedCount)}
-                  unit="DOSSIERS"
-                  valueTone="verify-high"
-                  barPct={Math.min(100, (kpis.verifiedCount / 25) * 100)}
-                />
-              </div>
-            </Reveal>
-
-            <Reveal delayMs={320}>
-              <ul
-                className="mt-14 divide-y"
-                style={{ borderColor: 'var(--hc-hairline)' }}
+            {/* Header bar — ribbon vocabulary, quoted. */}
+            <div
+              className="flex items-center justify-between border-b px-5 py-3 md:px-8"
+              style={{ borderColor: 'var(--hc-hairline)' }}
+            >
+              <span
+                className="font-mono text-[10px] uppercase tracking-[0.14em]"
+                style={{ color: 'var(--hc-text-muted)' }}
               >
-                {recent.map((l) => (
-                  <li key={l.id} className="py-4">
-                    <RecentRow listing={l} />
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
-          </>
-        ) : (
-          <Reveal delayMs={240}>
-            <div className="mt-12 flex justify-center">
-              <Link href="/marketplace">
-                <Button variant="outline">{PROOF_COPY.emptyCta}</Button>
-              </Link>
+                {PROOF_COPY.panelTitle}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{
+                    background: 'var(--hc-verify-high)',
+                    boxShadow: '0 0 6px var(--hc-verify-high)',
+                    animation: 'hc-live-pulse 1.6s ease-in-out infinite',
+                  }}
+                />
+                <span
+                  className="font-mono text-[10px] uppercase tracking-[0.14em]"
+                  style={{ color: 'var(--hc-verify-high)' }}
+                >
+                  LIVE
+                </span>
+              </span>
             </div>
-          </Reveal>
-        )}
+
+            {hasData ? (
+              <PopulatedPanel kpis={kpis} recent={recent} />
+            ) : (
+              <EmptyPanel />
+            )}
+          </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────  POPULATED MODE  ───────────────────────── */
+
+function PopulatedPanel({
+  kpis,
+  recent,
+}: {
+  kpis: { volume24h: number; floor: number | null; verifiedCount: number };
+  recent: NFTListing[];
+}) {
+  return (
+    <>
+      <div
+        className="grid grid-cols-1 gap-8 border-b px-5 py-8 sm:grid-cols-3 md:px-8"
+        style={{ borderColor: 'var(--hc-hairline)' }}
+      >
+        <KpiCell
+          label="24H VOLUME"
+          value={kpis.volume24h}
+          unit="USDC"
+          barPct={Math.min(100, (kpis.volume24h / 10_000) * 100)}
+        />
+        <KpiCell
+          label="FLOOR (VERIFIED)"
+          value={kpis.floor}
+          unit="USDC"
+          barPct={kpis.floor != null ? 65 : 0}
+        />
+        <KpiCell
+          label="VERIFIED COUNT"
+          value={kpis.verifiedCount}
+          unit="DOSSIERS"
+          valueTone="verify-high"
+          barPct={Math.min(100, (kpis.verifiedCount / 25) * 100)}
+        />
+      </div>
+
+      {/* Column headers + rows. */}
+      <div className="px-5 pb-2 md:px-8">
+        <div
+          className="hidden grid-cols-[100px_1fr_auto_auto] items-center gap-4 border-b py-3 font-mono text-[9px] uppercase tracking-[0.14em] sm:grid"
+          style={{ borderColor: 'var(--hc-hairline)', color: 'var(--hc-text-muted)' }}
+        >
+          <span>CASE NO.</span>
+          <span>DOSSIER</span>
+          <span className="text-right">PRICE</span>
+          <span className="text-right">SELLER · FILED</span>
+        </div>
+        <ul className="divide-y" style={{ borderColor: 'var(--hc-hairline)' }}>
+          {recent.map((l) => (
+            <li key={l.id} className="py-4">
+              <RecentRow listing={l} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
 
 function KpiCell({
   label,
@@ -183,7 +238,7 @@ function KpiCell({
   valueTone,
 }: {
   label: string;
-  value: string;
+  value: number | null;
   unit?: string;
   barPct: number;
   valueTone?: 'verify-high';
@@ -198,10 +253,10 @@ function KpiCell({
         {label}
       </span>
       <span
-        className="font-mono leading-none tabular-nums"
+        className="font-mono leading-none"
         style={{ color: valueColor, fontSize: 28, fontWeight: 500 }}
       >
-        {value}
+        {value != null ? <AnimatedNumber value={value} format={formatPrice} /> : '—'}
         {unit && (
           <span
             className="ml-1.5 font-mono text-[12px]"
@@ -236,7 +291,7 @@ function RecentRow({ listing }: { listing: NFTListing }) {
   return (
     <div className="grid grid-cols-[1fr_auto] items-center gap-4 sm:grid-cols-[100px_1fr_auto_auto]">
       <span
-        className="hidden font-mono text-[10px] uppercase tracking-[0.14em] sm:inline"
+        className="hidden font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums sm:inline"
         style={{ color: 'var(--hc-text-muted)' }}
       >
         {caseNumber(listing.id)}
@@ -250,18 +305,46 @@ function RecentRow({ listing }: { listing: NFTListing }) {
       </span>
 
       <span
-        className="font-mono text-sm tabular-nums"
+        className="text-right font-mono text-sm tabular-nums"
         style={{ color: 'var(--hc-text)' }}
       >
         {priceLabel}
       </span>
 
       <span
-        className="hidden font-mono text-[11px] uppercase tracking-[0.06em] tabular-nums sm:inline"
+        className="hidden text-right font-mono text-[11px] uppercase tracking-[0.06em] tabular-nums sm:inline"
         style={{ color: 'var(--hc-text-muted)' }}
       >
         {shortAddr(listing.userWallet)} · {timeAgo(listing.createdAt)}
       </span>
+    </div>
+  );
+}
+
+/* ──────────────────────────  EMPTY MODE  ──────────────────────────── */
+
+function EmptyPanel() {
+  return (
+    <div className="flex flex-col gap-6 px-5 py-8 md:px-8">
+      <div
+        className="flex items-center gap-2 border-b pb-6 font-mono text-sm"
+        style={{ borderColor: 'var(--hc-hairline)' }}
+      >
+        <span style={{ color: 'var(--hc-text-muted)' }}>{PROOF_COPY.emptyRow}</span>
+        <span
+          aria-hidden
+          className="inline-block h-[1.1em] w-[1px] align-middle"
+          style={{
+            background: 'var(--hc-text-muted)',
+            animation: 'hc-caret-blink 1.1s step-end infinite',
+          }}
+        />
+      </div>
+      <div>
+        <Link href="/marketplace">
+          <Button variant="outline">{PROOF_COPY.emptyCta}</Button>
+        </Link>
+      </div>
     </div>
   );
 }
