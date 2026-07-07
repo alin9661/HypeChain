@@ -325,7 +325,7 @@ Resources:
     # `DockerContext: .` means the build context is backend/ (where this
     # file lives). DockerTag is just a label for ECR's image history.
     Metadata:
-      DockerTag: nodejs20-v1
+      DockerTag: nodejs22-v1
       DockerContext: .
       Dockerfile: Dockerfile
 

@@ -154,7 +154,7 @@ Public `api.devnet.solana.com` rate-limits at ~40 req / 10 s / method — too lo
 
 ## 5. Deploy the backend (Express on Lambda)
 
-The SAM template (`backend/template.yaml`) and Dockerfile (`backend/Dockerfile`) already build an **arm64 Lambda container** (`public.ecr.aws/lambda/nodejs:20`, bun deps, handler `src/lambda.handler`) behind a **Function URL**. Keep this — do not add API Gateway.
+The SAM template (`backend/template.yaml`) and Dockerfile (`backend/Dockerfile`) already build an **arm64 Lambda container** (`public.ecr.aws/lambda/nodejs:22`, bun deps, handler `src/lambda.handler`) behind a **Function URL**. Keep this — do not add API Gateway.
 
 **Template changes — ✅ landed (this deploy PR):**
 - [x] Supabase parameters dropped; DSQL `endpoint` / `region` / `database` params + env added.
