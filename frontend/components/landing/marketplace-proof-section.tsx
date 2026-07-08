@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pill } from '@/components/pill';
 import { Button } from '@/components/ui/button';
 import { useListings, type NFTListing } from '@/contexts/AppContext';
 import { AnimatedNumber } from './animated-number';
+import { makeDemoListings } from './demo-listings';
 import { Reveal } from './reveal';
 import { PROOF_COPY } from './landing-section-data';
 
@@ -60,8 +61,27 @@ function formatPrice(n: number): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+/**
+ * Design-review seed: dev builds only, and only with `?demo=1` in the URL.
+ * Returns placeholder listings so the panel's populated mode is reviewable
+ * without a running backend. `NODE_ENV` is inlined at build time, so the
+ * entire branch (and the fixture import) is dead code in production.
+ */
+function useDemoListings(): NFTListing[] | null {
+  const [demo, setDemo] = useState<NFTListing[] | null>(null);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    if (new URLSearchParams(window.location.search).get('demo') === '1') {
+      setDemo(makeDemoListings(Date.now()));
+    }
+  }, []);
+  return demo;
+}
+
 export function MarketplaceProofSection() {
-  const { listings } = useListings();
+  const { listings: liveListings } = useListings();
+  const demoListings = useDemoListings();
+  const listings = demoListings ?? liveListings;
 
   const { kpis, recent, hasData } = useMemo(() => {
     const verified = listings.filter((l) => deriveStatus(l) === 'verified');
