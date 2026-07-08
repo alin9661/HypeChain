@@ -4,16 +4,15 @@ import { Fragment } from 'react';
 import { TICKER_ENTRIES } from './dossier-data';
 
 type VerifiedTickerProps = {
-  /**
-   * Loop duration for one half-track pass. Vary per instance (38s/44s/50s)
-   * so stacked tickers don't move in lockstep.
-   */
+  /** Loop duration for one half-track pass. */
   durationSec?: number;
 };
 
 /**
- * Verified-mints ticker — the divider strip between landing sections,
- * streaming cleared case files in Bloomberg-crawl vocabulary.
+ * Verified-mints ticker — the single divider strip after the verify-flow
+ * section, streaming cleared case files in Bloomberg-crawl vocabulary.
+ * One instance per page by design (review feedback 2026-07-08): repeated
+ * marquees dilute the moment and read as decoration.
  *
  * The track holds TWO copies of the entry list and translates -50%
  * (`hc-ticker-scroll` in globals.css), so the loop point is seamless.

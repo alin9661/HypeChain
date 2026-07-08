@@ -118,22 +118,20 @@ export default function LandingPage() {
       {/* Scroll-told product story below the hero — one continuous case
           file on chart paper. DossierShell paints the ambient layer (grid,
           scanlines, marginalia rails) and tracks the active section via
-          the data-dossier-sec markers. Tickers are SIBLINGS between the
-          sections — never inside VerifyFlowSection's scrub track, whose
-          progress math depends on its own rect height. */}
+          the data-dossier-sec markers. The single ticker is a SIBLING
+          between sections — never inside VerifyFlowSection's scrub track,
+          whose progress math depends on its own rect height. */}
       <DossierShell>
         <div data-dossier-sec="verify">
           <VerifyFlowSection />
         </div>
-        <VerifiedTicker durationSec={38} />
+        <VerifiedTicker />
         <div data-dossier-sec="moves">
           <EvidenceMovesSection />
         </div>
-        <VerifiedTicker durationSec={44} />
         <div data-dossier-sec="proof">
           <MarketplaceProofSection />
         </div>
-        <VerifiedTicker durationSec={50} />
         <div data-dossier-sec="cta">
           <FinalCtaSection />
         </div>
