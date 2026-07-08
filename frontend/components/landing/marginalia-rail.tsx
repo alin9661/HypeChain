@@ -17,19 +17,21 @@ type MarginaliaRailProps = {
 
 /**
  * Case-file marginalia rail — the mono micro-labels living in the page
- * margins beside the dossier. Left rail lists all four section labels
- * (active one lit in accent); right rail shows the active section's
- * plate coordinate + filed stamp.
+ * margins beside the dossier. Left rail shows the ACTIVE section label
+ * (one vertical-rl column — several would stack sideways and overflow
+ * the rail) plus a numeric 0X/04 index; right rail shows the active
+ * section's plate coordinate + filed stamp as two tight columns.
  *
  * Entirely decorative: `aria-hidden`, `pointer-events-none`, and hidden
  * below 1440px — at 1280–1439px viewports the 1280px content column
- * leaves too little margin for a 48px rail.
+ * leaves too little margin for a 56px rail.
  */
 export function MarginaliaRail({ side, activeIndex, innerRef }: MarginaliaRailProps) {
+  const meta = DOSSIER_SECTIONS[activeIndex] ?? DOSSIER_SECTIONS[0];
   return (
     <div
       aria-hidden
-      className={`pointer-events-none absolute inset-y-0 z-[5] hidden w-12 min-[1440px]:block ${
+      className={`pointer-events-none absolute inset-y-0 z-[5] hidden w-14 min-[1440px]:block ${
         side === 'left' ? 'left-0' : 'right-0'
       }`}
     >
@@ -39,8 +41,45 @@ export function MarginaliaRail({ side, activeIndex, innerRef }: MarginaliaRailPr
         style={{ willChange: 'transform' }}
       >
         <RegistrationMark />
-        {side === 'left' ? <SectionIndex activeIndex={activeIndex} /> : <ActivePlate activeIndex={activeIndex} />}
-        <RegistrationMark />
+
+        {side === 'left' ? (
+          // Keyed on the section id so the 180ms swap animation replays
+          // when the active section changes (CSS drops it under RM).
+          <span
+            key={meta.id}
+            className="hc-rail-swap-anim font-mono text-[10px] uppercase tracking-[0.14em] whitespace-nowrap"
+            style={{ writingMode: 'vertical-rl', color: 'var(--hc-accent)' }}
+          >
+            {meta.railLabel}
+          </span>
+        ) : (
+          <div key={meta.id} className="hc-rail-swap-anim flex gap-1.5" style={{ writingMode: 'vertical-rl' }}>
+            <span
+              className="font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums whitespace-nowrap"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              {meta.plate}
+            </span>
+            <span
+              className="font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums whitespace-nowrap"
+              style={{ color: 'var(--hc-text-muted)', opacity: 0.7 }}
+            >
+              {meta.stamp}
+            </span>
+          </div>
+        )}
+
+        <div className="flex flex-col items-center gap-3">
+          {side === 'left' && (
+            <span
+              className="font-mono text-[10px] tabular-nums"
+              style={{ color: 'var(--hc-text-muted)' }}
+            >
+              {String(activeIndex + 1).padStart(2, '0')}/04
+            </span>
+          )}
+          <RegistrationMark />
+        </div>
       </div>
     </div>
   );
@@ -55,54 +94,5 @@ function RegistrationMark() {
     >
       +
     </span>
-  );
-}
-
-function SectionIndex({ activeIndex }: { activeIndex: number }) {
-  return (
-    <div className="flex flex-col items-center gap-8" style={{ writingMode: 'vertical-rl' }}>
-      {DOSSIER_SECTIONS.map((s, i) => {
-        const active = i === activeIndex;
-        return (
-          <span
-            key={s.id}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] whitespace-nowrap"
-            style={{
-              color: active ? 'var(--hc-accent)' : 'var(--hc-text-muted)',
-              opacity: active ? 1 : 0.55,
-              transition: 'color 180ms ease-out, opacity 180ms ease-out',
-            }}
-          >
-            {s.railLabel}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function ActivePlate({ activeIndex }: { activeIndex: number }) {
-  const meta = DOSSIER_SECTIONS[activeIndex] ?? DOSSIER_SECTIONS[0];
-  return (
-    // Keyed on the section id so the 180ms swap animation replays when the
-    // active section changes (CSS drops it under reduced motion).
-    <div
-      key={meta.id}
-      className="hc-rail-swap-anim flex flex-col items-center gap-8"
-      style={{ writingMode: 'vertical-rl' }}
-    >
-      <span
-        className="font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums whitespace-nowrap"
-        style={{ color: 'var(--hc-text-muted)' }}
-      >
-        {meta.plate}
-      </span>
-      <span
-        className="font-mono text-[10px] uppercase tracking-[0.14em] tabular-nums whitespace-nowrap"
-        style={{ color: 'var(--hc-text-muted)', opacity: 0.7 }}
-      >
-        {meta.stamp}
-      </span>
-    </div>
   );
 }

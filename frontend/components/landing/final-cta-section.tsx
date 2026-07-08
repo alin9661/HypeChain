@@ -142,7 +142,7 @@ function CornerStamp() {
     <span
       ref={ref}
       aria-hidden
-      className="hc-poly absolute right-6 top-16 inline-block border-2 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] md:right-10 md:top-20"
+      className="hc-poly absolute right-6 top-24 inline-block border-2 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] md:right-10 md:top-28"
       style={style}
     >
       CASE OPEN
