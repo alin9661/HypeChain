@@ -3,6 +3,41 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.2.0] - 2026-07-07
+
+CI/CD: the repo finally deploys itself. The "Endpoint not found" incident on
+`/api/users/register` happened because the live Lambda had drifted behind
+`main` — merges never deployed. This closes that gap.
+
+### Added
+
+- **GitHub Actions CI** (`.github/workflows/ci.yml`): on every PR and push to
+  main, runs backend `bun test` (149 tests) and frontend `jest` (111 tests),
+  plus `sam validate --lint`. Path-filtered so frontend-only changes skip
+  backend jobs and vice versa. Lint steps intentionally omitted — neither
+  package has a working ESLint setup yet (backend: no config; frontend: eslint
+  not installed).
+- **GitHub Actions CD** (`.github/workflows/deploy-backend.yml`): merging a PR
+  that touches `backend/**` auto-deploys the `hypechain-backend` SAM stack;
+  also runnable manually via workflow_dispatch. Authenticates with AWS via
+  GitHub OIDC (role `github-actions-hypechain-deploy`, trust scoped to this
+  repo's `main` ref — no long-lived keys). Runs on `ubuntu-24.04-arm` for a
+  native arm64 image build, reuses `deploy-devnet-staging.sh` (schema apply
+  stays fail-closed before `sam deploy`), then smoke-tests `/health`, the DSQL
+  read path, and the live waitlist flow. Serialized via a concurrency group so
+  two deploys can't race.
+
+### Fixed
+
+- **`HeliusApiKey` no longer silently wiped on redeploy.** The deploy script
+  never re-passed it, and CloudFormation reverts unpassed params to their
+  defaults — so the next script deploy would have cleared the key that's set
+  on the live stack. Now forwarded from `HACKNYU_HELIUS_API_KEY` behind the
+  same set-only-when-present guard as the other optional params.
+- **Re-deploys with no changes no longer fail**: `sam deploy` now passes
+  `--no-fail-on-empty-changeset`, so a no-op CI deploy exits green instead of
+  failing the workflow on a healthy stack.
+
 ## [0.8.1.4] - 2026-07-06
 
 Compliance: bump the Lambda container runtime to Node.js 22 (current LTS).

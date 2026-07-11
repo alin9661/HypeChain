@@ -7,6 +7,7 @@
 #   export HACKNYU_OPENROUTER_API_KEY=...   # https://openrouter.ai/keys
 #   export HACKNYU_NFT_STORAGE_API_KEY=...  # https://nft.storage/manage
 #   # optional (activity feed): export HACKNYU_HELIUS_WEBHOOK_SECRET=$(openssl rand -hex 32)
+#   # optional (activity backfill): export HACKNYU_HELIUS_API_KEY=...
 #   # optional (admin export):  export HACKNYU_WAITLIST_EXPORT_TOKEN=$(openssl rand -hex 32)
 #   # optional (waitlist email — set the VERIFIED sender to turn emails on):
 #   #   export HACKNYU_SES_SENDER="noreply@yourdomain.com"
@@ -56,6 +57,13 @@ PARAM_OVERRIDES=(
 # parameter to '' so omitting it is the correct "not configured" state.
 if [ -n "${HACKNYU_HELIUS_WEBHOOK_SECRET:-}" ]; then
   PARAM_OVERRIDES+=( "HeliusWebhookSecret=${HACKNYU_HELIUS_WEBHOOK_SECRET}" )
+fi
+
+# Helius API key is optional (deferred activity backfill). Same rule: only
+# pass it when set. The live stack has this set, so omitting the env var on a
+# redeploy reverts it to '' — export it alongside the webhook secret.
+if [ -n "${HACKNYU_HELIUS_API_KEY:-}" ]; then
+  PARAM_OVERRIDES+=( "HeliusApiKey=${HACKNYU_HELIUS_API_KEY}" )
 fi
 
 # Admin export token is optional. Same rule as Helius: SAM rejects an empty
@@ -118,6 +126,7 @@ sam deploy \
   --resolve-image-repos \
   --resolve-s3 \
   --no-confirm-changeset \
+  --no-fail-on-empty-changeset \
   --parameter-overrides "${PARAM_OVERRIDES[@]}"
 
 echo
