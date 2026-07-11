@@ -1,0 +1,87 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/deploy-backend.yml']
+  workflow_dispatch:
+
+# One deploy at a time: queue follow-ups, never cancel a mid-flight
+# CloudFormation update.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC token for aws-actions/configure-aws-credentials
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm # native arm64 docker build for the Lambda image
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      # node_modules is needed at deploy time too: apply-dsql-schema.sh mints
+      # its DSQL admin token via @aws-sdk/dsql-signer.
+      - run: bun install --frozen-lockfile
+
+      - uses: aws-actions/setup-sam@f84ec7d548307efafe33230528756de3c5841a17 # v2
+        with:
+          use-installer: true
+
+      # psql drives the schema apply; not preinstalled on arm images.
+      - name: Ensure psql
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client)
+
+      # workflow_dispatch skips CI, so the deploy re-verifies the code it
+      # ships. (No lint: backend has no ESLint config yet.)
+      - name: Test gate
+        run: bun test
+
+      # The script owns the order that matters: sam build -> DSQL schema apply
+      # (fail-closed) -> sam deploy with ALL params re-passed (CloudFormation
+      # reverts any param not re-passed to its template default).
+      - name: Build, apply schema, deploy
+        env:
+          HACKNYU_OPENROUTER_API_KEY: ${{ secrets.HACKNYU_OPENROUTER_API_KEY }}
+          HACKNYU_NFT_STORAGE_API_KEY: ${{ secrets.HACKNYU_NFT_STORAGE_API_KEY }}
+          HACKNYU_HELIUS_WEBHOOK_SECRET: ${{ secrets.HACKNYU_HELIUS_WEBHOOK_SECRET }}
+          HACKNYU_HELIUS_API_KEY: ${{ secrets.HACKNYU_HELIUS_API_KEY }}
+          HACKNYU_WAITLIST_EXPORT_TOKEN: ${{ secrets.HACKNYU_WAITLIST_EXPORT_TOKEN }}
+          HACKNYU_SES_SENDER: ${{ secrets.HACKNYU_SES_SENDER }}
+          HACKNYU_WAITLIST_ADMIN_EMAIL: ${{ secrets.HACKNYU_WAITLIST_ADMIN_EMAIL }}
+        run: ./scripts/deploy-devnet-staging.sh
+
+      - name: Resolve Function URL
+        id: fn
+        run: |
+          URL=$(aws cloudformation describe-stacks --stack-name hypechain-backend \
+            --query "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue" --output text)
+          echo "url=${URL%/}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        env:
+          FUNCTION_URL: ${{ steps.fn.outputs.url }}
+          SMOKE_EMAIL: ${{ secrets.HACKNYU_WAITLIST_ADMIN_EMAIL }}
+          HACKNYU_WAITLIST_EXPORT_TOKEN: ${{ secrets.HACKNYU_WAITLIST_EXPORT_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsS -m 30 "$FUNCTION_URL/health" | grep -q '"status":"healthy"'
+          # Exercises the DSQL read path end-to-end.
+          curl -fsS -m 30 "$FUNCTION_URL/api/activities" > /dev/null
+          if [ -n "${SMOKE_EMAIL:-}" ]; then
+            ./scripts/verify-live-waitlist.sh
+          else
+            echo "SMOKE_EMAIL unset — skipping verify-live-waitlist.sh"
+          fi
