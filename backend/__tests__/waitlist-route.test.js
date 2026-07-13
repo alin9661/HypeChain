@@ -452,6 +452,57 @@ describe('GET /api/waitlist/stats', () => {
     expect(status).toBe(500);
     expect(body.code).toBe('WAITLIST_STATS_FAILED');
   });
+
+  it('collapses a concurrent cache-miss stampede into one db call', async () => {
+    const db = makeFakeDb();
+    let countCalls = 0;
+    const realCount = db.countWaitlist.bind(db);
+    db.countWaitlist = async () => {
+      countCalls += 1;
+      // Widen the in-flight window so both requests overlap deterministically.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return realCount();
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+    await post(baseUrl, VALID);
+
+    // Fire both while the cache is cold — without single-flight each would
+    // trigger its own COUNT.
+    const [a, b] = await Promise.all([getStats(baseUrl), getStats(baseUrl)]);
+    expect(a.body.count).toBe(1);
+    expect(b.body.count).toBe(1);
+    expect(countCalls).toBe(1); // one shared in-flight promise, not two
+  });
+
+  it('negative-caches a db failure so it backs off instead of re-hammering', async () => {
+    const db = makeFakeDb();
+    let fail = false;
+    let countCalls = 0;
+    const realCount = db.countWaitlist.bind(db);
+    db.countWaitlist = async () => {
+      countCalls += 1;
+      if (fail) throw new Error('DSQL unavailable');
+      return realCount();
+    };
+    // TTL 0 → the TTL alone would let every request retry; only the error
+    // backoff (5s) suppresses the retry storm.
+    const baseUrl = await start({
+      db,
+      sendConfirmation: makeSpy(),
+      sendAdminNotification: makeSpy(),
+      statsTtlMs: 0,
+    });
+    await post(baseUrl, VALID);
+
+    await getStats(baseUrl); // warm: db call #1
+    fail = true;
+    const firstFail = await getStats(baseUrl); // attempts refresh, throws: db call #2
+    const secondFail = await getStats(baseUrl); // inside backoff window → no db call
+
+    expect(firstFail.body.count).toBe(1); // stale served
+    expect(secondFail.body.count).toBe(1); // stale served
+    expect(countCalls).toBe(2); // warm + one failed attempt; #2 absorbed by backoff
+  });
 });
 
 describe('GET /api/waitlist/export', () => {

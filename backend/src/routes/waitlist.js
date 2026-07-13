@@ -41,6 +41,11 @@ const MAX_WALLET_LEN = 64; // base58 Solana addresses are 32-44 chars.
 // Stats cache TTL. Caps DSQL COUNT load at ~1/min per warm container while the
 // hero stat stays fresh enough for a vanity number. Injectable in tests.
 const STATS_TTL_MS = 60_000;
+// Negative-cache window after a COUNT failure. Without it the cache stays
+// expired and every request re-hits a degraded DB (retry storm during a
+// brownout); this backs off before the next attempt. Short so recovery is
+// quick once the DB is healthy again.
+const STATS_ERROR_BACKOFF_MS = 5_000;
 const EXPORT_COLUMNS = [
   'id', 'name', 'email', 'wallet_address', 'intent', 'source', 'status',
   'confirmation_sent_at', 'created_at', 'updated_at',
@@ -272,12 +277,18 @@ export function createWaitlistRouter({
   // 500 only when the cache has never been populated (cold container + DB down).
   // -------------------------------------------------------------------------
   let statsCache = { count: null, expiresAt: 0 };
+  // Single-flight guard: `await db.countWaitlist()` yields before statsCache is
+  // written, so without this every concurrent miss (TTL boundary or cold start)
+  // fires its own COUNT. Sharing one in-flight promise collapses the stampede
+  // into a single DB round-trip.
+  let statsInflight = null;
 
   router.get('/waitlist/stats', async (req, res) => {
     const now = Date.now();
     if (statsCache.count === null || now >= statsCache.expiresAt) {
       try {
-        const count = await db.countWaitlist();
+        statsInflight = statsInflight ?? db.countWaitlist();
+        const count = await statsInflight;
         statsCache = { count, expiresAt: now + statsTtlMs };
       } catch (err) {
         console.error('[waitlist] stats count failed:', err?.message ?? err);
@@ -288,7 +299,11 @@ export function createWaitlistRouter({
             code: 'WAITLIST_STATS_FAILED',
           });
         }
-        // Cache holds a previous count — fall through and serve it stale.
+        // Cache holds a previous count — back off before the next DB attempt
+        // (negative cache) and serve the stale count in the meantime.
+        statsCache = { ...statsCache, expiresAt: now + STATS_ERROR_BACKOFF_MS };
+      } finally {
+        statsInflight = null;
       }
     }
     return res.status(200).json({ success: true, count: statsCache.count });
