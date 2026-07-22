@@ -202,7 +202,13 @@ export function Particles({
     dofPointsMaterial.uniforms.uTime.value = currentTime;
 
     dofPointsMaterial.uniforms.uFocus.value = focus;
-    dofPointsMaterial.uniforms.uBlur.value = aperture;
+    // DoF blur eases off as the morph completes — the field comes into
+    // focus as specimens formalize. Kept mild (25%): uBlur doubles as the
+    // point-size term in the vertex shader, so cutting it harder would
+    // cancel the 60% morph swell. Reads the damped value from the frame
+    // loop below (one frame of lag, imperceptible).
+    dofPointsMaterial.uniforms.uBlur.value =
+      aperture * (1.0 - 0.25 * dofPointsMaterial.uniforms.uShapeMorph.value);
 
     // Hover introspect (production) generalized: when not hovering, the idle
     // pulse + intake-clock heartbeat nudge uTransition too. Asymmetric smooth

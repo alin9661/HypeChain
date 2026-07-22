@@ -12,6 +12,7 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
       uniform float uFov;
       uniform float uBlur;
       uniform float uPointSize;
+      uniform float uShapeMorph;
       varying float vDistance;
       varying float vPosY;
       varying vec3 vWorldPosition;
@@ -25,7 +26,9 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
         vPosY = pos.y;
         vWorldPosition = pos;
         vInitialPosition = initialPos;
-        gl_PointSize = max(vDistance * uBlur * uPointSize, 3.0);
+        // Chips swell as they formalize — the size change is the second cue
+        // (after the spin) that makes the scroll morph legible.
+        gl_PointSize = max(vDistance * uBlur * uPointSize, 3.0) * (1.0 + 0.6 * uShapeMorph);
       }`,
       fragmentShader: /* glsl */ `
       uniform float uOpacity;
@@ -108,11 +111,20 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
         // initial position so the field converts as a wave, not a snap.
         float morphHash = fract(sin(dot(vInitialPosition.xz, vec2(127.1, 311.7))) * 43758.5453);
         float morphLocal = clamp(uShapeMorph * 1.6 - morphHash * 0.6, 0.0, 1.0);
-        float sdf = mix(sdCircle(cxy, 0.5), sdOctagon(cxy, 0.46), morphLocal);
 
-        // Smoothstep edge instead of a hard discard — at the 3px point-size
-        // floor a binary edge aliases into shimmer, especially mid-morph.
-        float shapeAlpha = 1.0 - smoothstep(-0.08, 0.02, sdf);
+        // Quarter-turn (plus per-particle jitter) while converting — at small
+        // point sizes the silhouette swap alone is invisible; the spin is
+        // what makes the conversion legible.
+        float morphAng = morphLocal * (1.5707963 + morphHash * 1.2);
+        float mc = cos(morphAng);
+        float ms = sin(morphAng);
+        vec2 rp = mat2(mc, -ms, ms, mc) * cxy;
+        float sdf = mix(sdCircle(cxy, 0.5), sdOctagon(rp, 0.52), morphLocal);
+
+        // Smoothstep edge instead of a hard discard (a binary edge aliases
+        // into shimmer at the 3px floor). Edge crisps as the chip formalizes.
+        float aa = mix(0.08, 0.035, morphLocal);
+        float shapeAlpha = 1.0 - smoothstep(-aa, 0.02, sdf);
         if (shapeAlpha <= 0.001) discard;
 
         // Calculate distance from center for reveal effect
