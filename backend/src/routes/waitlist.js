@@ -2,6 +2,7 @@
  * Waitlist signup + admin export.
  *
  *   POST /api/waitlist          — public signup (form at /waitlist)
+ *   GET  /api/waitlist/stats    — public queue size (TTL-cached COUNT)
  *   GET  /api/waitlist/export   — admin-only dump (Bearer token), CSV or JSON
  *
  * The route is built by a factory so tests can inject a fake `db` and a fake
@@ -37,6 +38,9 @@ const EXPORT_ROW_CAP = 10000;
 // boundary before they reach the DB, the admin email, and the CSV export.
 const MAX_NAME_LEN = 200;
 const MAX_WALLET_LEN = 64; // base58 Solana addresses are 32-44 chars.
+// Stats cache TTL. Caps DSQL COUNT load at ~1/min per warm container while the
+// hero stat stays fresh enough for a vanity number. Injectable in tests.
+const STATS_TTL_MS = 60_000;
 const EXPORT_COLUMNS = [
   'id', 'name', 'email', 'wallet_address', 'intent', 'source', 'status',
   'confirmation_sent_at', 'created_at', 'updated_at',
@@ -89,8 +93,23 @@ export function createWaitlistRouter({
   db = defaultDb,
   sendConfirmation = defaultSendConfirmation,
   sendAdminNotification = defaultSendAdminNotification,
+  statsTtlMs = STATS_TTL_MS,
 } = {}) {
   const router = express.Router();
+
+  // Queue rank for the receipt. Best-effort, same isolation policy as the SES
+  // sends: a failed rank lookup must never turn a recorded signup into an
+  // error — omit the fields and let the client drop the Position row.
+  async function fetchPosition(row) {
+    try {
+      const rank = await db.getWaitlistPosition({ id: row.id });
+      if (!rank) return {};
+      return { position: rank.position, total: rank.total };
+    } catch (err) {
+      console.warn(`[waitlist] position lookup failed: ${err?.message ?? err}`);
+      return {};
+    }
+  }
 
   // -------------------------------------------------------------------------
   // POST /api/waitlist — public signup
@@ -191,6 +210,7 @@ export function createWaitlistRouter({
           email: existing.email,
           intent: existing.intent,
           alreadyOnList: true,
+          ...(await fetchPosition(existing)),
         });
       }
 
@@ -229,6 +249,7 @@ export function createWaitlistRouter({
         email: inserted.email,
         intent: inserted.intent,
         alreadyOnList: false,
+        ...(await fetchPosition(inserted)),
       });
     } catch (error) {
       console.error('[waitlist] signup failed:', error?.message ?? error);
@@ -238,6 +259,39 @@ export function createWaitlistRouter({
         code: 'WAITLIST_INSERT_FAILED',
       });
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /api/waitlist/stats — public queue size for the hero "In Queue" stat.
+  //
+  // Read-through TTL cache, held in this factory closure: prod instantiates the
+  // router once per warm Lambda container (bottom of file), so DB load is capped
+  // at ~1 COUNT per minute per container no matter the pageview traffic; tests
+  // get a fresh cache per createWaitlistRouter() call. Policy: serve a stale
+  // count on a transient DB error (a vanity stat should not blank on a blip);
+  // 500 only when the cache has never been populated (cold container + DB down).
+  // -------------------------------------------------------------------------
+  let statsCache = { count: null, expiresAt: 0 };
+
+  router.get('/waitlist/stats', async (req, res) => {
+    const now = Date.now();
+    if (statsCache.count === null || now >= statsCache.expiresAt) {
+      try {
+        const count = await db.countWaitlist();
+        statsCache = { count, expiresAt: now + statsTtlMs };
+      } catch (err) {
+        console.error('[waitlist] stats count failed:', err?.message ?? err);
+        if (statsCache.count === null) {
+          return res.status(500).json({
+            success: false,
+            error: 'Waitlist stats are temporarily unavailable.',
+            code: 'WAITLIST_STATS_FAILED',
+          });
+        }
+        // Cache holds a previous count — fall through and serve it stale.
+      }
+    }
+    return res.status(200).json({ success: true, count: statsCache.count });
   });
 
   // -------------------------------------------------------------------------
