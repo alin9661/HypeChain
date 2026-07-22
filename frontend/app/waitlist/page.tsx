@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
+import { RedactedField } from '@/components/redacted-field'
 import { apiClient } from '@/lib/api-client'
 
 type Intent = 'collect' | 'trade' | 'verify' | 'build'
@@ -62,8 +63,32 @@ export default function WaitlistPage() {
     email: string
     intent: Intent
     alreadyOnList: boolean
+    position?: number
+    total?: number
   } | null>(null)
   const [error, setError] = useState('')
+
+  // Live queue size for the hero rail. null = still loading (redaction bars);
+  // failed = show a dash, never a fabricated number.
+  const [queueCount, setQueueCount] = useState<number | null>(null)
+  const [queueFailed, setQueueFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    apiClient
+      .getWaitlistStats()
+      .then((result) => {
+        if (cancelled) return
+        if (result.success && result.data) setQueueCount(result.data.count)
+        else setQueueFailed(true)
+      })
+      .catch(() => {
+        if (!cancelled) setQueueFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,6 +124,10 @@ export default function WaitlistPage() {
           email: data.email ?? formData.email.trim(),
           intent: (data.intent ?? formData.interest) as Intent,
           alreadyOnList: Boolean(data.alreadyOnList),
+          // Server-only truths — no client fallback. When absent (rank lookup
+          // failed / race path) the receipt omits the Position row.
+          position: data.position,
+          total: data.total,
         })
       } else {
         setError(result.error || 'Submission failed. Please try again.')
@@ -138,7 +167,20 @@ export default function WaitlistPage() {
 
           {/* Queue rail */}
           <div className="grid grid-cols-3 border-y border-[var(--hc-hairline)]">
-            <QueueCell label="In Queue" value="1,847" />
+            <QueueCell
+              label="In Queue"
+              value={
+                queueFailed ? (
+                  '—'
+                ) : (
+                  <RedactedField
+                    pending={queueCount === null}
+                    value={(queueCount ?? 0).toLocaleString('en-US')}
+                    widthCh={5}
+                  />
+                )
+              }
+            />
             <QueueCell label="Verified Volume" value="2.4" unit="M USDC" />
             <QueueCell label="Examiner Uptime" value="99.94" unit="%" />
           </div>
@@ -273,7 +315,7 @@ export default function WaitlistPage() {
   )
 }
 
-function QueueCell({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function QueueCell({ label, value, unit }: { label: string; value: React.ReactNode; unit?: string }) {
   return (
     <div className="border-r border-[var(--hc-hairline)] py-4 first:pl-0 [&:not(:first-child)]:pl-4 last:border-r-0">
       <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--hc-text-muted)]">
@@ -354,7 +396,15 @@ function Receipt({
   onBackHome,
   onReset,
 }: {
-  submission: { id: string; intake: string; email: string; intent: Intent; alreadyOnList: boolean }
+  submission: {
+    id: string
+    intake: string
+    email: string
+    intent: Intent
+    alreadyOnList: boolean
+    position?: number
+    total?: number
+  }
   onBackHome: () => void
   onReset: () => void
 }) {
@@ -393,7 +443,12 @@ function Receipt({
         <ReceiptRow label="Intake" value={submission.intake} />
         <ReceiptRow label="Examiner" value="VISION-4O" />
         <ReceiptRow label="Email" value={submission.email} accent />
-        <ReceiptRow label="Position" value="#1,848 of 1,848" />
+        {submission.position != null && submission.total != null && (
+          <ReceiptRow
+            label="Position"
+            value={`#${submission.position.toLocaleString('en-US')} of ${submission.total.toLocaleString('en-US')}`}
+          />
+        )}
         <ReceiptRow label="Intent" value={submission.intent.toUpperCase()} />
         <ReceiptRow label="ETA" value="Q4 2026 — wave invitations roll weekly" />
       </dl>
