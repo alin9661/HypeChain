@@ -8,7 +8,6 @@
  */
 
 import {
-  wrapOffset,
   railParallax,
   easeOutCubic,
   countUpValue,
@@ -17,40 +16,6 @@ import {
   TICKER_ENTRIES,
 } from '@/components/landing/dossier-data';
 import { EVIDENCE_MOVES } from '@/components/landing/landing-section-data';
-
-describe('wrapOffset', () => {
-  it('is 0 at scroll 0', () => {
-    expect(wrapOffset(0, 0.06, 120)).toBe(0);
-  });
-
-  it('wraps back to exactly 0 (not -0) at period multiples', () => {
-    // scroll * speed === period → offset wraps to 0
-    expect(wrapOffset(2000, 0.06, 120)).toBe(0); // 2000*0.06 = 120
-    expect(wrapOffset(4000, 0.06, 120)).toBe(0);
-  });
-
-  it('always returns a value in (-period, 0]', () => {
-    for (let scroll = 0; scroll <= 100_000; scroll += 777) {
-      const v = wrapOffset(scroll, 0.06, 120);
-      expect(v).toBeLessThanOrEqual(0);
-      expect(v).toBeGreaterThan(-120);
-    }
-  });
-
-  it('stays bounded for negative scroll (rubber-banding)', () => {
-    const v = wrapOffset(-500, 0.06, 120);
-    expect(v).toBeLessThanOrEqual(0);
-    expect(v).toBeGreaterThan(-120);
-  });
-
-  it('collapses NaN and non-positive periods to 0', () => {
-    expect(wrapOffset(NaN, 0.06, 120)).toBe(0);
-    expect(wrapOffset(1000, NaN, 120)).toBe(0);
-    expect(wrapOffset(1000, 0.06, 0)).toBe(0);
-    expect(wrapOffset(1000, 0.06, -120)).toBe(0);
-    expect(wrapOffset(1000, 0.06, NaN)).toBe(0);
-  });
-});
 
 describe('railParallax', () => {
   it('is 0 at scroll 0 and scales linearly in range', () => {

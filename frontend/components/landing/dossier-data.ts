@@ -18,23 +18,6 @@ import { clamp01 } from './landing-section-data';
 /* ──────────────────────────  PURE HELPERS  ────────────────────────── */
 
 /**
- * Vertical drift offset for the chart-paper grid, wrapped to the grid's
- * coarse period so the translate value stays tiny on arbitrarily long
- * scrolls (no float-precision drift) and the wrap is invisible because
- * the pattern repeats at exactly `period`.
- *
- * Returns a value in (-period, 0]. NaN inputs and non-positive periods
- * collapse to 0.
- */
-export function wrapOffset(scroll: number, speed: number, period: number): number {
-  if (!Number.isFinite(scroll) || !Number.isFinite(speed)) return 0;
-  if (!Number.isFinite(period) || period <= 0) return 0;
-  const wrapped = (((scroll * speed) % period) + period) % period;
-  // Avoid -0 at exact period multiples so callers can compare with ===.
-  return wrapped === 0 ? 0 : -wrapped;
-}
-
-/**
  * Small clamped parallax offset for the marginalia rails.
  * Returns `scroll * factor` clamped to [-maxPx, maxPx]. NaN → 0.
  */

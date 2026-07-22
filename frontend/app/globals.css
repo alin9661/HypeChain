@@ -245,43 +245,6 @@
   );
 }
 
-/* Chart paper: fine 24px + coarse 120px hairline cross-hatch. Raw CSS
-   repeating-linear-gradient (like .hc-scanlines above) — NOT one of the
-   Tailwind gradient utilities DESIGN.md bans. Drifted vertically by
-   dossier-shell.tsx via transform, so the layer must be oversized by one
-   coarse period. */
-.hc-dossier-grid {
-  background-image:
-    repeating-linear-gradient(
-      to right,
-      rgba(31, 31, 31, 0.55) 0px,
-      rgba(31, 31, 31, 0.55) 1px,
-      transparent 1px,
-      transparent 24px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(31, 31, 31, 0.55) 0px,
-      rgba(31, 31, 31, 0.55) 1px,
-      transparent 1px,
-      transparent 24px
-    ),
-    repeating-linear-gradient(
-      to right,
-      rgba(31, 31, 31, 0.9) 0px,
-      rgba(31, 31, 31, 0.9) 1px,
-      transparent 1px,
-      transparent 120px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(31, 31, 31, 0.9) 0px,
-      rgba(31, 31, 31, 0.9) 1px,
-      transparent 1px,
-      transparent 120px
-    );
-}
-
 /* Verified-mints ticker divider. The track holds two copies of the entry
    list; translating -50% then looping is seamless. Reduced motion is
    handled here in CSS so the component needs no JS fork (and therefore

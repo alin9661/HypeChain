@@ -53,7 +53,7 @@ export default function LandingPage() {
 
         <div className="pb-16 mt-auto text-center relative z-10 px-4">
           <Pill className="mb-6">BETA RELEASE</Pill>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-mono text-white">
+          <h1 className="text-6xl sm:text-7xl md:text-8xl font-sentient italic font-extralight leading-[1.02] tracking-[-0.02em] text-white">
             Unlock your <br />
             marketplace
           </h1>

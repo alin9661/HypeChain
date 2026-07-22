@@ -220,6 +220,21 @@ export function Particles({
       delta
     );
 
+    // Scroll morph — circle → chamfered octagon as the hero scrolls away.
+    // Read scrollY directly each frame (a stored value, no layout forced);
+    // fully converted by ~85% of one viewport of scroll. Reduced motion
+    // pins the field to circles.
+    const morphTarget = reducedMotion.current
+      ? 0
+      : Math.min(Math.max(window.scrollY / (window.innerHeight * 0.85), 0), 1);
+    easing.damp(
+      dofPointsMaterial.uniforms.uShapeMorph,
+      "value",
+      morphTarget,
+      0.25,
+      delta
+    );
+
     simulationMaterial.uniforms.uTime.value = currentTime;
     simulationMaterial.uniforms.uNoiseScale.value = noiseScale;
     simulationMaterial.uniforms.uNoiseIntensity.value = noiseIntensity;

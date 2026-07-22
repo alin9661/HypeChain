@@ -37,6 +37,7 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
       varying vec3 vWorldPosition;
       varying vec3 vInitialPosition;
       uniform float uTransition;
+      uniform float uShapeMorph;
 
       ${periodicNoiseGLSL}
 
@@ -88,17 +89,31 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
         return length(p) - r;
       }
 
+      // Chamfered octagon — the design system's hc-poly corner geometry
+      // (a square with 45° clipped corners). iq's regular-octagon SDF.
+      float sdOctagon(vec2 p, float r) {
+        const vec3 k = vec3(-0.9238795325, 0.3826834323, 0.4142135623);
+        p = abs(p);
+        p -= 2.0 * min(dot(vec2(k.x, k.y), p), 0.0) * vec2(k.x, k.y);
+        p -= 2.0 * min(dot(vec2(-k.x, k.y), p), 0.0) * vec2(-k.x, k.y);
+        p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+        return length(p) * sign(p.y);
+      }
+
       void main() {
         vec2 cxy = 2.0 * gl_PointCoord - 1.0;
 
-        // Define triangle vertices (equilateral triangle)
-        vec2 p0 = vec2(0.0, -0.8);     // top tip (flipped Y)
-        vec2 p1 = vec2(-0.7, 0.4);     // bottom left (flipped Y)
-        vec2 p2 = vec2(0.7, 0.4);      // bottom right (flipped Y)
-        
-        float sdf = sdCircle(cxy, 0.5);
-        
-        if (sdf > 0.0) discard;
+        // Scroll morph: circle (loose specimen) → chamfered octagon (the
+        // system's hc-poly frame). Staggered per particle by a hash of its
+        // initial position so the field converts as a wave, not a snap.
+        float morphHash = fract(sin(dot(vInitialPosition.xz, vec2(127.1, 311.7))) * 43758.5453);
+        float morphLocal = clamp(uShapeMorph * 1.6 - morphHash * 0.6, 0.0, 1.0);
+        float sdf = mix(sdCircle(cxy, 0.5), sdOctagon(cxy, 0.46), morphLocal);
+
+        // Smoothstep edge instead of a hard discard — at the 3px point-size
+        // floor a binary edge aliases into shimmer, especially mid-morph.
+        float shapeAlpha = 1.0 - smoothstep(-0.08, 0.02, sdf);
+        if (shapeAlpha <= 0.001) discard;
 
         // Calculate distance from center for reveal effect
         float distanceFromCenter = length(vWorldPosition.xz);
@@ -115,7 +130,7 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
         
         float alpha = (1.04 - clamp(vDistance, 0.0, 1.0)) * clamp(smoothstep(-0.5, 0.25, vPosY), 0.0, 1.0) * uOpacity * revealMask * uRevealProgress * sparkleBrightness;
 
-        gl_FragColor = vec4(vec3(1.0), mix(alpha, sparkleBrightness - 1.1, uTransition));
+        gl_FragColor = vec4(vec3(1.0), mix(alpha, sparkleBrightness - 1.1, uTransition) * shapeAlpha);
       }`,
       uniforms: {
         positions: { value: null },
@@ -125,6 +140,7 @@ export class DofPointsMaterial extends THREE.ShaderMaterial {
         uFov: { value: 50 },
         uBlur: { value: 30 },
         uTransition: { value: 0.0 },
+        uShapeMorph: { value: 0.0 },
         uPointSize: { value: 2.0 },
         uOpacity: { value: 1.0 },
         uRevealFactor: { value: 0.0 },
