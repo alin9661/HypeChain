@@ -382,6 +382,40 @@ export async function markWaitlistConfirmationSent(conn, id) {
   await conn.query(MARK_WAITLIST_CONFIRMATION_SENT_SQL, [id]);
 }
 
+// Queue rank + total in one scan. Rank = rows at-or-before this row in
+// (created_at, id) order — deterministic under same-instant signups (id
+// tiebreak) and stable for re-signups (an alreadyOnList user keeps the rank of
+// their original created_at, not the current tail). Derived, not stored: DSQL
+// has no sequences, and a hot counter row would thrash under OCC.
+//
+// The row's own (created_at, id) is resolved by a self-join on id rather than
+// passed as a parameter: timestamptz keeps microseconds, a JS Date only
+// milliseconds, so round-tripping created_at through the driver truncates it
+// and the row fails to count itself (off-by-one rank). The ::int casts matter
+// too — pg returns bigint COUNT as a string.
+export const GET_WAITLIST_POSITION_SQL =
+  'SELECT ' +
+  'COUNT(*) FILTER (WHERE (w.created_at, w.id) <= (me.created_at, me.id))::int AS position, ' +
+  'COUNT(*)::int AS total ' +
+  'FROM waitlist w, waitlist me WHERE me.id = $1';
+
+export const COUNT_WAITLIST_SQL = 'SELECT COUNT(*)::int AS count FROM waitlist';
+
+/**
+ * Queue rank of an existing waitlist row plus the current total signups, or
+ * null if the row no longer exists.
+ */
+export async function getWaitlistPosition(conn, { id }) {
+  const { rows } = await conn.query(GET_WAITLIST_POSITION_SQL, [id]);
+  return rows.length ? rows[0] : null;
+}
+
+/** Total waitlist signups (public stats; cached at the route layer). */
+export async function countWaitlist(conn) {
+  const { rows } = await conn.query(COUNT_WAITLIST_SQL);
+  return rows[0].count;
+}
+
 // ---------------------------------------------------------------------------
 // USERS — register/login + profile lookup. Replaces the Supabase-backed
 // Next.js routes (frontend/app/api/users/*) as part of the Supabase
