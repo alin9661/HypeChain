@@ -49,4 +49,6 @@ export const db = {
   getWaitlistByEmail: (email) => q.getWaitlistByEmail(poolConn, email),
   listWaitlist: (opts) => q.listWaitlist(poolConn, opts),
   markWaitlistConfirmationSent: (id) => q.markWaitlistConfirmationSent(poolConn, id),
+  getWaitlistPosition: (args) => q.getWaitlistPosition(poolConn, args),
+  countWaitlist: () => q.countWaitlist(poolConn),
 };
