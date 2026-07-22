@@ -1,7 +1,9 @@
 /**
  * Route-level tests for the waitlist endpoints.
  *
- *   POST /api/waitlist          — signup (validation, idempotency, server id)
+ *   POST /api/waitlist          — signup (validation, idempotency, server id,
+ *                                 queue position)
+ *   GET  /api/waitlist/stats    — public queue size (TTL cache, stale-on-error)
  *   GET  /api/waitlist/export   — admin export (Bearer-token auth)
  *
  * The router is built via createWaitlistRouter() with an injected in-memory db
@@ -34,6 +36,8 @@ function makeFakeDb() {
     async insertWaitlistEntry(entry) {
       if (rows.some((r) => r.email === entry.email)) return null; // ON CONFLICT DO NOTHING
       seq += 1;
+      // Distinct, increasing created_at per row so rank tests see real ordering.
+      const createdAt = new Date(Date.parse('2026-06-19T12:00:00Z') + seq * 1000);
       const row = {
         id: `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`,
         name: entry.name,
@@ -43,8 +47,8 @@ function makeFakeDb() {
         source: entry.source ?? 'web',
         status: 'pending',
         confirmation_sent_at: null,
-        created_at: new Date('2026-06-19T12:00:00Z'),
-        updated_at: new Date('2026-06-19T12:00:00Z'),
+        created_at: createdAt,
+        updated_at: createdAt,
       };
       rows.push(row);
       return row;
@@ -54,6 +58,21 @@ function makeFakeDb() {
     },
     async listWaitlist() {
       return [...rows].reverse();
+    },
+    // Mirrors GET_WAITLIST_POSITION_SQL: self-join on id, then count rows
+    // at-or-before (created_at, id).
+    async getWaitlistPosition({ id }) {
+      const me = rows.find((r) => r.id === id);
+      if (!me) return null;
+      const t = me.created_at.getTime();
+      const atOrBefore = (r) => {
+        const rt = r.created_at.getTime();
+        return rt < t || (rt === t && r.id <= me.id);
+      };
+      return { position: rows.filter(atOrBefore).length, total: rows.length };
+    },
+    async countWaitlist() {
+      return rows.length;
     },
   };
 }
@@ -281,6 +300,73 @@ describe('POST /api/waitlist', () => {
     expect(body.code).toBe('WAITLIST_INSERT_FAILED');
   });
 
+  it('returns the queue position and total on fresh signups', async () => {
+    const db = makeFakeDb();
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const first = await post(baseUrl, VALID);
+    expect(first.body.position).toBe(1);
+    expect(first.body.total).toBe(1);
+
+    const second = await post(baseUrl, { ...VALID, email: 'second@example.com' });
+    expect(second.body.position).toBe(2);
+    expect(second.body.total).toBe(2);
+  });
+
+  it('alreadyOnList keeps the original position, not the current tail', async () => {
+    const db = makeFakeDb();
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    await post(baseUrl, VALID); // jane → position 1
+    await post(baseUrl, { ...VALID, email: 'second@example.com' }); // position 2
+
+    const dup = await post(baseUrl, VALID); // jane again
+    expect(dup.body.alreadyOnList).toBe(true);
+    expect(dup.body.position).toBe(1); // her original rank, not 2
+    expect(dup.body.total).toBe(2); // but the total reflects the current list
+  });
+
+  it('same-instant signups get distinct positions via the id tiebreak', async () => {
+    const db = makeFakeDb();
+    // Two rows committed at the exact same timestamp, distinct ids.
+    const sameInstant = new Date('2026-06-19T12:00:00Z');
+    for (const [n, email] of [['1', 'a@x.com'], ['2', 'b@x.com']]) {
+      db.rows.push({
+        id: `00000000-0000-4000-8000-00000000000${n}`,
+        name: `User ${n}`,
+        email,
+        wallet_address: null,
+        intent: 'collect',
+        source: 'web',
+        status: 'pending',
+        confirmation_sent_at: null,
+        created_at: sameInstant,
+        updated_at: sameInstant,
+      });
+    }
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const a = await post(baseUrl, { name: 'User 1', email: 'a@x.com' });
+    const b = await post(baseUrl, { name: 'User 2', email: 'b@x.com' });
+    expect(a.body.position).toBe(1);
+    expect(b.body.position).toBe(2);
+  });
+
+  it('omits position/total but still 2xxs when the rank lookup throws', async () => {
+    const db = makeFakeDb();
+    db.getWaitlistPosition = async () => {
+      throw new Error('DSQL read timeout');
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const { status, body } = await post(baseUrl, VALID);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.position).toBeUndefined();
+    expect(body.total).toBeUndefined();
+    expect(db.rows).toHaveLength(1); // signup still recorded
+  });
+
   it('returns success without an id when the row is lost to an unobservable race', async () => {
     // insert returns null (conflict) but the conflicting row is then not found.
     const db = {
@@ -293,6 +379,78 @@ describe('POST /api/waitlist', () => {
     expect(body.success).toBe(true);
     expect(body.alreadyOnList).toBe(true);
     expect(body.id).toBeUndefined();
+  });
+});
+
+describe('GET /api/waitlist/stats', () => {
+  async function getStats(baseUrl) {
+    const res = await fetch(`${baseUrl}/api/waitlist/stats`);
+    return { status: res.status, body: await res.json() };
+  }
+
+  it('returns the current queue size (0 on an empty list)', async () => {
+    const db = makeFakeDb();
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const empty = await getStats(baseUrl);
+    expect(empty.status).toBe(200);
+    expect(empty.body).toEqual({ success: true, count: 0 });
+  });
+
+  it('serves repeat requests from the TTL cache — one db hit', async () => {
+    const db = makeFakeDb();
+    let countCalls = 0;
+    const realCount = db.countWaitlist.bind(db);
+    db.countWaitlist = async () => {
+      countCalls += 1;
+      return realCount();
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+    await post(baseUrl, VALID);
+
+    const first = await getStats(baseUrl);
+    const second = await getStats(baseUrl);
+    expect(first.body.count).toBe(1);
+    expect(second.body.count).toBe(1);
+    expect(countCalls).toBe(1); // second call never touched the db
+  });
+
+  it('serves the stale count when a refresh fails after the TTL expires', async () => {
+    const db = makeFakeDb();
+    let fail = false;
+    const realCount = db.countWaitlist.bind(db);
+    db.countWaitlist = async () => {
+      if (fail) throw new Error('DSQL unavailable');
+      return realCount();
+    };
+    // TTL 0 → every request attempts a refresh.
+    const baseUrl = await start({
+      db,
+      sendConfirmation: makeSpy(),
+      sendAdminNotification: makeSpy(),
+      statsTtlMs: 0,
+    });
+    await post(baseUrl, VALID);
+
+    const warm = await getStats(baseUrl);
+    expect(warm.body.count).toBe(1);
+
+    fail = true;
+    const stale = await getStats(baseUrl);
+    expect(stale.status).toBe(200); // stale beats blank for a vanity stat
+    expect(stale.body.count).toBe(1);
+  });
+
+  it('500s WAITLIST_STATS_FAILED when the db fails and no cache exists', async () => {
+    const db = makeFakeDb();
+    db.countWaitlist = async () => {
+      throw new Error('DSQL unavailable');
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const { status, body } = await getStats(baseUrl);
+    expect(status).toBe(500);
+    expect(body.code).toBe('WAITLIST_STATS_FAILED');
   });
 });
 
