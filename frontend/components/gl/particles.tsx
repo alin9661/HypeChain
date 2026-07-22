@@ -240,6 +240,12 @@ export function Particles({
       0.25,
       delta
     );
+    if (process.env.NODE_ENV !== "production") {
+      // QA probe: `__hcMorph` in the console reports the live morph value.
+      // Absent → the tab is running a stale bundle without the morph code.
+      (window as unknown as { __hcMorph?: number }).__hcMorph =
+        dofPointsMaterial.uniforms.uShapeMorph.value;
+    }
 
     simulationMaterial.uniforms.uTime.value = currentTime;
     simulationMaterial.uniforms.uNoiseScale.value = noiseScale;

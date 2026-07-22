@@ -51,7 +51,9 @@ export function Navigation({ items, showConnectWallet = true, onConnectWalletCli
   }, [])
 
   return (
-    <div className="fixed z-50 pt-8 md:pt-14 top-0 left-0 w-full bg-black/80 backdrop-blur-md">
+    // pt matches the px-4/md:px-8 side insets so the logo and wallet
+    // button sit equidistant from the viewport corner.
+    <div className="fixed z-50 pt-4 md:pt-8 top-0 left-0 w-full bg-black/80 backdrop-blur-md">
       <header className="flex items-center justify-between w-full px-4 md:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 z-50">
