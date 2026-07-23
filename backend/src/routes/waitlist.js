@@ -46,6 +46,13 @@ const STATS_TTL_MS = 60_000;
 // brownout); this backs off before the next attempt. Short so recovery is
 // quick once the DB is healthy again.
 const STATS_ERROR_BACKOFF_MS = 5_000;
+// Deadline on the shared COUNT query. The pool sets no connection/statement
+// timeouts, so a query that hangs (connection accepted, no reply) would leave
+// the single-flight promise unsettled forever — every later request would
+// await the same dead promise and the endpoint stays bricked for the
+// container's lifetime. Racing a deadline abandons the hung query so the next
+// attempt (after the error backoff) starts fresh.
+const STATS_QUERY_TIMEOUT_MS = 5_000;
 const EXPORT_COLUMNS = [
   'id', 'name', 'email', 'wallet_address', 'intent', 'source', 'status',
   'confirmation_sent_at', 'created_at', 'updated_at',
@@ -86,6 +93,17 @@ function toCsv(rows) {
   return [header, ...lines].join('\r\n') + '\r\n';
 }
 
+// Reject when `promise` doesn't settle within `ms`. The loser is left to
+// settle (or hang) on its own — callers must drop their reference to it so a
+// dead promise can be replaced by a fresh attempt.
+function withDeadline(promise, ms) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 // Constant-time bearer-token comparison (avoids a timing oracle on the secret).
 function tokensMatch(provided, expected) {
   const a = Buffer.from(String(provided));
@@ -99,6 +117,8 @@ export function createWaitlistRouter({
   sendConfirmation = defaultSendConfirmation,
   sendAdminNotification = defaultSendAdminNotification,
   statsTtlMs = STATS_TTL_MS,
+  statsErrorBackoffMs = STATS_ERROR_BACKOFF_MS,
+  statsQueryTimeoutMs = STATS_QUERY_TIMEOUT_MS,
 } = {}) {
   const router = express.Router();
 
@@ -285,26 +305,33 @@ export function createWaitlistRouter({
 
   router.get('/waitlist/stats', async (req, res) => {
     const now = Date.now();
-    if (statsCache.count === null || now >= statsCache.expiresAt) {
+    if (now >= statsCache.expiresAt) {
       try {
-        statsInflight = statsInflight ?? db.countWaitlist();
-        const count = await statsInflight;
+        if (!statsInflight) {
+          statsInflight = db.countWaitlist();
+          // An abandoned (timed-out) COUNT may still reject long after anyone
+          // is awaiting it; observe that so it can't die as unhandled.
+          statsInflight.catch(() => {});
+        }
+        const count = await withDeadline(statsInflight, statsQueryTimeoutMs);
         statsCache = { count, expiresAt: now + statsTtlMs };
       } catch (err) {
         console.error('[waitlist] stats count failed:', err?.message ?? err);
-        if (statsCache.count === null) {
-          return res.status(500).json({
-            success: false,
-            error: 'Waitlist stats are temporarily unavailable.',
-            code: 'WAITLIST_STATS_FAILED',
-          });
-        }
-        // Cache holds a previous count — back off before the next DB attempt
-        // (negative cache) and serve the stale count in the meantime.
-        statsCache = { ...statsCache, expiresAt: now + STATS_ERROR_BACKOFF_MS };
+        // Back off before the next DB attempt (negative cache) on BOTH paths:
+        // with a previous count we serve it stale below; on a cold container
+        // (count still null) we serve the 500 below from this negative cache,
+        // so sequential requests during a brownout don't each re-hit the DB.
+        statsCache = { ...statsCache, expiresAt: now + statsErrorBackoffMs };
       } finally {
         statsInflight = null;
       }
+    }
+    if (statsCache.count === null) {
+      return res.status(500).json({
+        success: false,
+        error: 'Waitlist stats are temporarily unavailable.',
+        code: 'WAITLIST_STATS_FAILED',
+      });
     }
     return res.status(200).json({ success: true, count: statsCache.count });
   });
