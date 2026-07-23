@@ -75,16 +75,29 @@ export default function WaitlistPage() {
 
   useEffect(() => {
     let cancelled = false
-    apiClient
-      .getWaitlistStats()
-      .then((result) => {
+    // Bound each attempt (a hung fetch must not pin the rail on redaction
+    // bars) and retry once — a single dropped request on page load would
+    // otherwise stick the failure dash until a full reload.
+    const attempt = () =>
+      Promise.race([
+        apiClient.getWaitlistStats(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]).catch(() => null)
+
+    const load = async () => {
+      for (let tries = 0; tries < 2; tries += 1) {
+        const result = await attempt()
         if (cancelled) return
-        if (result.success && result.data) setQueueCount(result.data.count)
-        else setQueueFailed(true)
-      })
-      .catch(() => {
-        if (!cancelled) setQueueFailed(true)
-      })
+        if (result?.success && result.data) {
+          setQueueCount(result.data.count)
+          return
+        }
+        if (tries === 0) await new Promise((resolve) => setTimeout(resolve, 1500))
+        if (cancelled) return
+      }
+      setQueueFailed(true)
+    }
+    load()
     return () => {
       cancelled = true
     }
