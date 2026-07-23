@@ -240,6 +240,10 @@ export function Particles({
       0.25,
       delta
     );
+    // The same damped scroll value drives the formation change in the
+    // position sim: wave sheet (0) → rotating double helix (1).
+    simulationMaterial.uniforms.uFormation.value =
+      dofPointsMaterial.uniforms.uShapeMorph.value;
     if (process.env.NODE_ENV !== "production") {
       // QA probe: `__hcMorph` in the console reports the live morph value.
       // Absent → the tab is running a stale bundle without the morph code.

@@ -43,6 +43,7 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
       uniform float uRippleProgress;
       uniform float uRippleAmplitude;
       uniform float uPlaneExtent;
+      uniform float uFormation;
       varying vec2 vUv;
 
       ${periodicNoiseGLSL}
@@ -63,13 +64,14 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
         float displacementY = periodicNoise(noiseInput + vec3(50.0, 0.0, 0.0), continuousTime + 2.094); // +120°
         float displacementZ = periodicNoise(noiseInput + vec3(0.0, 50.0, 0.0), continuousTime + 4.188); // +240°
 
-        // Apply distortion to original position
+        // Apply distortion to original position — the resting "wave" state
         vec3 distortion = vec3(displacementX, displacementY, displacementZ) * uNoiseIntensity;
-        vec3 finalPos = originalPos + distortion;
+        vec3 wavePos = originalPos + distortion;
 
         // Directional wave packet — a few oscillation cycles under a gaussian
         // envelope sweeping monotonically +x; never reverts. Fired by the
         // Connect Wallet click (uRippleProgress ramps 0→1 over rippleDuration).
+        // Wave-state only: the packet rides the sheet, not the helix.
         if (uRippleProgress > 0.0 && uRippleProgress < 1.0) {
           float frontX = mix(-uPlaneExtent, uPlaneExtent + 3.0, uRippleProgress);
           float d = originalPos.x - frontX;
@@ -77,8 +79,31 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
           float env = exp(-(d * d) / (width * width * 0.5));
           float carrier = sin(d * 2.4);
           float decay = 1.0 - 0.35 * uRippleProgress;
-          finalPos.y += env * carrier * decay * uRippleAmplitude;
+          wavePos.y += env * carrier * decay * uRippleAmplitude;
         }
+
+        // Helix formation — scroll (uFormation 0→1) reorganizes the sheet
+        // into a slowly rotating double helix. Each particle's plane coords
+        // pick its slot: x → position along the helix axis (2 turns),
+        // z-half → which strand (0 / π), hashes give the strands thickness.
+        float tAlong = originalPos.x / (2.0 * uPlaneExtent) + 0.5;
+        float tAcross = originalPos.z / (2.0 * uPlaneExtent) + 0.5;
+        float hRad = fract(sin(dot(originalPos.xz, vec2(127.1, 311.7))) * 43758.5453);
+        float hLift = fract(sin(dot(originalPos.xz, vec2(269.5, 183.3))) * 43758.5453);
+        float strandPhase = step(0.5, tAcross) * 3.14159265;
+        float helixAngle = tAlong * 12.56637061 + strandPhase + uTime * 0.25;
+        float helixRadius = 2.0 + (hRad - 0.5) * 0.55;
+        vec3 helixPos = vec3(
+          helixRadius * cos(helixAngle),
+          (tAlong - 0.5) * 4.0 + 1.5 + (hLift - 0.5) * 0.4,
+          helixRadius * sin(helixAngle)
+        );
+
+        // Staggered assembly (hash-offset) so particles stream into place
+        // instead of snapping; 15% of the noise stays on so the helix
+        // breathes instead of freezing.
+        float f = smoothstep(0.0, 1.0, clamp(uFormation * 1.4 - hRad * 0.4, 0.0, 1.0));
+        vec3 finalPos = mix(wavePos, helixPos + distortion * 0.15, f);
 
         gl_FragColor = vec4(finalPos, 1.0);
       }`,
@@ -91,7 +116,8 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
         uLoopPeriod: { value: 24.0 },
         uRippleProgress: { value: 0 },
         uRippleAmplitude: { value: 0.9 },
-        uPlaneExtent: { value: scale }
+        uPlaneExtent: { value: scale },
+        uFormation: { value: 0 }
       }
     })
   }
