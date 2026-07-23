@@ -226,13 +226,19 @@ export function Particles({
       delta
     );
 
-    // Scroll morph — circle → chamfered octagon as the hero scrolls away.
-    // Read scrollY directly each frame (a stored value, no layout forced);
-    // fully converted by ~85% of one viewport of scroll. Reduced motion
-    // pins the field to circles.
+    // Scroll choreography, two phases (both reverse on scroll-up, both
+    // pinned to 0 under reduced motion). scrollY is read directly each
+    // frame — a stored value, no layout forced.
+    //   Phase 1 (0 → 0.85 viewports): wave sheet → double helix, plus the
+    //     sprite morph (circle → chamfered octagon).
+    //   Phase 2 (0.85 → ~2.25 viewports): the formed helix coils tighter.
+    const vh = window.innerHeight;
     const morphTarget = reducedMotion.current
       ? 0
-      : Math.min(Math.max(window.scrollY / (window.innerHeight * 0.85), 0), 1);
+      : Math.min(Math.max(window.scrollY / (vh * 0.85), 0), 1);
+    const tightenTarget = reducedMotion.current
+      ? 0
+      : Math.min(Math.max((window.scrollY - vh * 0.85) / (vh * 1.4), 0), 1);
     easing.damp(
       dofPointsMaterial.uniforms.uShapeMorph,
       "value",
@@ -244,11 +250,19 @@ export function Particles({
     // position sim: wave sheet (0) → rotating double helix (1).
     simulationMaterial.uniforms.uFormation.value =
       dofPointsMaterial.uniforms.uShapeMorph.value;
+    easing.damp(
+      simulationMaterial.uniforms.uTighten,
+      "value",
+      tightenTarget,
+      0.25,
+      delta
+    );
     if (process.env.NODE_ENV !== "production") {
-      // QA probe: `__hcMorph` in the console reports the live morph value.
-      // Absent → the tab is running a stale bundle without the morph code.
-      (window as unknown as { __hcMorph?: number }).__hcMorph =
-        dofPointsMaterial.uniforms.uShapeMorph.value;
+      // QA probes: live scroll-choreography uniforms, readable from the
+      // console. Absent → the tab is running a stale bundle.
+      const w = window as unknown as { __hcMorph?: number; __hcTighten?: number };
+      w.__hcMorph = dofPointsMaterial.uniforms.uShapeMorph.value;
+      w.__hcTighten = simulationMaterial.uniforms.uTighten.value;
     }
 
     simulationMaterial.uniforms.uTime.value = currentTime;
@@ -258,7 +272,11 @@ export function Particles({
 
     // Update point material uniforms
     dofPointsMaterial.uniforms.uPointSize.value = pointSize;
-    dofPointsMaterial.uniforms.uOpacity.value = opacity;
+    // Tightening packs the same particle count into a much smaller volume;
+    // stacked alpha would wash out to white behind section text. Fade
+    // opacity down as the coil compresses to keep density constant-ish.
+    dofPointsMaterial.uniforms.uOpacity.value =
+      opacity * (1.0 - 0.35 * simulationMaterial.uniforms.uTighten.value);
     dofPointsMaterial.uniforms.uRevealFactor.value = revealFactor;
     dofPointsMaterial.uniforms.uRevealProgress.value = easedProgress;
 

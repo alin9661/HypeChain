@@ -44,6 +44,7 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
       uniform float uRippleAmplitude;
       uniform float uPlaneExtent;
       uniform float uFormation;
+      uniform float uTighten;
       varying vec2 vUv;
 
       ${periodicNoiseGLSL}
@@ -91,11 +92,15 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
         float hRad = fract(sin(dot(originalPos.xz, vec2(127.1, 311.7))) * 43758.5453);
         float hLift = fract(sin(dot(originalPos.xz, vec2(269.5, 183.3))) * 43758.5453);
         float strandPhase = step(0.5, tAcross) * 3.14159265;
-        float helixAngle = tAlong * 12.56637061 + strandPhase + uTime * 0.25;
-        float helixRadius = 2.0 + (hRad - 0.5) * 0.55;
+        // Phase 2 (uTighten 0→1, past the formation scroll range): the coil
+        // winds tighter — 2 → 3.5 turns, radius 2.0 → 1.15, strands thin,
+        // height compresses slightly. All continuous, reverses on scroll-up.
+        float turns = mix(12.56637061, 21.99114858, uTighten);
+        float helixAngle = tAlong * turns + strandPhase + uTime * 0.25;
+        float helixRadius = mix(2.0, 1.15, uTighten) + (hRad - 0.5) * mix(0.55, 0.3, uTighten);
         vec3 helixPos = vec3(
           helixRadius * cos(helixAngle),
-          (tAlong - 0.5) * 4.0 + 1.5 + (hLift - 0.5) * 0.4,
+          (tAlong - 0.5) * mix(4.0, 3.2, uTighten) + 1.5 + (hLift - 0.5) * mix(0.4, 0.22, uTighten),
           helixRadius * sin(helixAngle)
         );
 
@@ -117,7 +122,8 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
         uRippleProgress: { value: 0 },
         uRippleAmplitude: { value: 0.9 },
         uPlaneExtent: { value: scale },
-        uFormation: { value: 0 }
+        uFormation: { value: 0 },
+        uTighten: { value: 0 }
       }
     })
   }
