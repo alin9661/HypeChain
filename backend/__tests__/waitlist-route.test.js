@@ -367,6 +367,18 @@ describe('POST /api/waitlist', () => {
     expect(db.rows).toHaveLength(1); // signup still recorded
   });
 
+  it('omits position/total when the rank lookup returns null (deleted-row race)', async () => {
+    const db = makeFakeDb();
+    db.getWaitlistPosition = async () => null;
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const { status, body } = await post(baseUrl, VALID);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.position).toBeUndefined();
+    expect(body.total).toBeUndefined();
+  });
+
   it('returns success without an id when the row is lost to an unobservable race', async () => {
     // insert returns null (conflict) but the conflicting row is then not found.
     const db = {
@@ -485,12 +497,14 @@ describe('GET /api/waitlist/stats', () => {
       return realCount();
     };
     // TTL 0 → the TTL alone would let every request retry; only the error
-    // backoff (5s) suppresses the retry storm.
+    // backoff suppresses the retry storm. The backoff is injected large so the
+    // assertion cannot flake on a slow CI stall between the two failing calls.
     const baseUrl = await start({
       db,
       sendConfirmation: makeSpy(),
       sendAdminNotification: makeSpy(),
       statsTtlMs: 0,
+      statsErrorBackoffMs: 60_000,
     });
     await post(baseUrl, VALID);
 
@@ -502,6 +516,73 @@ describe('GET /api/waitlist/stats', () => {
     expect(firstFail.body.count).toBe(1); // stale served
     expect(secondFail.body.count).toBe(1); // stale served
     expect(countCalls).toBe(2); // warm + one failed attempt; #2 absorbed by backoff
+  });
+
+  it('negative-caches a cold-container failure — 500s without re-hitting the db', async () => {
+    const db = makeFakeDb();
+    let countCalls = 0;
+    db.countWaitlist = async () => {
+      countCalls += 1;
+      throw new Error('DSQL unavailable');
+    };
+    const baseUrl = await start({
+      db,
+      sendConfirmation: makeSpy(),
+      sendAdminNotification: makeSpy(),
+      statsErrorBackoffMs: 60_000,
+    });
+
+    const first = await getStats(baseUrl); // cold miss: db call #1, fails
+    const second = await getStats(baseUrl); // inside backoff → served from negative cache
+    expect(first.status).toBe(500);
+    expect(second.status).toBe(500);
+    expect(second.body.code).toBe('WAITLIST_STATS_FAILED');
+    expect(countCalls).toBe(1); // sequential cold failures must not retry-storm
+  });
+
+  it('times out a hung COUNT so one dead query cannot brick the endpoint', async () => {
+    const db = makeFakeDb();
+    let countCalls = 0;
+    db.countWaitlist = () => {
+      countCalls += 1;
+      if (countCalls === 1) return new Promise(() => {}); // hangs: never settles
+      return Promise.resolve(3);
+    };
+    const baseUrl = await start({
+      db,
+      sendConfirmation: makeSpy(),
+      sendAdminNotification: makeSpy(),
+      statsQueryTimeoutMs: 25,
+      statsErrorBackoffMs: 0, // let the recovery attempt run immediately
+    });
+
+    const hung = await getStats(baseUrl); // deadline fires → cold-path 500
+    expect(hung.status).toBe(500);
+    expect(hung.body.code).toBe('WAITLIST_STATS_FAILED');
+
+    // Without the deadline the dead promise stays in statsInflight and every
+    // later request awaits it forever; with it, this is a fresh query.
+    const recovered = await getStats(baseUrl);
+    expect(recovered.status).toBe(200);
+    expect(recovered.body.count).toBe(3);
+    expect(countCalls).toBe(2);
+  });
+
+  it('caches a zero count — an empty list is a value, not a miss', async () => {
+    const db = makeFakeDb();
+    let countCalls = 0;
+    const realCount = db.countWaitlist.bind(db);
+    db.countWaitlist = async () => {
+      countCalls += 1;
+      return realCount();
+    };
+    const baseUrl = await start({ db, sendConfirmation: makeSpy(), sendAdminNotification: makeSpy() });
+
+    const first = await getStats(baseUrl);
+    const second = await getStats(baseUrl);
+    expect(first.body).toEqual({ success: true, count: 0 });
+    expect(second.body).toEqual({ success: true, count: 0 });
+    expect(countCalls).toBe(1); // count=0 must not be treated as an empty cache
   });
 });
 
