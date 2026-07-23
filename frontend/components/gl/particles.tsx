@@ -308,12 +308,16 @@ export function Particles({
         };
       }
       const base = cameraBase.current;
+      // As the cone forms, the viewpoint rises above its base rim and the
+      // look-target climbs toward the cone's mid-axis — we end up looking
+      // down into the funnel. Wave state (morph 0) is untouched.
+      const morphNow = dofPointsMaterial.uniforms.uShapeMorph.value;
       state.camera.position.set(
         base.x + state.pointer.x * 0.12,
-        base.y + state.pointer.y * 0.08,
+        base.y + morphNow * 1.6 + state.pointer.y * 0.08,
         base.z
       );
-      state.camera.lookAt(0, 0, 0);
+      state.camera.lookAt(0, morphNow * 1.2, 0);
     }
   });
 
