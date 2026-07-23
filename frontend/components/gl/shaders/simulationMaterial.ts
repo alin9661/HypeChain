@@ -92,15 +92,24 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
         float hRad = fract(sin(dot(originalPos.xz, vec2(127.1, 311.7))) * 43758.5453);
         float hLift = fract(sin(dot(originalPos.xz, vec2(269.5, 183.3))) * 43758.5453);
         float strandPhase = step(0.5, tAcross) * 3.14159265;
-        // Phase 2 (uTighten 0→1, past the formation scroll range): the coil
-        // winds tighter — 2 → 3.5 turns, radius 2.0 → 1.15, strands thin,
-        // height compresses slightly. All continuous, reverses on scroll-up.
+        // Phase 2 (uTighten 0→1, spread over the rest of the page): the
+        // coil winds tighter — 2 → 3.5 turns, radius shrinks, strands
+        // thin, height compresses. All continuous, reverses on scroll-up.
         float turns = mix(12.56637061, 21.99114858, uTighten);
         float helixAngle = tAlong * turns + strandPhase + uTime * 0.25;
-        float helixRadius = mix(2.0, 1.15, uTighten) + (hRad - 0.5) * mix(0.55, 0.3, uTighten);
+        // Conical winding — an upside-down cone: apex at the bottom,
+        // wide base at the top where the camera sits, so the viewer
+        // looks down into the funnel. Strand thickness follows the
+        // taper (thinner toward the apex).
+        float coneProfile = mix(0.12, 1.0, tAlong);
+        float helixRadius =
+          (mix(2.4, 1.3, uTighten) + (hRad - 0.5) * mix(0.55, 0.3, uTighten)) * coneProfile;
+        // The cone drifts upward as it tightens (+0.8 world-y) so the
+        // final compact vortex sits high on screen, above the final-CTA
+        // document that scrolls over the viewport center at page bottom.
         vec3 helixPos = vec3(
           helixRadius * cos(helixAngle),
-          (tAlong - 0.5) * mix(4.0, 3.2, uTighten) + 1.5 + (hLift - 0.5) * mix(0.4, 0.22, uTighten),
+          (tAlong - 0.5) * mix(4.0, 3.2, uTighten) + 1.5 + uTighten * 0.8 + (hLift - 0.5) * mix(0.4, 0.22, uTighten),
           helixRadius * sin(helixAngle)
         );
 

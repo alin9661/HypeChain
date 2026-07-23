@@ -231,14 +231,29 @@ export function Particles({
     // frame — a stored value, no layout forced.
     //   Phase 1 (0 → 0.85 viewports): wave sheet → double helix, plus the
     //     sprite morph (circle → chamfered octagon).
-    //   Phase 2 (0.85 → ~2.25 viewports): the formed helix coils tighter.
+    //   Phase 2 (0.85 viewports → page bottom): the formed cone-helix
+    //     coils tighter, reaching maximum exactly at the end of the page.
     const vh = window.innerHeight;
+    const tightenStart = vh * 0.85;
+    // scrollHeight is a cheap read while layout is clean (this runs in
+    // rAF after style/layout), and using the live value keeps "max
+    // tighten = page bottom" true even if sections resize. Max lands
+    // slightly (0.55vh) before the literal bottom: the final-CTA
+    // document covers the viewport center on the last half-screen, so
+    // this keeps the fully-wound vortex watchable before it's occluded.
+    const maxScroll = Math.max(
+      document.documentElement.scrollHeight - vh * 1.55,
+      tightenStart + 1
+    );
     const morphTarget = reducedMotion.current
       ? 0
-      : Math.min(Math.max(window.scrollY / (vh * 0.85), 0), 1);
+      : Math.min(Math.max(window.scrollY / tightenStart, 0), 1);
     const tightenTarget = reducedMotion.current
       ? 0
-      : Math.min(Math.max((window.scrollY - vh * 0.85) / (vh * 1.4), 0), 1);
+      : Math.min(
+          Math.max((window.scrollY - tightenStart) / (maxScroll - tightenStart), 0),
+          1
+        );
     easing.damp(
       dofPointsMaterial.uniforms.uShapeMorph,
       "value",
