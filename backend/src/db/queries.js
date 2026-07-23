@@ -407,7 +407,12 @@ export const COUNT_WAITLIST_SQL = 'SELECT COUNT(*)::int AS count FROM waitlist';
  */
 export async function getWaitlistPosition(conn, { id }) {
   const { rows } = await conn.query(GET_WAITLIST_POSITION_SQL, [id]);
-  return rows.length ? rows[0] : null;
+  // An aggregate without GROUP BY always yields exactly one row, even when the
+  // self-join matches nothing — a missing id comes back as total=0, never as
+  // zero rows. total=0 ⟺ the row is gone (a non-empty table always counts
+  // itself), so gate on it rather than rows.length.
+  const row = rows[0];
+  return row && row.total > 0 ? row : null;
 }
 
 /** Total waitlist signups (public stats; cached at the route layer). */
