@@ -52,6 +52,37 @@ describe('ApiClient', () => {
     });
   });
 
+  describe('getWaitlistStats', () => {
+    it('should return the queue count on success', async () => {
+      const mockResponse = { success: true, count: 1848 };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await client.getWaitlistStats();
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/waitlist/stats'),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle network errors (drives the page dash state)', async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(
+        new Error('Network error')
+      );
+
+      const result = await client.getWaitlistStats();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Network error');
+    });
+  });
+
   describe('createListing', () => {
     it('should create listing successfully', async () => {
       const mockRequest = {
