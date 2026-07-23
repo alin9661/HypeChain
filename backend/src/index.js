@@ -18,7 +18,7 @@ import webhookRoutes from './routes/webhooks.js';
 import waitlistRoutes from './routes/waitlist.js';
 import userRoutes from './routes/users.js';
 import { requestId } from './middleware/request-id.js';
-import { createListingLimiter, paymentsLimiter, waitlistLimiter, userRegisterLimiter, userLookupLimiter } from './middleware/rate-limit.js';
+import { createListingLimiter, paymentsLimiter, waitlistLimiter, waitlistStatsLimiter, userRegisterLimiter, userLookupLimiter } from './middleware/rate-limit.js';
 
 const app = express();
 
@@ -83,7 +83,9 @@ app.use('/api/create-listing', createListingLimiter);
 app.use('/api/payments', paymentsLimiter);
 // Public waitlist signup — per-IP throttle on the POST only (each signup can
 // dispatch SES email). The admin export (GET /api/waitlist/export) must not
-// share the signup budget, so it is exempt from this limiter.
+// share the signup budget, so it is exempt from this limiter. The public
+// stats GET gets its own generous limiter (the response is cache-served).
+app.use('/api/waitlist/stats', waitlistStatsLimiter);
 app.use('/api/waitlist', (req, res, next) =>
   req.method === 'POST' ? waitlistLimiter(req, res, next) : next()
 );

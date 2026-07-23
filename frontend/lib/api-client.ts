@@ -70,6 +70,20 @@ export interface WaitlistResponse {
   intent: WaitlistIntent;
   /** True when this email was already on the list (idempotent re-signup). */
   alreadyOnList: boolean;
+  /**
+   * Queue rank by signup time (re-signups keep their original rank). Best
+   * effort: absent when the server's rank lookup fails or on the rare race
+   * path — never fabricated client-side.
+   */
+  position?: number;
+  /** Total signups on the list at response time. Best-effort like position. */
+  total?: number;
+}
+
+export interface WaitlistStatsResponse {
+  success: boolean;
+  /** Current queue size. Served from a short server-side cache (~60s). */
+  count: number;
 }
 
 export interface HealthCheckResponse {
@@ -390,6 +404,13 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * GET /api/waitlist/stats - Public queue size for the waitlist hero stat.
+   */
+  async getWaitlistStats(): Promise<ApiResponse<WaitlistStatsResponse>> {
+    return this.request<WaitlistStatsResponse>('/api/waitlist/stats');
   }
 
   /**

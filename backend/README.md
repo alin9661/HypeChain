@@ -134,6 +134,63 @@ signs transactions it built itself).
 `verify` is idempotent: replaying the same signature for the same listing and
 buyer returns success instead of `409`.
 
+### POST /api/waitlist
+
+Public waitlist signup (the form at `/waitlist`). Idempotent on email — a
+re-signup returns the existing receipt and never re-sends the confirmation
+email. Rate-limited per IP on the POST.
+
+**Request:**
+```json
+{
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "walletAddress": "SOLANA_PUBLIC_KEY (optional)",
+  "interest": "collect | trade | verify | build (optional, default collect)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "id": "HC-W-3F2A9B1C",
+  "intake": "2026-07-13 18:30:00 UTC",
+  "email": "ada@example.com",
+  "intent": "collect",
+  "alreadyOnList": false,
+  "position": 1848,
+  "total": 1848
+}
+```
+
+`position` / `total` are the signup's queue rank by signup time (a re-signup
+keeps its original rank). They are best-effort: when the rank lookup fails they
+are omitted from the response and the receipt drops the position row — never a
+fabricated number. Errors use `{ success: false, error, code }` with codes
+`MISSING_FIELDS`, `INVALID_EMAIL`, `INVALID_INTENT`, `INVALID_WALLET`,
+`INVALID_NAME` (400), or `WAITLIST_INSERT_FAILED` (500).
+
+### GET /api/waitlist/stats
+
+Public queue size for the landing "In Queue" hero stat.
+
+**Response (200):** `{ "success": true, "count": 1848 }`
+
+Served from a short (~60s) in-memory cache, so pageview traffic costs at most
+one `COUNT` per warm container per minute. Concurrent cache misses share a
+single query, and a failed refresh serves the last known count (backing off a
+few seconds) rather than hammering a struggling database. Returns `500`
+`WAITLIST_STATS_FAILED` only when the count has never been computed and the DB
+is unreachable.
+
+### GET /api/waitlist/export
+
+Admin-only dump of the waitlist, guarded by a Bearer token
+(`HACKNYU_WAITLIST_EXPORT_TOKEN` — the route fails closed with `500`
+`EXPORT_NOT_CONFIGURED` when it is unset). Returns CSV by default, or JSON with
+`?format=json`. A missing or wrong token gets `401 UNAUTHORIZED`.
+
 ### GET /health
 
 Health check endpoint.
@@ -184,6 +241,7 @@ backend/
 | HACKNYU_DSQL_REGION / HACKNYU_DSQL_DATABASE | DSQL region (default us-east-1) / database (default postgres) | No |
 | HACKNYU_DATABASE_URL | Local Postgres DSN — honored ONLY when NODE_ENV=development (fail-closed otherwise) | Dev only |
 | HACKNYU_HELIUS_WEBHOOK_SECRET | Shared secret for the Helius transfer-ingest webhook (fail-closed) | For webhook |
+| HACKNYU_WAITLIST_EXPORT_TOKEN | Bearer token for GET /api/waitlist/export (fail-closed; export returns 500 if unset) | For export |
 | HACKNYU_MARKETPLACE_PROGRAM_ID | Evidence Locker program ID | In production (startup fails closed if unset/placeholder) |
 | HACKNYU_CASE_PREFIX | Case-number prefix (e.g. `HC-2026-`) | No |
 | HACKNYU_REDIS_ENABLED / HACKNYU_REDIS_URL, HACKNYU_DAS_RPC_URL, HACKNYU_MERKLE_TREE_ADDRESS (deprecated cNFT compat), HACKNYU_DEFAULT_VISION_MODEL / HACKNYU_DEFAULT_IMAGE_GEN_MODEL | Optional: caching, DAS RPC, legacy cNFT minting, AI model overrides | No |

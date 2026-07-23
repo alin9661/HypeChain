@@ -2,6 +2,7 @@
  * Waitlist signup + admin export.
  *
  *   POST /api/waitlist          — public signup (form at /waitlist)
+ *   GET  /api/waitlist/stats    — public queue size (TTL-cached COUNT)
  *   GET  /api/waitlist/export   — admin-only dump (Bearer token), CSV or JSON
  *
  * The route is built by a factory so tests can inject a fake `db` and a fake
@@ -37,6 +38,21 @@ const EXPORT_ROW_CAP = 10000;
 // boundary before they reach the DB, the admin email, and the CSV export.
 const MAX_NAME_LEN = 200;
 const MAX_WALLET_LEN = 64; // base58 Solana addresses are 32-44 chars.
+// Stats cache TTL. Caps DSQL COUNT load at ~1/min per warm container while the
+// hero stat stays fresh enough for a vanity number. Injectable in tests.
+const STATS_TTL_MS = 60_000;
+// Negative-cache window after a COUNT failure. Without it the cache stays
+// expired and every request re-hits a degraded DB (retry storm during a
+// brownout); this backs off before the next attempt. Short so recovery is
+// quick once the DB is healthy again.
+const STATS_ERROR_BACKOFF_MS = 5_000;
+// Deadline on the shared COUNT query. The pool sets no connection/statement
+// timeouts, so a query that hangs (connection accepted, no reply) would leave
+// the single-flight promise unsettled forever — every later request would
+// await the same dead promise and the endpoint stays bricked for the
+// container's lifetime. Racing a deadline abandons the hung query so the next
+// attempt (after the error backoff) starts fresh.
+const STATS_QUERY_TIMEOUT_MS = 5_000;
 const EXPORT_COLUMNS = [
   'id', 'name', 'email', 'wallet_address', 'intent', 'source', 'status',
   'confirmation_sent_at', 'created_at', 'updated_at',
@@ -77,6 +93,17 @@ function toCsv(rows) {
   return [header, ...lines].join('\r\n') + '\r\n';
 }
 
+// Reject when `promise` doesn't settle within `ms`. The loser is left to
+// settle (or hang) on its own — callers must drop their reference to it so a
+// dead promise can be replaced by a fresh attempt.
+function withDeadline(promise, ms) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 // Constant-time bearer-token comparison (avoids a timing oracle on the secret).
 function tokensMatch(provided, expected) {
   const a = Buffer.from(String(provided));
@@ -89,8 +116,25 @@ export function createWaitlistRouter({
   db = defaultDb,
   sendConfirmation = defaultSendConfirmation,
   sendAdminNotification = defaultSendAdminNotification,
+  statsTtlMs = STATS_TTL_MS,
+  statsErrorBackoffMs = STATS_ERROR_BACKOFF_MS,
+  statsQueryTimeoutMs = STATS_QUERY_TIMEOUT_MS,
 } = {}) {
   const router = express.Router();
+
+  // Queue rank for the receipt. Best-effort, same isolation policy as the SES
+  // sends: a failed rank lookup must never turn a recorded signup into an
+  // error — omit the fields and let the client drop the Position row.
+  async function fetchPosition(row) {
+    try {
+      const rank = await db.getWaitlistPosition({ id: row.id });
+      if (!rank) return {};
+      return { position: rank.position, total: rank.total };
+    } catch (err) {
+      console.warn(`[waitlist] position lookup failed: ${err?.message ?? err}`);
+      return {};
+    }
+  }
 
   // -------------------------------------------------------------------------
   // POST /api/waitlist — public signup
@@ -191,6 +235,7 @@ export function createWaitlistRouter({
           email: existing.email,
           intent: existing.intent,
           alreadyOnList: true,
+          ...(await fetchPosition(existing)),
         });
       }
 
@@ -229,6 +274,7 @@ export function createWaitlistRouter({
         email: inserted.email,
         intent: inserted.intent,
         alreadyOnList: false,
+        ...(await fetchPosition(inserted)),
       });
     } catch (error) {
       console.error('[waitlist] signup failed:', error?.message ?? error);
@@ -238,6 +284,56 @@ export function createWaitlistRouter({
         code: 'WAITLIST_INSERT_FAILED',
       });
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /api/waitlist/stats — public queue size for the hero "In Queue" stat.
+  //
+  // Read-through TTL cache, held in this factory closure: prod instantiates the
+  // router once per warm Lambda container (bottom of file), so DB load is capped
+  // at ~1 COUNT per minute per container no matter the pageview traffic; tests
+  // get a fresh cache per createWaitlistRouter() call. Policy: serve a stale
+  // count on a transient DB error (a vanity stat should not blank on a blip);
+  // 500 only when the cache has never been populated (cold container + DB down).
+  // -------------------------------------------------------------------------
+  let statsCache = { count: null, expiresAt: 0 };
+  // Single-flight guard: `await db.countWaitlist()` yields before statsCache is
+  // written, so without this every concurrent miss (TTL boundary or cold start)
+  // fires its own COUNT. Sharing one in-flight promise collapses the stampede
+  // into a single DB round-trip.
+  let statsInflight = null;
+
+  router.get('/waitlist/stats', async (req, res) => {
+    const now = Date.now();
+    if (now >= statsCache.expiresAt) {
+      try {
+        if (!statsInflight) {
+          statsInflight = db.countWaitlist();
+          // An abandoned (timed-out) COUNT may still reject long after anyone
+          // is awaiting it; observe that so it can't die as unhandled.
+          statsInflight.catch(() => {});
+        }
+        const count = await withDeadline(statsInflight, statsQueryTimeoutMs);
+        statsCache = { count, expiresAt: now + statsTtlMs };
+      } catch (err) {
+        console.error('[waitlist] stats count failed:', err?.message ?? err);
+        // Back off before the next DB attempt (negative cache) on BOTH paths:
+        // with a previous count we serve it stale below; on a cold container
+        // (count still null) we serve the 500 below from this negative cache,
+        // so sequential requests during a brownout don't each re-hit the DB.
+        statsCache = { ...statsCache, expiresAt: now + statsErrorBackoffMs };
+      } finally {
+        statsInflight = null;
+      }
+    }
+    if (statsCache.count === null) {
+      return res.status(500).json({
+        success: false,
+        error: 'Waitlist stats are temporarily unavailable.',
+        code: 'WAITLIST_STATS_FAILED',
+      });
+    }
+    return res.status(200).json({ success: true, count: statsCache.count });
   });
 
   // -------------------------------------------------------------------------

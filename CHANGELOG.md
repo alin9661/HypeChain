@@ -3,6 +3,32 @@
 All notable changes to HypeChain are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.3.0] - 2026-07-13
+
+Waitlist signups now see their real place in line instead of hardcoded numbers.
+
+### Added
+
+- **Live queue position on the signup receipt.** After joining, the receipt shows
+  the real "#N of M" rank derived from the database at signup time, ranked by
+  signup order. Re-signing up with the same email keeps your original position
+  rather than jumping to the back of the line. When the rank can't be computed,
+  the receipt simply omits the position row — it never shows a made-up number.
+- **Live "In Queue" count on the waitlist hero.** The hero stat now fetches the
+  real signup total (previously a static `1,847`), with redaction bars while it
+  loads and a dash if it can't be reached — no fabricated figure.
+- **Public `GET /api/waitlist/stats` endpoint** backing the hero count, served
+  from a short (60s) in-memory cache so pageview traffic doesn't hit the database
+  on every request.
+
+### Changed
+
+- **Hardened the stats cache against database trouble.** Concurrent cache misses
+  now share a single database query (no query storm at each cache expiry), and a
+  failed refresh backs off for a few seconds while serving the last known count
+  instead of hammering a struggling database. The stat degrades gracefully — a
+  stale number, or a dash, never a blank page or an error.
+
 ## [0.8.1.4] - 2026-07-06
 
 Compliance: bump the Lambda container runtime to Node.js 22 (current LTS).

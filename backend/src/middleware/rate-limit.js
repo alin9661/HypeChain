@@ -52,6 +52,15 @@ export const waitlistLimiter = limiter({
   message: 'Too many waitlist attempts. Please wait a minute and try again.',
 });
 
+// Public waitlist stats (GET /api/waitlist/stats) — served from a 60s in-route
+// cache, so this is DoS hygiene on a cheap read, not capacity protection.
+// Generous cap; the landing page fetches it once per visit.
+export const waitlistStatsLimiter = limiter({
+  max: 60,
+  code: 'RATE_LIMITED',
+  message: 'Too many stats requests. Please slow down and try again shortly.',
+});
+
 // User register/login — unauthenticated wallet write. Cheap per call, but cap
 // per-IP so a script can't mass-create or spray wallet rows (the route has no
 // server-side ownership proof yet; see routes/users.js). Looser than waitlist
